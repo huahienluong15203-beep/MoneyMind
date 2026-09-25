@@ -1,0 +1,40 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment Variables & Secrets (Bảo mật tài khoản & API Key)
+.env
+.env.local
+
+# Databases (Dữ liệu cá nhân cục bộ)
+*.db
+*.sqlite
+*.sqlite3
+
+# Executables & Binaries
+cloudflared.exe
+*.exe
+
+# Scratch & Temporary Logs
+scratch/
+*.log
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

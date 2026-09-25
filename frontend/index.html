@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+        <title>MoneyMind - Quản Lý Tài Chính Toàn Diện</title>
+        <!-- PWA CONFIGURATION -->
+        <link rel="manifest" href="/manifest.json">
+        <meta name="theme-color" content="#0d9488">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="MoneyMind">
+        <link rel="icon" type="image/png" href="/icons/icon-192.png">
+        <link rel="apple-touch-icon" href="/icons/icon-192.png">
+        <script src="https://cdn.tailwindcss.com"></script>
+        <!-- THƯ VIỆN GOOGLE IDENTITY SERVICES CHO ĐĂNG NHẬP GMAIL -->
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <!-- FLATPICKR: CHUẨN HÓA ĐỊNH DẠNG NGÀY VIỆT NAM (DD/MM/YYYY) VÀ CHẶN CHỌN NGÀY QUÁ KHỨ -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_teal.css">
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/vn.js"></script>
+        <!-- CHART.JS: BIỂU ĐỒ XU HƯỚNG TÀI CHÍNH & BÁO CÁO THỐNG KÊ -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                <!-- CSS FILES TÁCH BIỆT THEO CHỨC NĂNG & GIAO DIỆN -->
+        <link rel="stylesheet" href="css/style.css?v=2.6">
+        <link rel="stylesheet" href="css/layout.css?v=2.6">
+    </head>
+    <body class="bg-slate-950 text-slate-800 min-h-screen flex items-center justify-center p-0 sm:p-4 select-none">
+        
+        <!-- KHUNG THIẾT BỊ DI ĐỘNG CHUẨN (TỶ LỆ 161.3 x 75.3 mm) -->
+        <div id="mobile-frame" class="w-full bg-white overflow-hidden flex flex-col relative transition-all">
+            
+            <!-- CAMERA NOTCH / DYNAMIC ISLAND CHO MÔ PHỎNG ĐIỆN THOẠI TRÊN MÁY TÍNH -->
+            <div class="hidden sm:flex justify-center absolute top-2.5 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                <div class="w-20 h-3.5 bg-slate-950 rounded-full flex items-center justify-end pr-2 shadow-xs">
+                    <div class="w-1.5 h-1.5 rounded-full bg-slate-800 border border-slate-700"></div>
+                </div>
+            </div>
+            
+            <!-- NÚT THÔNG BÁO Ở GÓC TRÊN BÊN PHẢI -->
+            <div id="floating-top-controls" class="hidden absolute top-3.5 right-3.5 z-40 flex items-center">
+                <button onclick="handleTopNotifClick()" id="top-notif-btn" class="w-8 h-8 bg-white/95 hover:bg-white text-slate-600 hover:text-teal-600 rounded-full flex items-center justify-center text-sm shadow-md border border-slate-200/90 transition-all active:scale-95 relative" title="Lịch sử thông báo & Cảnh báo">
+                    <span class="text-sm">🔔</span>
+                    <span id="top-notif-badge" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full px-1 flex items-center justify-center border border-white shadow-xs"></span>
+                </button>
+            </div>
+
+            <!-- CỤM NÚT NỔI Ở GÓC DƯỚI BÊN PHẢI: ICON AI (VỊ TRÍ 1 - Ở TRÊN) VÀ DẤU + (Ở DƯỚI) -->
+            <div id="floating-bottom-controls" class="hidden absolute bottom-16 right-3.5 z-40 flex flex-col items-center gap-2.5">
+                <!-- Nút AI -->
+                <button onclick="toggleAiModal()" id="bottom-ai-btn" class="w-11 h-11 bg-teal-500 hover:bg-teal-600 text-white rounded-full flex items-center justify-center text-lg shadow-xl transition-all hover:scale-105 active:scale-95 relative border-2 border-white/80" title="Trợ lý AI MoneyMind">
+                    <span>🤖</span>
+                    <span class="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white animate-pulse"></span>
+                </button>
+                <!-- Nút Thêm Nhanh (+) -->
+                <button onclick="openPlusModal()" id="bottom-plus-btn" class="w-11 h-11 bg-amber-400 hover:bg-amber-500 text-slate-900 rounded-full flex items-center justify-center text-xl font-bold shadow-xl transition-all hover:scale-105 active:scale-95 border-2 border-white/80" title="Thêm nhanh">
+                    +
+                </button>
+            </div>
+
+
+            <!-- MODAL CẢNH BÁO NGÂN SÁCH CHI TIÊU -->
+            <div id="budget-warning-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-rose-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 text-center animate-in fade-in zoom-in duration-200">
+                    <div class="w-14 h-14 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner" id="budget-warning-icon">🚨</div>
+                    <div class="space-y-1">
+                        <h3 id="budget-warning-title" class="text-base font-bold text-slate-800">Cảnh Báo Hạn Mức Chi Tiêu!</h3>
+                        <p id="budget-warning-text" class="text-xs text-slate-600 leading-relaxed font-medium">Số tiền chi tiêu vượt quá số dư trong hũ! Yêu cầu phải nâng thêm hạn mức mới cho phép tiếp tục chi tiêu.</p>
+                    </div>
+                    <button onclick="closeBudgetWarningModal()" class="w-full py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl transition shadow-sm">Đã hiểu, tôi sẽ chi tiêu ít lại</button>
+                </div>
+            </div>
+
+            <!-- MODAL CHÚC MỪNG TIẾT KIỆM (90% HOẶC 100%) -->
+            <div id="savings-congrats-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-teal-100 w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div id="savings-congrats-icon" class="w-16 h-16 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-3xl shadow-inner">🎯</div>
+                    <div class="space-y-1">
+                        <h3 id="savings-congrats-title" class="text-base font-extrabold text-teal-700">Thông báo tiết kiệm</h3>
+                        <p id="savings-congrats-text" class="text-xs text-slate-600 leading-relaxed font-medium">Nội dung...</p>
+                    </div>
+                    <button onclick="closeSavingsCongratsModal()" class="w-full py-2.5 bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold rounded-xl transition shadow-sm">Tuyệt vời!</button>
+                </div>
+            </div>
+
+            <!-- MODAL SỬA HŨ TIẾT KIỆM -->
+            <div id="edit-savings-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center">
+                        <span class="text-2xl">✏️</span>
+                        <h3 class="text-sm font-bold text-slate-800 mt-1">Chỉnh Sửa Hũ Tiết Kiệm</h3>
+                    </div>
+                    <input type="hidden" id="edit-savings-id" value="">
+                    <input type="hidden" id="edit-savings-current" value="0">
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Tên mục tiêu:</label>
+                            <input type="text" id="edit-savings-title" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                        </div>
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Số tiền mục tiêu đích mới (đ):</label>
+                            <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="edit-savings-target" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Số tiền mục tiêu mới (đ)" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
+                            <p id="edit-savings-hint" class="text-[11px] text-teal-600 font-medium mt-1">Số tiền mục tiêu không được nhỏ hơn số tiền hiện có trong hũ.</p>
+                        </div>
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Hạn chót:</label>
+                            <div class="relative">
+                                <input type="text" id="edit-savings-deadline" placeholder="Chọn hạn chót" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 cursor-pointer font-medium text-slate-700 pr-12">
+                                <button type="button" onclick="clearEditSavingsDeadline()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-rose-500 font-semibold px-1 py-0.5 rounded transition" title="Bỏ chọn hạn chót">Xóa</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="submitEditSavings()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Cập nhật</button>
+                        <button onclick="closeEditSavingsModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL CHI TIẾT THÔNG BÁO & CẢNH BÁO -->
+            <div id="notification-detail-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center space-y-2">
+                        <div id="notif-detail-icon" class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">📢</div>
+                        <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                            <div id="notif-detail-badge" class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">THÔNG BÁO</div>
+                        </div>
+                        <h3 id="notif-detail-title" class="text-sm font-bold text-slate-800 leading-snug">Chi tiết thông báo</h3>
+                        <p id="notif-detail-time" class="text-[11px] text-slate-400">🕒 --</p>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-700 leading-relaxed max-h-60 overflow-y-auto whitespace-pre-line" id="notif-detail-message">
+                    </div>
+                    <button onclick="closeNotificationDetailModal()" class="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Đóng</button>
+                </div>
+            </div>
+
+            <!-- MODAL XÁC NHẬN XÓA DANH MỤC VÀ HOÀN HẠN MỨC (ẢNH 3) -->
+            <div id="confirm-delete-cat-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center space-y-1">
+                        <div id="confirm-del-cat-icon" class="w-14 h-14 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">💰</div>
+                        <h3 id="confirm-del-cat-title" class="text-base font-bold text-slate-800 pt-1">Xác Nhận Xóa Danh Mục</h3>
+                    </div>
+                    <div id="confirm-del-cat-refund-box" class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl text-xs text-emerald-900 text-left space-y-1.5">
+                        <div class="font-bold flex items-center gap-1.5 text-emerald-800 text-[11px]">
+                            <span>💰</span><span>Hoàn trả hạn mức về ví chính:</span>
+                        </div>
+                        <p class="text-[11px] leading-relaxed text-emerald-950 font-medium">
+                            Số tiền hạn mức khả dụng còn lại <strong id="confirm-del-cat-refund-amount" class="text-emerald-700 font-extrabold text-xs">0 đ</strong> sẽ được tự động hoàn về ví chính để bạn sử dụng cho các mục tiêu chi tiêu tiếp theo.
+                        </p>
+                    </div>
+                    <p id="confirm-del-cat-msg" class="text-xs text-slate-600 leading-relaxed text-center font-medium">Bạn có chắc chắn muốn xóa danh mục này không?</p>
+                    <div class="flex gap-2 pt-1">
+                        <button id="btn-confirm-delete-cat" onclick="executeDeleteCategory()" class="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl transition shadow-sm">Xác nhận xóa</button>
+                        <button onclick="closeConfirmDeleteCatModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy bỏ</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL XÁC NHẬN XÓA HŨ TIẾT KIỆM & HOÀN TIỀN VỀ VÍ CHÍNH (ẢNH 1) -->
+            <div id="delete-savings-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center space-y-1">
+                        <div class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">💰</div>
+                        <h3 class="text-base font-bold text-slate-800 pt-1">Xác Nhận Xóa Hũ Tiết Kiệm</h3>
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl text-xs text-emerald-900 text-left space-y-1.5">
+                        <div class="font-bold flex items-center gap-1.5 text-emerald-800 text-[11px]">
+                            <span>💰</span><span>Hoàn tiền tích lũy về ví chính:</span>
+                        </div>
+                        <p class="text-[11px] leading-relaxed text-emerald-950 font-medium">
+                            Toàn bộ số tiền đã tích lũy trong hũ: <strong id="del-sg-amount" class="text-emerald-700 font-extrabold text-xs">0 đ</strong> sẽ được tự động hoàn lại về ví chính để bạn sử dụng cho các mục đích khác.
+                        </p>
+                    </div>
+                    <p id="del-sg-msg" class="text-xs text-slate-600 leading-relaxed text-center font-medium">Bạn có chắc chắn muốn xóa hũ tiết kiệm này không?</p>
+                    <input type="hidden" id="del-sg-id" value="">
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="confirmDeleteSavingsGoalAction()" class="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl transition shadow-sm">Xóa & Hoàn tiền</button>
+                        <button onclick="closeDeleteSavingsModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL CHỈNH SỬA THÔNG TIN CÁ NHÂN (ẢNH 3) -->
+            <div id="edit-profile-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center">
+                        <span class="text-2xl">✏️</span>
+                        <h3 class="text-sm font-bold text-slate-800 mt-1">Chỉnh Sửa Thông Tin Cá Nhân</h3>
+                    </div>
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Họ và tên:</label>
+                            <input type="text" id="edit-pf-name" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-medium">
+                        </div>
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Ngày sinh:</label>
+                            <input type="date" id="edit-pf-dob" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                        </div>
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Nghề nghiệp:</label>
+                            <input type="text" id="edit-pf-occ" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-medium">
+                        </div>
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Mục tiêu tài chính:</label>
+                            <textarea id="edit-pf-goal" rows="2" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-medium resize-none"></textarea>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="submitEditProfile()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Lưu thay đổi</button>
+                        <button onclick="closeEditProfileModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CUSTOM MODAL THÔNG BÁO (LUÔN NẰM TRÊN CÙNG Z-INDEX 9999) -->
+            <div id="custom-modal" style="z-index: 9999;" class="hidden absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div id="modal-icon" class="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">✨</div>
+                    <div class="space-y-1">
+                        <h3 id="modal-title" class="text-base font-bold text-slate-800">Thông báo</h3>
+                        <p id="modal-message" class="text-xs text-slate-500 leading-relaxed whitespace-pre-line">Nội dung...</p>
+                    </div>
+                    <button onclick="closeCustomModal()" class="w-full py-2.5 bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold rounded-xl transition shadow-sm font-semibold">Đồng ý</button>
+                </div>
+            </div>
+
+            <!-- MODAL XÁC NHẬN ĐĂNG XUẤT -->
+            <div id="logout-confirm-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">🚪</div>
+                    <div class="space-y-1">
+                        <h3 class="text-base font-bold text-slate-800">Xác nhận đăng xuất</h3>
+                        <p class="text-xs text-slate-500 font-medium">Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?</p>
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button onclick="executeLogout()" class="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl transition shadow-sm">Đăng xuất</button>
+                        <button onclick="closeLogoutModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL TRÍCH TIỀN TIẾT KIỆM -->
+            <div id="savings-deposit-modal" style="z-index: 1000;" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center">
+                        <span class="text-2xl">💰</span>
+                        <h3 class="text-sm font-bold text-slate-800 mt-1">Trích tiền vào ví tiết kiệm</h3>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Nhập số tiền muốn trích từ ví chính</p>
+                    </div>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="deposit-amount-input" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Nhập số tiền (đ)" class="w-full p-3 text-xs border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-slate-800 money-input">
+                    <input type="hidden" id="deposit-goal-id" value="">
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="submitSavingsDeposit()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Xác nhận</button>
+                        <button onclick="closeSavingsDepositModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL SỬA DANH MỤC -->
+            <div id="edit-category-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center">
+                        <span class="text-2xl">✏️</span>
+                        <h3 class="text-sm font-bold text-slate-800 mt-1">Chỉnh Sửa Danh Mục</h3>
+                    </div>
+                    <input type="hidden" id="modal-edit-cat-id" value="">
+                    <input type="hidden" id="modal-edit-spent" value="0">
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Tên danh mục:</label>
+                            <input type="text" id="modal-edit-name" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                        </div>
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Loại danh mục:</label>
+                            <select id="modal-edit-type" onchange="toggleModalEditLimit()" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                                <option value="chi">Danh mục Chi</option>
+                                <option value="thu">Danh mục Thu</option>
+                            </select>
+                        </div>
+                        <div id="modal-edit-limit-wrapper">
+                            <label class="font-semibold text-slate-500 block mb-1">Hạn mức ngân sách (đ):</label>
+                            <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-edit-limit" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Hạn mức (đ)" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
+                            <p id="modal-edit-spent-hint" class="text-[10px] text-slate-500 mt-1"></p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="submitEditCategory()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Cập nhật</button>
+                        <button onclick="closeEditCategoryModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL XÁC NHẬN OTP ĐĂNG KÝ (GỬI EMAIL THẬT) -->
+            <div id="register-otp-modal" class="hidden absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center">
+                        <div class="w-12 h-12 bg-teal-100 text-teal-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-2">✉️</div>
+                        <h3 class="text-base font-bold text-slate-800">Xác Nhận Đăng Ký Tài Khoản</h3>
+                        <p class="text-xs text-slate-500 mt-1">
+                            Hệ thống đã gửi mã OTP 6 số đến hộp thư Gmail:
+                        </p>
+                        <p id="reg-otp-email-display" class="text-xs font-bold text-teal-700 mt-0.5 break-all"></p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-600 block mb-1">Nhập mã OTP 6 số nhận từ Gmail:</label>
+                            <input type="text" id="reg-otp-code" maxlength="6" inputmode="numeric" placeholder="• • • • • •" class="w-full p-3 border border-teal-400 rounded-2xl text-center text-xl font-bold tracking-widest text-teal-900 bg-slate-50 focus:outline-none focus:border-teal-600">
+                        </div>
+
+                        <button type="button" onclick="submitVerifyRegistrationOtp()" id="btn-reg-verify-otp" class="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-2xl shadow-md transition">
+                            Xác Nhận & Hoàn Tất Đăng Ký
+                        </button>
+                    </div>
+
+                    <div class="flex justify-between items-center text-xs pt-1 border-t border-slate-100 text-slate-500">
+                        <button type="button" id="btn-reg-resend-otp" onclick="resendRegistrationOtp()" class="text-teal-600 font-semibold hover:underline">Gửi lại mã OTP</button>
+                        <button type="button" onclick="closeRegisterOtpModal()" class="text-slate-400 hover:text-slate-600">Đổi thông tin</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL ĐỔI MẬT KHẨU -->
+            <div id="password-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center">
+                        <span class="text-2xl">🔒</span>
+                        <h3 class="text-sm font-bold text-slate-800 mt-1">Đổi Mật Khẩu Tài Khoản</h3>
+                    </div>
+                    <input type="password" id="acc-old-pass" placeholder="Mật khẩu hiện tại" class="w-full p-2.5 text-xs border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                    <input type="password" id="acc-new-pass" placeholder="Mật khẩu mới" class="w-full p-2.5 text-xs border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                    <input type="password" id="acc-confirm-pass" placeholder="Nhập lại mật khẩu mới" class="w-full p-2.5 text-xs border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                    <div class="flex gap-2 pt-2">
+                        <button onclick="updateAccountPassword()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition">Xác nhận</button>
+                        <button onclick="togglePasswordModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL CHAT & BÁO CÁO TRỢ LÝ AI (UC010, UC011, UC012, NFR-04) -->
+            <div id="ai-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex flex-col justify-end">
+                <div class="bg-white w-full h-[90%] rounded-t-3xl p-4 flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300">
+                    <!-- HEADER -->
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 bg-gradient-to-tr from-teal-500 to-emerald-400 text-white rounded-full flex items-center justify-center font-bold text-sm shadow-md">🤖</div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-800">Trợ Lý AI Tài Chính Thông Minh</h3>
+                                <p class="text-[10px] text-slate-400">Google Gemini Flash Engine</p>
+                            </div>
+                        </div>
+                        <button onclick="toggleAiModal()" class="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-600 transition">✕</button>
+                    </div>
+
+                    <!-- NFR-04: BADGE CAM KẾT ẨN DANH HÓA DỮ LIỆU (ẨN THEO YÊU CẦU) -->
+                    <div class="hidden my-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 shadow-sm">
+                        <span class="text-xs">🔒</span>
+                        <span class="text-[11px] font-semibold">Cam kết bảo mật: Dữ liệu cá nhân đã được ẩn danh hoá trước khi gửi AI (NFR-04)</span>
+                    </div>
+
+                    <!-- KHUNG CHATBOT AI CHÍNH (UC012) -->
+                    <div id="ai-view-chat" class="flex-1 flex flex-col overflow-hidden">
+                        <div id="ai-chat-box" class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-3 overflow-y-auto space-y-3 mb-2 text-xs">
+                            <div class="flex gap-2">
+                                <div class="w-7 h-7 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">AI</div>
+                                <div class="bg-white p-3 rounded-2xl border border-slate-100 text-slate-700 shadow-sm leading-relaxed">
+                                    Xin chào! Tôi là Trợ lý AI tài chính cá nhân MoneyMind. Tôi có thể giải đáp chi tiêu, phân tích danh mục, xu hướng tiêu dùng và so sánh giữa các tháng. Bạn cần hỗ trợ gì?
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- GỢI Ý CÂU HỎI NHANH (NẰM TRÊN PHẦN NHẬP CÂU HỎI) -->
+                        <div class="flex gap-1.5 overflow-x-auto py-1 mb-1.5 no-scrollbar shrink-0">
+                            <button onclick="quickAskAi('Tháng này tôi chi nhiều nhất vào đâu?')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
+                                📊 Tiêu nhiều vào đâu?
+                            </button>
+                            <button onclick="quickAskAi('Vậy chi tiêu ít nhất vào mục nào?')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
+                                🎯 Chi tiêu ít nhất?
+                            </button>
+                            <button onclick="quickAskAi('Số dư ví chính và tình hình thặng dư tháng này?')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
+                                💰 Số dư ví & thặng dư
+                            </button>
+                            <button onclick="quickAskAi('Liệt kê chi tiết chi tiêu các danh mục trong tháng')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
+                                📋 Chi tiết danh mục
+                            </button>
+                            <button onclick="quickAskAi('So sánh chi tiêu tháng này với các tháng trước')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
+                                📈 So sánh các tháng
+                            </button>
+                        </div>
+
+                        <div class="flex gap-2 pt-1">
+                            <input type="text" id="ai-input" placeholder="Hỏi AI: Tháng này tôi chi nhiều nhất vào đâu?..." class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500 transition" onkeypress="if(event.key==='Enter') sendAiMessage()">
+                            <button id="ai-send-btn" onclick="sendAiMessage()" class="px-5 py-2.5 bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold rounded-xl shadow-md transition">Gửi</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL DẤU CỘNG `+` CHỌN THÊM NHANH -->
+            <div id="plus-action-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 text-center">
+                    <h3 class="text-base font-bold text-slate-800">Chọn Thêm Nhanh</h3>
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                        <button onclick="openAddTransactionModal()" class="p-4 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-2xl flex flex-col items-center gap-2 transition">
+                            <span class="text-2xl">💸</span>
+                            <span class="text-xs font-bold text-teal-700">Thêm Giao Dịch</span>
+                        </button>
+                        <button onclick="openAddBudgetModal()" class="p-4 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-2xl flex flex-col items-center gap-2 transition">
+                            <span class="text-2xl">🏺</span>
+                            <span class="text-xs font-bold text-cyan-700">Thêm Ngân Sách</span>
+                        </button>
+                    </div>
+                    <button onclick="closePlusModal()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl mt-2">Đóng</button>
+                </div>
+            </div>
+
+            <!-- MODAL THÊM GIAO DỊCH (UC004, NFR-01, NFR-02) -->
+            <div id="add-tx-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+                <div class="bg-white border w-full max-w-sm rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <span>➕</span><span>Ghi Nhận Giao Dịch Mới</span>
+                        </h3>
+                        <button onclick="closeAddTransactionModal()" class="w-7 h-7 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 font-bold text-xs flex items-center justify-center transition">✕</button>
+                    </div>
+
+                    <!-- NFR-01: Chuyển đổi nhanh Thu / Chi -->
+                    <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                        <button type="button" id="btn-tx-type-chi" onclick="setModalTxType('chi')" class="py-2 rounded-lg bg-rose-500 text-white shadow-sm transition flex items-center justify-center gap-1">
+                            <span>💸</span><span>Khoản Chi</span>
+                        </button>
+                        <button type="button" id="btn-tx-type-thu" onclick="setModalTxType('thu')" class="py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1">
+                            <span>💰</span><span>Khoản Thu</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="modal-tx-type" value="chi">
+
+                    <!-- CHỌN DANH MỤC (NÚT CHỌN TRỰC QUAN / CHIPS) -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-[11px] font-bold text-slate-600 block">Chọn danh mục giao dịch:</label>
+                            <span class="text-[10px] text-teal-600 font-semibold">Chạm để chọn</span>
+                        </div>
+                        <input type="hidden" id="modal-tx-category" value="">
+                        <!-- Danh sách các nút chọn danh mục trực quan -->
+                        <div id="modal-tx-category-chips" class="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-0.5">
+                            <!-- Populated dynamically as interactive buttons -->
+                        </div>
+                    </div>
+
+                    <!-- SỐ TIỀN -->
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-600 block mb-1">Số tiền (đ):</label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-tx-amount" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Nhập số tiền..." class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 money-input">
+                    </div>
+
+                    <!-- NGÀY GIAO DỊCH -->
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-600 block mb-1">Ngày giao dịch:</label>
+                        <input type="date" id="modal-tx-date" class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                    </div>
+
+                    <!-- GHI CHÚ -->
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-600 block mb-1">Ghi chú (tùy chọn):</label>
+                        <input type="text" id="modal-tx-note" placeholder="Ví dụ: Ăn trưa, Tiền lương..." class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                    </div>
+                    
+                    <div class="flex gap-2 pt-2">
+                        <button type="button" onclick="submitModalTransaction()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md transition">Lưu Giao Dịch</button>
+                        <button type="button" onclick="closeAddTransactionModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+ 
+            <!-- MODAL SỬA GIAO DỊCH -->
+            <div id="edit-tx-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+                <div class="bg-white border w-full max-w-sm rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <span>✏️</span><span>Sửa Giao Dịch</span>
+                        </h3>
+                        <button onclick="closeEditTransactionModal()" class="w-7 h-7 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 font-bold text-xs flex items-center justify-center transition">✕</button>
+                    </div>
+
+                    <input type="hidden" id="edit-tx-id" value="">
+                    
+                    <!-- Chuyển đổi Thu / Chi -->
+                    <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                        <button type="button" id="btn-edit-tx-chi" onclick="setEditModalTxType('chi')" class="py-2 rounded-lg bg-rose-500 text-white shadow-sm transition flex items-center justify-center gap-1">
+                            <span>💸</span><span>Khoản Chi</span>
+                        </button>
+                        <button type="button" id="btn-edit-tx-thu" onclick="setEditModalTxType('thu')" class="py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1">
+                            <span>💰</span><span>Khoản Thu</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="edit-tx-type" value="chi">
+
+                    <!-- Danh mục -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-[11px] font-bold text-slate-600 block">Chọn danh mục:</label>
+                            <span class="text-[10px] text-teal-600 font-semibold">Chạm để chọn</span>
+                        </div>
+                        <input type="hidden" id="edit-tx-category" value="">
+                        <div id="edit-tx-category-chips" class="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-0.5">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Số tiền -->
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-600 block mb-1">Số tiền (đ):</label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="edit-tx-amount" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Nhập số tiền..." class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 money-input">
+                    </div>
+
+                    <!-- Ngày giao dịch -->
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-600 block mb-1">Ngày giao dịch:</label>
+                        <input type="date" id="edit-tx-date" class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                    </div>
+
+                    <!-- Ghi chú -->
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-600 block mb-1">Ghi chú (tùy chọn):</label>
+                        <input type="text" id="edit-tx-note" placeholder="Ví dụ: Ăn trưa, Tiền lương..." class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                    </div>
+
+                    <div class="flex gap-2 pt-2">
+                        <button type="button" onclick="submitEditTransaction()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md transition">Lưu Thay Đổi</button>
+                        <button type="button" onclick="closeEditTransactionModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL XÁC NHẬN XÓA GIAO DỊCH -->
+            <div id="delete-tx-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200 text-center">
+                    <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl">🗑️</div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-800">Xác Nhận Xóa Giao Dịch</h3>
+                        <p id="delete-tx-desc" class="text-xs text-slate-500 mt-1 font-medium">Bạn có chắc chắn muốn xóa giao dịch này không?</p>
+                    </div>
+                    <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 text-[11px] text-amber-800 text-left leading-relaxed">
+                        ⚠️ <strong>Lưu ý:</strong> Khoản tiền đã chi sẽ không được hoàn lại về ví chính hay hũ ngân sách vì đã tiêu dùng thực tế.
+                    </div>
+                    <input type="hidden" id="delete-tx-id" value="">
+                    <div class="flex gap-2 pt-1">
+                        <button type="button" onclick="confirmDeleteTransactionAction()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition">Xóa Giao Dịch</button>
+                        <button type="button" onclick="closeDeleteTransactionModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL THIẾT LẬP NGÂN SÁCH & DANH MỤC (UC003, UC006) -->
+            <div id="add-budget-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <span>🏺</span><span>Thiết Lập Ngân Sách / Danh Mục</span>
+                        </h3>
+                        <button onclick="closeAddBudgetModal()" class="w-7 h-7 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 font-bold text-xs flex items-center justify-center transition">✕</button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                        <button type="button" id="modal-b-chi" onclick="setBudgetModalType('chi')" class="py-2 rounded-lg bg-rose-500 text-white shadow-sm transition">Hũ Chi Tiêu</button>
+                        <button type="button" id="modal-b-thu" onclick="setBudgetModalType('thu')" class="py-2 rounded-lg text-slate-600 hover:text-slate-900 transition">Hũ Thu Nhập</button>
+                    </div>
+                    <input type="hidden" id="modal-b-type" value="chi">
+
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-600 block mb-1">Tên danh mục:</label>
+                        <input type="text" id="modal-b-name" placeholder="Ví dụ: Ăn uống, Tiền lương..." class="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold">
+                    </div>
+                    
+                    <div id="modal-b-limit-wrapper">
+                        <label id="modal-b-limit-label" class="text-[11px] font-bold text-slate-600 block mb-1">Hạn mức ngân sách tháng (đ):</label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-b-limit" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Ví dụ: 3000000" class="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-teal-800 money-input">
+                    </div>
+
+                    <div class="flex gap-2 pt-2">
+                        <button type="button" onclick="submitBudgetModal()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md transition">Lưu Hũ Ngân Sách</button>
+                        <button type="button" onclick="closeAddBudgetModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HEADER TOP (TỐI ƯU CHO SMARTPHONE) -->
+            <div id="header-container" class="hidden bg-gradient-to-r from-teal-500 to-cyan-600 p-4 pt-6 sm:pt-7 text-white shrink-0 relative">
+                <div class="flex justify-between items-center mb-2">
+                    <h1 class="text-base font-bold tracking-tight">MoneyMind 💰</h1>
+                </div>
+                
+                <div class="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
+                    <span class="text-[10px] text-teal-100 uppercase tracking-wider font-semibold">Tổng số dư ví chính</span>
+                    <div id="so-du" class="text-xl font-bold mt-0.5">0 đ</div>
+                    <div class="flex justify-between mt-2 pt-2 border-t border-white/10 text-xs">
+                        <div><span class="text-emerald-100">Thu:</span> <span id="tong-thu" class="font-semibold">0 đ</span></div>
+                        <div><span class="text-rose-100">Chi:</span> <span id="tong-chi" class="font-semibold">0 đ</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MAIN CONTAINER -->
+            <div class="flex-1 overflow-y-auto content-scroll-container space-y-4 bg-white relative">
+                
+                <!-- 1. WELCOME -->
+                <div id="welcome-screen" class="flex flex-col justify-between h-full py-6 text-center">
+                    <div class="space-y-6 pt-8">
+                        <div class="w-20 h-20 bg-gradient-to-tr from-teal-500 to-cyan-400 rounded-3xl flex items-center justify-center mx-auto shadow-lg text-white text-3xl">💰</div>
+                        <div>
+                            <h2 class="text-2xl font-extrabold text-slate-800">MoneyMind</h2>
+                            <p class="text-xs text-teal-600 font-semibold mt-1">Quản lý tài chính cá nhân toàn diện</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <button onclick="goToAuthMode('register')" class="w-full py-4 bg-teal-500 text-white font-bold rounded-2xl shadow-lg text-sm">Đăng ký tài khoản</button>
+                        <button onclick="goToAuthMode('login')" class="w-full py-3 text-slate-500 text-xs font-semibold">Tôi đã có tài khoản (Đăng nhập)</button>
+                    </div>
+                </div>
+
+                <!-- 2. AUTH CONTAINER -->
+                <div id="auth-container" class="hidden space-y-4 pt-6 max-w-sm mx-auto w-full">
+                    <div class="text-center pb-2">
+                        <h2 id="auth-title" class="text-xl font-bold text-slate-800">Đăng ký tài khoản</h2>
+                    </div>
+                    <div class="space-y-3">
+                        <input type="email" id="auth-email" placeholder="E-mail" class="w-full p-3 rounded-2xl border bg-slate-50 text-sm">
+                        <input type="password" id="auth-pass" placeholder="Mật khẩu" class="w-full p-3 rounded-2xl border bg-slate-50 text-sm">
+                        
+                        <div id="confirm-pass-container" class="hidden space-y-3">
+                            <input type="password" id="auth-pass-confirm" placeholder="Nhập lại mật khẩu" class="w-full p-3 rounded-2xl border bg-slate-50 text-sm">
+                            
+                            <div class="flex items-start gap-2 px-1">
+                                <input type="checkbox" id="auth-terms" class="mt-1 w-4 h-4 text-teal-600 rounded border-slate-300">
+                                <label for="auth-terms" class="text-[11px] text-slate-500 leading-snug">Tôi đồng ý với điều khoản dịch vụ và chính sách bảo mật của MoneyMind.</label>
+                            </div>
+                        </div>
+
+                        <button onclick="submitAuth()" id="btn-auth-submit" class="w-full py-3.5 bg-teal-500 text-white text-xs font-bold rounded-2xl shadow-lg">Đăng ký</button>
+                    </div>
+
+                    <div class="text-center pt-2">
+                        <a href="#" onclick="toggleAuthMode(event)" id="auth-switch-link" class="text-xs text-teal-600 font-bold">Đã có tài khoản? Đăng nhập</a>
+                    </div>
+                </div>
+
+                <!-- 3. ONBOARDING 5 CÂU HỎI -->
+                <div id="onboarding-screen" class="hidden flex flex-col justify-between h-full py-2 space-y-3">
+                    <div>
+                        <h2 class="text-base font-bold text-teal-700 text-center mb-2">Thiết lập tài khoản cá nhân</h2>
+                        <p class="text-[11px] text-slate-400 text-center mb-4">Vui lòng hoàn tất 5 câu hỏi để tối ưu hóa trải nghiệm.</p>
+                        
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <label class="font-semibold text-slate-700 block mb-1">1. Họ và tên của bạn:</label>
+                                <input type="text" id="ob-name" placeholder="Ví dụ: Nguyễn Văn A" class="w-full p-2.5 rounded-xl border bg-slate-50">
+                            </div>
+                            <div>
+                                <label class="font-semibold text-slate-700 block mb-1">2. Ngày tháng năm sinh:</label>
+                                <input type="date" id="ob-dob" class="w-full p-2.5 rounded-xl border bg-slate-50">
+                            </div>
+                            <div>
+                                <label class="font-semibold text-slate-700 block mb-1">3. Nghề nghiệp hiện tại:</label>
+                                <select id="ob-occupation" class="w-full p-2.5 rounded-xl border bg-slate-50">
+                                    <option value="Sinh viên">Học sinh / Sinh viên</option>
+                                    <option value="Nhân viên văn phòng">Nhân viên văn phòng</option>
+                                    <option value="Kinh doanh tự do">Kinh doanh tự do</option>
+                                    <option value="Khác">Khác</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="font-semibold text-slate-700 block mb-1">4. Mục tiêu tài chính chính:</label>
+                                <select id="ob-goal" class="w-full p-2.5 rounded-xl border bg-slate-50">
+                                    <option value="Kiểm soát chi tiêu">Kiểm soát chi tiêu hàng tháng</option>
+                                    <option value="Tiết kiệm mua tài sản lớn">Tiết kiệm mua tài sản lớn</option>
+                                    <option value="Đầu tư & Tự do tài chính">Đầu tư & Tự do tài chính</option>
+                                    <option value="Trả nợ & Quản lý dòng tiền">Trả nợ & Quản lý dòng tiền</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="font-semibold text-slate-700 block mb-1">5. Mong muốn khi sử dụng MoneyMind:</label>
+                                <input type="text" id="ob-wish" placeholder="Ví dụ: Cảnh báo khi tiêu quá tay..." class="w-full p-2.5 rounded-xl border bg-slate-50">
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="submitOnboarding()" class="w-full py-3 bg-teal-500 text-white font-bold rounded-2xl text-xs shadow-md">Hoàn tất & Vào App</button>
+                </div>
+
+                <!-- 4. APP CONTAINER -->
+                <div id="app-container" class="hidden flex-1 flex flex-col min-h-0 space-y-4">
+                    
+                    <!-- TAB 1: QUẢN LÝ -->
+                    <div id="section-quan-ly" class="flex-1 flex flex-col min-h-0 space-y-4">
+                        <div class="flex bg-slate-200/70 p-1 rounded-xl text-xs font-bold subtabs-bar-fixed shrink-0">
+                            <button onclick="switchManSubTab('ngan-sach')" id="msub-ns" class="flex-1 py-1.5 rounded-lg bg-white text-teal-600 shadow-sm">Ngân Sách Hũ</button>
+                            <button onclick="switchManSubTab('danh-muc')" id="msub-dm" class="flex-1 py-1.5 rounded-lg text-slate-600">Danh Mục</button>
+                            <button onclick="switchManSubTab('tiet-kiem')" id="msub-tk" class="flex-1 py-1.5 rounded-lg text-slate-600">Tiết Kiệm</button>
+                        </div>
+
+                        <!-- SubTab 1.1: Quản lý ngân sách hũ -->
+                        <div id="man-ngan-sach" class="flex-1 flex flex-col min-h-0 space-y-3">
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
+                                <div class="flex justify-between items-center gap-2 pb-1 border-b border-slate-200/60">
+                                    <h2 class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5 truncate">
+                                        <span>🏺 Hũ Ngân Sách</span>
+                                    </h2>
+                                </div>
+                                <div id="jars-progress-list" class="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1"></div>
+                            </div>
+                        </div>
+
+                        <!-- SubTab 1.2: Quản lý danh mục thu/chi -->
+                        <div id="man-danh-muc" class="hidden flex-1 flex flex-col min-h-0 space-y-3">
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
+                                <h2 class="text-xs font-bold text-slate-700 uppercase">📁 Quản Lý Danh Mục (Thu & Chi)</h2>
+                                <div class="space-y-3 bg-white p-4 rounded-2xl border shadow-sm text-xs">
+                                    <div>
+                                        <label class="font-semibold text-slate-500 block mb-1">Tên danh mục:</label>
+                                        <input type="text" id="cat-name-input" placeholder="Ví dụ: Tiền lương, Mua sắm..." class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                                    </div>
+
+                                    <div>
+                                        <label class="font-semibold text-slate-500 block mb-1.5">Loại danh mục:</label>
+                                        <div class="flex bg-slate-200/70 p-1 rounded-xl">
+                                            <button type="button" id="cat-btn-chi" onclick="setCategoryTabType('chi')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition">Danh mục Chi</button>
+                                            <button type="button" id="cat-btn-thu" onclick="setCategoryTabType('thu')" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 transition">Danh mục Thu</button>
+                                        </div>
+                                        <input type="hidden" id="cat-type-input" value="chi">
+                                    </div>
+
+                                    <div id="cat-limit-wrapper">
+                                        <label id="cat-limit-label" class="font-semibold text-slate-500 block mb-1">Số tiền cấp cho hũ (đ):</label>
+                                        <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="cat-limit-input" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Ví dụ: 2000000" class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
+                                    </div>
+
+                                    <button onclick="saveCategoryCrud()" class="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-md">Lưu Danh Mục</button>
+                                </div>
+                                <div id="categories-crud-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"></div>
+                            </div>
+                        </div>
+
+                        <!-- SubTab 1.3: Mục tiêu tiết kiệm -->
+                        <div id="man-tiet-kiem" class="hidden flex-1 flex flex-col min-h-0 space-y-3">
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
+                                <h2 class="text-xs font-bold text-slate-700 uppercase">🎯 Mục Tiêu & Hũ Tiết Kiệm</h2>
+                                <div class="space-y-2.5 bg-white p-4 rounded-2xl border shadow-sm text-xs">
+                                    <input type="text" id="sg-title" placeholder="Tên mục tiêu (Ví dụ: Mua laptop, Đi Tam đảo...)" class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                                    <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="sg-target" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Số tiền đích (đ)" class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
+                                    <div>
+                                        <label class="text-[11px] font-semibold text-slate-500 block mb-1">Hạn chót hoàn thành (tùy chọn):</label>
+                                        <div class="relative">
+                                            <input type="text" id="sg-deadline" placeholder="Chọn hạn chót" class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 cursor-pointer font-medium text-slate-700 pr-12">
+                                            <button type="button" onclick="clearCreateSavingsDeadline()" class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-rose-500 font-semibold px-1 py-0.5 rounded transition" title="Bỏ chọn hạn chót">Xóa</button>
+                                        </div>
+                                    </div>
+                                    <button onclick="createSavingsGoal()" class="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-md">Tạo Hũ Tiết Kiệm</button>
+                                </div>
+                                <div class="pt-2">
+                                    <h3 class="text-xs font-bold text-slate-700 mb-2">📋 Danh Sách Hũ Tiết Kiệm</h3>
+                                    <div id="savings-goals-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: TRUNG TÂM THÔNG BÁO -->
+                    <div id="section-thong-bao" class="hidden flex-1 flex flex-col min-h-0 space-y-4">
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
+                            <div class="pb-2 border-b border-slate-200/60 space-y-2">
+                                <!-- Hàng 1: Tiêu đề bên trái, Số lượng thông báo bên phải -->
+                                <div class="flex items-center justify-between gap-2">
+                                    <h2 class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5 min-w-0">
+                                        <span>📢</span><span class="truncate">Lịch Sử Thông Báo</span>
+                                    </h2>
+                                    <span id="notif-count-badge" class="text-[10px] font-medium text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200/60 shrink-0 whitespace-nowrap">0 thông báo</span>
+                                </div>
+                                <!-- Hàng 2: Nút Đánh dấu là đã đọc riêng biệt rộng rãi, không bao giờ bị đè -->
+                                <button onclick="markAllNotificationsAsRead()" class="w-full py-1.5 px-3 bg-white hover:bg-teal-50 text-teal-700 hover:text-teal-900 font-bold text-[11px] rounded-xl border border-teal-200 shadow-2xs transition active:scale-95 flex items-center justify-center gap-1.5" title="Đánh dấu tất cả thông báo là đã đọc">
+                                    <span class="text-xs">✓✓</span>
+                                    <span>Đánh dấu là đã đọc</span>
+                                </button>
+                            </div>
+                            <div id="notifications-list" class="space-y-2.5 flex-1 min-h-0 overflow-y-auto pr-1">
+                                <p class="text-xs text-slate-400 text-center py-6">Chưa có thông báo nào.</p>
+                            </div>
+                            <div id="notifs-load-more-wrapper" class="hidden pt-1 text-center">
+                                <button id="btn-load-more-notifs" onclick="loadMoreNotifications()" class="w-full py-2.5 bg-white hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300 text-slate-600 font-bold text-xs rounded-xl border border-slate-200 transition flex items-center justify-center gap-1.5 shadow-xs">
+                                    <span>Xem thêm thông báo</span>
+                                    <span id="load-more-count-text" class="text-[11px] text-teal-600"></span>
+                                    <span>▼</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: LỊCH SỬ & TRA CỨU GIAO DỊCH -->
+                    <div id="section-lich-su" class="hidden flex-1 flex flex-col min-h-0 space-y-4">
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
+                            <h2 class="text-xs font-bold text-slate-700 uppercase">🔍 Tra Cứu & Lọc Giao Dịch</h2>
+                            
+                            <div class="bg-white p-3.5 rounded-2xl border space-y-3 text-xs shadow-sm shrink-0">
+                                <div>
+                                    <label class="font-semibold text-slate-500 block mb-1">Loại giao dịch:</label>
+                                    <div class="flex bg-slate-200/70 p-1 rounded-xl">
+                                        <button type="button" id="lookup-btn-all" onclick="setLookupType('all')" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-teal-600 shadow-sm transition">Tất cả</button>
+                                        <button type="button" id="lookup-btn-thu" onclick="setLookupType('thu')" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition">Thu</button>
+                                        <button type="button" id="lookup-btn-chi" onclick="setLookupType('chi')" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition">Chi</button>
+                                    </div>
+                                    <input type="hidden" id="lookup-type" value="all">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="font-semibold text-slate-500 block mb-1 text-[11px]">Ngày giao dịch:</label>
+                                        <input type="date" id="lookup-date" onchange="applyLookupFilter()" class="w-full p-2 border rounded-xl bg-slate-50 text-xs">
+                                    </div>
+                                    <div>
+                                        <label class="font-semibold text-slate-500 block mb-1 text-[11px]">Từ khóa tìm kiếm:</label>
+                                        <div class="relative">
+                                            <input type="text" id="lookup-keyword" oninput="applyLookupFilter()" placeholder="Nhập từ khóa (mì cay, tiền...)" class="w-full p-2 pr-7 border rounded-xl bg-slate-50 text-xs focus:outline-none focus:border-teal-500 font-medium">
+                                            <button type="button" onclick="clearLookupKeyword()" id="lookup-clear-btn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold transition px-1" title="Xóa từ khóa">✕</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="tx-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- MODAL CHỌN DANH MỤC TRA CỨU -->
+                    <div id="category-picker-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-5 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200">
+                            <div class="flex justify-between items-center pb-2 border-b">
+                                <h3 class="text-sm font-bold text-slate-800">📁 Chọn Danh Mục Lọc</h3>
+                                <button onclick="closeCategoryPickerModal()" class="text-xs font-bold text-slate-400 hover:text-slate-600">✕</button>
+                            </div>
+                            <div id="category-picker-buttons-container" class="space-y-1.5 max-h-60 overflow-y-auto pr-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 4: THỐNG KÊ VÀ BÁO CÁO -->
+                    <div id="section-thong-ke" class="hidden flex-1 flex flex-col min-h-0 space-y-3.5 overflow-y-auto pr-0.5">
+                        
+                        <!-- 1. BỘ LỌC KHOẢNG THỜI GIAN (THEO THÁNG, QUÝ, NĂM, TẤT CẢ) -->
+                        <div class="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2.5 shrink-0">
+                            <!-- Chế độ lọc thời gian: Tuần / Tháng / Năm -->
+                            <div class="flex bg-slate-100 p-1 rounded-xl gap-1 text-[11px] font-bold">
+                                <button type="button" id="rf-mode-week" onclick="setReportFilterMode('week')" class="flex-1 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">Tuần</button>
+                                <button type="button" id="rf-mode-month" onclick="setReportFilterMode('month')" class="flex-1 py-1.5 rounded-lg bg-teal-600 text-white shadow-xs transition">Tháng</button>
+                                <button type="button" id="rf-mode-year" onclick="setReportFilterMode('year')" class="flex-1 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition">Năm</button>
+                            </div>
+
+                            <!-- Thanh điều hướng và hiển thị khoảng thời gian đã chọn -->
+                            <div class="flex items-center justify-between gap-1.5 pt-0.5">
+                                <button type="button" onclick="navigateReportPeriod(-1)" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 flex items-center justify-center font-bold text-xs border border-slate-200/80 transition active:scale-95" title="Kỳ trước">
+                                    ◀
+                                </button>
+                                
+                                <div class="flex-1 text-center min-w-0">
+                                    <div id="report-period-label" class="text-xs font-bold text-slate-800 truncate">Tháng 09/2026</div>
+                                    <div id="report-period-sublabel" class="text-[10px] text-slate-400 font-medium truncate">01/09/2026 - 30/09/2026</div>
+                                </div>
+
+                                <button type="button" onclick="navigateReportPeriod(1)" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 flex items-center justify-center font-bold text-xs border border-slate-200/80 transition active:scale-95" title="Kỳ sau">
+                                    ▶
+                                </button>
+                                
+                                <button type="button" onclick="resetReportPeriodToCurrent()" class="px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold text-[10px] border border-teal-200/70 transition shrink-0 active:scale-95" title="Về thời gian hiện tại">
+                                    Hiện tại
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. THẺ TỔNG HỢP TÀI CHÍNH TRONG KỲ -->
+                        <div class="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 p-4 rounded-2xl text-white space-y-3 shadow-md shrink-0 border border-slate-800">
+                            <div class="flex justify-between items-center pb-1 border-b border-white/10">
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-teal-400 flex items-center gap-1.5">
+                                    <span>📊</span><span>Tổng Hợp Thu Chi Kỳ Này</span>
+                                </span>
+                                <span id="rp-summary-badge" class="text-[10px] bg-teal-500/20 text-teal-300 font-medium px-2 py-0.5 rounded-full border border-teal-500/30">Tháng 09/2026</span>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2.5">
+                                <div class="bg-white/10 p-2.5 rounded-xl border border-white/10">
+                                    <div class="text-[10px] text-slate-300 font-medium flex items-center gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>Tổng Thu</span>
+                                    </div>
+                                    <div id="rp-thu" class="text-sm sm:text-base font-bold text-emerald-400 mt-1 truncate">0 đ</div>
+                                </div>
+                                <div class="bg-white/10 p-2.5 rounded-xl border border-white/10">
+                                    <div class="text-[10px] text-slate-300 font-medium flex items-center gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span><span>Tổng Chi</span>
+                                    </div>
+                                    <div id="rp-chi" class="text-sm sm:text-base font-bold text-rose-400 mt-1 truncate">0 đ</div>
+                                </div>
+                            </div>
+
+                            <!-- Dòng Tiết kiệm ròng & Tỷ lệ tích luỹ -->
+                            <div class="bg-white/5 px-3 py-2 rounded-xl border border-white/5 flex items-center justify-between text-xs">
+                                <span class="text-[11px] text-slate-300 font-medium">Tiết kiệm ròng:</span>
+                                <div class="text-right">
+                                    <span id="rp-net-savings" class="font-bold text-teal-300 text-xs">0 đ</span>
+                                    <span id="rp-savings-rate" class="text-[10px] text-slate-400 ml-1">(0%)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. BIỂU ĐỒ XU HƯỚNG THU - CHI (TREND CHART) -->
+                        <div class="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2.5 shrink-0">
+                            <div class="flex justify-between items-center">
+                                <h3 class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                                    <span>📈</span><span>Biểu Đồ Xu Hướng</span>
+                                </h3>
+                                <div class="flex items-center gap-2.5 text-[10px] font-semibold text-slate-500">
+                                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>Thu</span>
+                                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>Chi</span>
+                                </div>
+                            </div>
+                            
+                            <div class="w-full relative" style="height: 180px;">
+                                <canvas id="report-trend-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- 4. TỔNG HỢP THEO DANH MỤC & XEM CHI TIẾT CÁC DANH MỤC -->
+                        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3 shrink-0">
+                            <div class="flex justify-between items-center gap-2">
+                                <h3 class="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                                    <span>🥧</span><span>Chi Tiết Danh Mục</span>
+                                </h3>
+                                <!-- Nhãn Tất cả danh mục -->
+                                <div class="flex bg-slate-200/70 p-0.5 rounded-lg text-[10px] font-bold">
+                                    <span class="px-2.5 py-1 rounded-md bg-white text-teal-700 shadow-2xs">Tất cả</span>
+                                </div>
+                            </div>
+
+                            <!-- Danh sách các danh mục (có thể bấm mở rộng xem chi tiết từng giao dịch) -->
+                            <div id="category-pie-chart" class="space-y-2.5">
+                                <p class="text-xs text-slate-400 text-center py-4">Đang tải dữ liệu danh mục...</p>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- TAB 5: TÀI KHOẢN CÁ NHÂN (tách riêng) -->
+                    <div id="section-tai-khoan" class="hidden flex-1 flex flex-col min-h-0 space-y-4">
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card text-xs flex-1 flex flex-col">
+                            <div class="flex justify-between items-center pb-1">
+                                <h2 class="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                                    <span>👤</span><span>Thông Tin Tài Khoản</span>
+                                </h2>
+                                <button onclick="openEditProfileModal()" class="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-xs" title="Chỉnh sửa thông tin cá nhân">
+                                    <span>✏️</span><span>Chỉnh sửa</span>
+                                </button>
+                            </div>
+                            <div class="bg-white p-3.5 rounded-xl border space-y-2.5 shadow-xs">
+                                <div><span class="text-slate-400 font-medium">Họ và tên:</span> <strong id="pf-name" class="text-slate-800 ml-1">---</strong></div>
+                                <div><span class="text-slate-400 font-medium">Ngày sinh:</span> <strong id="pf-dob" class="text-slate-800 ml-1">---</strong></div>
+                                <div><span class="text-slate-400 font-medium">Nghề nghiệp:</span> <strong id="pf-occ" class="text-slate-800 ml-1">---</strong></div>
+                                <div><span class="text-slate-400 font-medium">Mục tiêu:</span> <strong id="pf-goal" class="text-slate-800 ml-1">---</strong></div>
+                            </div>
+                            <!-- Các nút thao tác giữ liền kề với thẻ thông tin bên trên để không bị rời rạc -->
+                            <div class="space-y-2 pt-1">
+                                <button onclick="togglePasswordModal()" class="w-full py-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold rounded-xl transition text-xs shadow-xs flex items-center justify-center gap-1.5">
+                                    <span>🔒</span><span>Đổi mật khẩu tài khoản</span>
+                                </button>
+                                <button onclick="openLogoutModal()" class="w-full py-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-bold rounded-xl transition text-xs shadow-xs flex items-center justify-center gap-1.5">
+                                    <span>🚪</span><span>Đăng xuất</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- THANH ĐIỀU HƯỚNG DƯỚI CÙNG (4 NÚT CHUẨN MOBILE) -->
+            <div id="bottom-nav" class="hidden bg-white border-t border-slate-200 py-2.5 px-1.5 flex justify-between items-center shrink-0">
+                <button onclick="switchSection('quan-ly')" id="nav-btn-quan-ly" class="flex-1 flex flex-col items-center gap-0.5 text-teal-600 font-bold text-[10px] transition">
+                    <span class="text-base">📊</span> Quản lý
+                </button>
+                <button onclick="switchSection('lich-su')" id="nav-btn-lich-su" class="flex-1 flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-600 font-semibold text-[10px] transition">
+                    <span class="text-base">📜</span> Tra cứu
+                </button>
+                <button onclick="switchSection('thong-ke')" id="nav-btn-thong-ke" class="flex-1 flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-600 font-semibold text-[10px] transition">
+                    <span class="text-base">📈</span> Thống kê
+                </button>
+                <button onclick="switchSection('tai-khoan')" id="nav-btn-tai-khoan" class="flex-1 flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-600 font-semibold text-[10px] transition">
+                    <span class="text-base">👤</span> Tài khoản
+                </button>
+            </div>
+        </div>
+
+        <!-- CÁC MODULE JAVASCRIPT TÁCH BIỆT THEO CHỨC NĂNG & VAI TRÒ -->
+        <script src="js/api.js?v=5.8"></script>
+        <script src="js/auth.js?v=5.8"></script>
+        <script src="js/ngan-sach.js?v=5.8"></script>
+        <script src="js/danh-muc.js?v=5.8"></script>
+        <script src="js/tiet-kiem.js?v=5.8"></script>
+        <script src="js/giao-dich.js?v=5.8"></script>
+        <script src="js/tra-cuu.js?v=5.8"></script>
+        <script src="js/thong-ke.js?v=5.8"></script>
+        <script src="js/thong-bao.js?v=5.8"></script>
+        <script src="js/ai.js?v=5.8"></script>
+        <script src="js/app.js?v=5.8"></script>
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                        console.log('SW registration note:', err);
+                    });
+                });
+            }
+        </script>
+    </body>
+</html>

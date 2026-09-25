@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: moneymind_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./tai_chinh.db
+      - SECRET_KEY=CHUOI_BI_MAT_SIEU_CAP_CHO_DO_AN_MONEYMIND_2026
+      - REFRESH_SECRET_KEY=CHUOI_BI_MAT_REFRESH_TOKEN_MONEYMIND_2026
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      - ./tai_chinh.db:/app/tai_chinh.db

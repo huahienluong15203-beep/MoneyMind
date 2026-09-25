@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.moneymind.app",
+      "sha256_cert_fingerprints": [
+        "72:E7:92:4B:CF:61:BB:02:E8:83:E6:D7:69:84:91:CD:5A:B9:54:05:D4:B7:D9:ED:49:44:A9:5C:56:74:17:47"
+      ]
+    }
+  }
+]

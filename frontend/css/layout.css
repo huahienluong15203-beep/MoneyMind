@@ -1,0 +1,123 @@
+/* ==========================================================================
+   MoneyMind - Layout chuẩn Smartphone (Tỷ lệ thực tế 161.3 x 75.3 mm)
+   ========================================================================== */
+
+/* Khung hiển thị mô phỏng điện thoại di động */
+#mobile-frame {
+    width: 100%;
+    height: 100vh;
+    max-width: 100%;
+    border-radius: 0;
+}
+
+/* Khi chạy trên máy tính / Laptop (màn hình rộng >= 640px)
+   Khung được căn giữa và cố định chuẩn xác theo kích thước & tỷ lệ điện thoại 161.3 x 75.3 mm */
+@media (min-width: 640px) {
+    body {
+        background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%) !important;
+    }
+    
+    #mobile-frame {
+        height: min(860px, 94vh) !important;
+        max-height: 860px !important;
+        aspect-ratio: 75.3 / 161.3 !important; /* Chuẩn tỷ lệ điện thoại 161,3 x 75,3 mm */
+        width: auto !important;
+        max-width: 412px !important;
+        border-radius: 42px !important;
+        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 
+                    0 0 0 10px #1e293b, 
+                    0 0 0 12px #334155 !important;
+    }
+}
+
+/* 1. Khung cuộn nội dung chính: tối ưu mobile, padding đáy sát mép thanh điều hướng */
+.content-scroll-container {
+    flex: 1 1 0% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    padding: 0.75rem 0.875rem 0.5rem 0.875rem !important; /* pb sát mép thanh điều hướng */
+}
+
+/* 2. Container app chính: chiếm trọn chiều cao vùng cuộn */
+#app-container {
+    flex: 1 1 0% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+}
+#app-container.hidden {
+    display: none !important;
+}
+
+/* 3. Toàn bộ các Section chức năng tự động giãn trọn vẹn chiều cao */
+#section-quan-ly,
+#section-thong-bao,
+#section-lich-su,
+#section-thong-ke,
+#section-tai-khoan {
+    flex: 1 1 0% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+}
+#section-quan-ly.hidden,
+#section-thong-bao.hidden,
+#section-lich-su.hidden,
+#section-thong-ke.hidden,
+#section-tai-khoan.hidden {
+    display: none !important;
+}
+
+/* 4. Các tab con trong Quản lý: Ngân sách, Danh mục, Tiết kiệm tự giãn tràn toàn bộ chiều cao */
+#man-ngan-sach,
+#man-danh-muc,
+#man-tiet-kiem {
+    flex: 1 1 0% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+}
+#man-ngan-sach.hidden,
+#man-danh-muc.hidden,
+#man-tiet-kiem.hidden {
+    display: none !important;
+}
+
+/* 5. Khung thẻ viền xám (.section-stretch-card) tràn xuống chạm sát đáy thanh điều hướng ở TẤT CẢ CÁC PHẦN */
+.section-stretch-card {
+    flex: 1 1 0% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* 6. Danh sách dữ liệu (Hũ ngân sách, Giao dịch tra cứu, Tiết kiệm, Danh mục, Thông báo, Biểu đồ thống kê):
+      Tự động chiếm trọn vẹn không gian chiều cao còn lại của thẻ,
+      loại bỏ hoàn toàn giới hạn max-h nhỏ hẹp để hiển thị được nhiều mục nhất */
+#jars-progress-list,
+#categories-crud-list,
+#savings-goals-list,
+#tx-list,
+#notifications-list,
+#category-pie-chart {
+    flex: 1 1 0% !important;
+    min-height: 140px !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+}
+
+/* 7. Giữ các thành phần cố định: thanh subtab, form nhập liệu, bộ lọc tra cứu, header */
+.subtabs-bar-fixed,
+.filter-card-fixed,
+.form-card-fixed {
+    flex-shrink: 0 !important;
+}
+
+/* 8. Nút nổi Trợ lý AI và Thêm nhanh (+) */
+#floating-bottom-controls {
+    bottom: 4.25rem !important;
+    right: 0.75rem !important;
+}
