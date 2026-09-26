@@ -58,7 +58,7 @@ app.include_router(muc_tieu_router)
 app.include_router(thong_ke_router)
 app.include_router(ai_router)
 
-@app.get("/api/health", tags=["Hệ thống"])
+@app.api_route("/api/health", methods=["GET", "HEAD"], tags=["Hệ thống"])
 def health_check():
     return {
         "status": "healthy",
@@ -114,12 +114,12 @@ def get_assetlinks():
         }]
     )
 
-@app.get("/", response_class=HTMLResponse, summary="Giao diện Web MoneyMind")
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse, summary="Giao diện Web MoneyMind")
 def ung_dung_money_mind():
     frontend_path = os.path.join(frontend_dir, "index.html")
     if os.path.exists(frontend_path):
         with open(frontend_path, "r", encoding="utf-8") as f:
             content = f.read()
             return HTMLResponse(content=content, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
-    return "<h1>MoneyMind API Server is running</h1>"
+    return HTMLResponse("<h1>MoneyMind API Server is running</h1>")
 
