@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -17,7 +18,39 @@ def lay_danh_sach_danh_muc(
     db: Session = Depends(get_db),
     current_user: NguoiDung = Depends(get_current_user)
 ):
-    return db.query(DanhMuc).filter(DanhMuc.ma_nd == current_user.ma_nd).all()
+    from app.services.ngan_sach_service import NganSachService
+    NganSachService.tu_dong_ket_chuyen_thang_moi(db, current_user.ma_nd)
+    cats = db.query(DanhMuc).filter(DanhMuc.ma_nd == current_user.ma_nd).all()
+    now_ym = datetime.now().strftime("%Y-%m")
+    results = []
+    for c in cats:
+        ns = db.query(NganSach).filter(
+            NganSach.ma_dm == c.ma_dm,
+            NganSach.thang_nam == now_ym
+        ).first()
+        current_limit = float(ns.han_muc) if (ns and ns.han_muc and ns.han_muc > 0) else 0.0
+        so_du = float(ns.so_du_chuyen_sang or 0.0) if ns else 0.0
+        cap_moi = float(ns.han_muc_cap_moi or 0.0) if ns else 0.0
+        da_cap = (ns is not None and ns.han_muc is not None and ns.han_muc > 0)
+        results.append(DanhMucResponse(
+            ma_dm=c.ma_dm,
+            ma_nd=c.ma_nd,
+            ten_dm=c.ten_dm,
+            loai_dm=c.loai_dm,
+            icon=c.icon,
+            mau_sac=c.mau_sac,
+            han_muc=current_limit,
+            budget_limit=current_limit,
+            id=c.ma_dm,
+            user_id=c.ma_nd,
+            name=c.ten_dm,
+            type=c.loai_dm,
+            so_du_chuyen_sang=so_du,
+            han_muc_cap_moi=cap_moi,
+            da_cap_han_muc=da_cap,
+            han_muc_goc=float(c.han_muc or 0.0)
+        ))
+    return results
 
 @router.post("", response_model=DanhMucResponse, status_code=status.HTTP_201_CREATED, summary="Tạo danh mục mới (UC003)")
 def tao_danh_muc(
@@ -38,6 +71,18 @@ def tao_danh_muc(
     db.add(new_cat)
     db.commit()
     db.refresh(new_cat)
+
+    if payload.loai_dm == 'chi' and payload.han_muc and payload.han_muc > 0:
+        now_ym = datetime.now().strftime("%Y-%m")
+        ns = NganSach(
+            ma_nd=current_user.ma_nd,
+            ma_dm=new_cat.ma_dm,
+            thang_nam=now_ym,
+            han_muc=payload.han_muc,
+            so_tien_da_chi=0.0
+        )
+        db.add(ns)
+        db.commit()
 
     if payload.loai_dm == 'thu' and payload.han_muc and payload.han_muc > 0:
         tx = GiaoDich(
@@ -78,13 +123,40 @@ def sua_danh_muc(
         cat.mau_sac = payload.mau_sac
     if payload.han_muc is not None:
         if cat.loai_dm == 'chi':
-            txs = db.query(GiaoDich).filter(GiaoDich.ma_dm == ma_dm, GiaoDich.loai_gd == "chi").all()
+            now_dt = datetime.now()
+            start_this = datetime(now_dt.year, now_dt.month, 1)
+            end_this = datetime(now_dt.year + 1, 1, 1) if now_dt.month == 12 else datetime(now_dt.year, now_dt.month + 1, 1)
+            now_ym = now_dt.strftime("%Y-%m")
+            txs = db.query(GiaoDich).filter(
+                GiaoDich.ma_dm == ma_dm,
+                GiaoDich.loai_gd == "chi",
+                GiaoDich.ngay_gd >= start_this,
+                GiaoDich.ngay_gd < end_this
+            ).all()
             spent = sum(float(t.so_tien or 0.0) for t in txs)
             if payload.han_muc < spent:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Hạn mức mới ({payload.han_muc:,.0f} đ) không được nhỏ hơn số tiền đã chi ({spent:,.0f} đ) trong danh mục này! Bạn chỉ có thể nâng hạn mức chứ không được giảm nhỏ hơn số tiền đã chi."
                 )
+            
+            ns = db.query(NganSach).filter(
+                NganSach.ma_nd == current_user.ma_nd,
+                NganSach.ma_dm == ma_dm,
+                NganSach.thang_nam == now_ym
+            ).first()
+            if ns:
+                ns.han_muc = payload.han_muc
+                ns.so_tien_da_chi = spent
+            elif payload.han_muc > 0:
+                ns = NganSach(
+                    ma_nd=current_user.ma_nd,
+                    ma_dm=ma_dm,
+                    thang_nam=now_ym,
+                    han_muc=payload.han_muc,
+                    so_tien_da_chi=spent
+                )
+                db.add(ns)
         cat.han_muc = payload.han_muc
 
     db.commit()

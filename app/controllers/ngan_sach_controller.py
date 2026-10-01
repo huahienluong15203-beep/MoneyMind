@@ -13,8 +13,19 @@ from app.services.ngan_sach_service import NganSachService
 from app.schemas.ngan_sach import (
     NganSachCreate, NganSachUpdate, NganSachResponse, CanhBaoNgayResponse
 )
+from app.schemas.ket_chuyen_ngan_sach import KetChuyenNganSachResponse
 
 router = APIRouter(prefix="/api/ngan-sach", tags=["Quản lý ngân sách & Cảnh báo (UC006, UC007)"])
+
+@router.get("/ket-chuyen", response_model=List[KetChuyenNganSachResponse], summary="Tra cứu lịch sử kết chuyển hạn mức giữa các tháng")
+def lay_lich_su_ket_chuyen(
+    thang_nam: Optional[str] = Query(None, description="Định dạng YYYY-MM (tìm theo tháng nguồn hoặc tháng đích)"),
+    ma_dm: Optional[int] = Query(None, description="Lọc theo danh mục"),
+    db: Session = Depends(get_db),
+    current_user: NguoiDung = Depends(get_current_user)
+):
+    NganSachService.tu_dong_ket_chuyen_thang_moi(db, current_user.ma_nd)
+    return NganSachService.lay_lich_su_ket_chuyen(db, current_user.ma_nd, thang_nam, ma_dm)
 
 @router.get("", response_model=List[NganSachResponse], summary="Xem danh sách hạn mức ngân sách (UC006)")
 def lay_danh_sach_ngan_sach(
@@ -24,6 +35,9 @@ def lay_danh_sach_ngan_sach(
 ):
     if not thang_nam:
         thang_nam = datetime.now().strftime("%Y-%m")
+
+    # Tự động kết chuyển nếu sang tháng mới
+    NganSachService.tu_dong_ket_chuyen_thang_moi(db, current_user.ma_nd, thang_nam)
 
     ngan_sachs = db.query(NganSach).filter(
         NganSach.ma_nd == current_user.ma_nd,
@@ -45,7 +59,9 @@ def lay_danh_sach_ngan_sach(
             so_tien_da_chi=ns.so_tien_da_chi,
             canh_bao_da_gui=ns.canh_bao_da_gui,
             ten_dm=ten_dm,
-            ty_le=ty_le
+            ty_le=ty_le,
+            so_du_chuyen_sang=float(ns.so_du_chuyen_sang or 0.0),
+            han_muc_cap_moi=float(ns.han_muc_cap_moi or 0.0)
         ))
     return results
 
@@ -100,7 +116,9 @@ def thiet_lap_ngan_sach(
     ).first()
 
     if ns:
+        so_du = float(ns.so_du_chuyen_sang or 0.0)
         ns.han_muc = payload.han_muc
+        ns.han_muc_cap_moi = max(0.0, payload.han_muc - so_du)
         ns.so_tien_da_chi = da_chi
         ns.canh_bao_da_gui = (da_chi > payload.han_muc)
     else:
@@ -109,6 +127,8 @@ def thiet_lap_ngan_sach(
             ma_dm=payload.ma_dm,
             thang_nam=payload.thang_nam,
             han_muc=payload.han_muc,
+            han_muc_cap_moi=payload.han_muc,
+            so_du_chuyen_sang=0.0,
             so_tien_da_chi=da_chi,
             canh_bao_da_gui=(da_chi > payload.han_muc)
         )
@@ -132,7 +152,9 @@ def thiet_lap_ngan_sach(
         so_tien_da_chi=ns.so_tien_da_chi,
         canh_bao_da_gui=ns.canh_bao_da_gui,
         ten_dm=dm.ten_dm,
-        ty_le=ty_le
+        ty_le=ty_le,
+        so_du_chuyen_sang=float(ns.so_du_chuyen_sang or 0.0),
+        han_muc_cap_moi=float(ns.han_muc_cap_moi or 0.0)
     )
 
 @router.put("/{ma_ns}", response_model=NganSachResponse, summary="Chỉnh sửa hạn mức ngân sách (UC006)")
@@ -156,7 +178,9 @@ def sua_ngan_sach(
     if ns.ma_nd != current_user.ma_nd:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Không có quyền thao tác trên ngân sách của người khác")
 
+    so_du = float(ns.so_du_chuyen_sang or 0.0)
     ns.han_muc = payload.han_muc
+    ns.han_muc_cap_moi = max(0.0, payload.han_muc - so_du)
     ns.canh_bao_da_gui = (ns.so_tien_da_chi > payload.han_muc)
     db.commit()
     db.refresh(ns)
@@ -174,7 +198,9 @@ def sua_ngan_sach(
         so_tien_da_chi=ns.so_tien_da_chi,
         canh_bao_da_gui=ns.canh_bao_da_gui,
         ten_dm=ten_dm,
-        ty_le=ty_le
+        ty_le=ty_le,
+        so_du_chuyen_sang=float(ns.so_du_chuyen_sang or 0.0),
+        han_muc_cap_moi=float(ns.han_muc_cap_moi or 0.0)
     )
 
 @router.get("/canh-bao", response_model=List[CanhBaoNgayResponse], summary="Trạng thái cảnh báo vượt ngân sách hiện tại (UC007)")

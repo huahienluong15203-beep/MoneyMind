@@ -7,6 +7,7 @@ from app.models.bao_cao_ai import BaoCaoAI
 from app.models.dat_lai_mat_khau import DatLaiMatKhau
 from app.models.thong_bao import ThongBao
 from app.models.xac_nhan_otp import XacNhanOTP
+from app.models.ket_chuyen_ngan_sach import KetChuyenNganSach
 
 # Compatibility aliases
 User = NguoiDung
@@ -25,6 +26,7 @@ __all__ = [
     "DatLaiMatKhau",
     "ThongBao",
     "XacNhanOTP",
+    "KetChuyenNganSach",
     "User",
     "Category",
     "Transaction",

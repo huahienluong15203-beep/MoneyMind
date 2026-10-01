@@ -102,7 +102,7 @@
                 const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                 const titleHeader = document.getElementById('jars-month-title');
                 if (titleHeader) {
-                    titleHeader.innerText = `🏺 Hũ Ngân Sách (Tháng ${now.getMonth() + 1}/${now.getFullYear()})`;
+                    titleHeader.innerHTML = `🏺 Hũ Ngân Sách (Tháng ${now.getMonth() + 1}/${now.getFullYear()})`;
                 }
 
                 let spentMap = {};
@@ -119,54 +119,100 @@
                 chiCats.forEach(c => {
                     const catId = c.id || c.ma_dm;
                     let spent = spentMap[catId] || 0;
-                    let limit = parseFloat(c.budget_limit || c.han_muc || 0) || 0;
-                    let remaining = limit > 0 ? (limit - spent) : (spent > 0 ? -spent : 0);
-                    let percent = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+                    let limit = parseFloat(c.budget_limit || 0) || 0;
+                    let rollover = parseFloat(c.so_du_chuyen_sang || 0) || 0;
+                    let capMoi = parseFloat(c.han_muc_cap_moi || 0) || 0;
+                    let daCap = (c.da_cap_han_muc === true) || (limit > 0) || (capMoi > 0);
+                    let effectiveLimit = limit > 0 ? limit : (rollover > 0 ? rollover : 0);
+                    let remaining = effectiveLimit > 0 ? (effectiveLimit - spent) : (spent > 0 ? -spent : 0);
+                    let percent = effectiveLimit > 0 ? Math.round((spent / effectiveLimit) * 100) : 0;
                     
                     let alertBadge = "";
                     let barColor = "bg-teal-500";
+                    let isOverBudget = remaining < 0;
 
-                    if(limit > 0 && percent >= 100) {
+                    if (isOverBudget) {
                         barColor = "bg-rose-500 animate-pulse";
-                        alertBadge = `<span class="bg-rose-100 text-rose-600 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">🚨 Quá hạn</span>`;
-                    } else if(limit > 0 && percent >= 90) {
+                        alertBadge = `<span class="bg-rose-100 text-rose-600 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">🚨 Quá hạn ${effectiveLimit > 0 ? `(${percent}%)` : ''}</span>`;
+                    } else if (effectiveLimit > 0 && percent >= 90) {
                         barColor = "bg-amber-500";
                         alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⚠️ Sắp chạm (${percent}%)</span>`;
-                    } else if(limit > 0 && percent >= 80) {
+                    } else if (effectiveLimit > 0 && percent >= 80) {
                         barColor = "bg-amber-400";
                         alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⚠️ Cảnh báo (${percent}%)</span>`;
+                    } else if (!daCap && effectiveLimit <= 0 && spent === 0) {
+                        barColor = "bg-slate-200";
+                        alertBadge = `<span class="bg-slate-100 text-slate-500 text-[9px] font-medium px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">Chưa đặt hạn mức</span>`;
                     }
 
                     const safeName = (c.name || '').replace(/'/g, "\\'");
+                    const suggestLimit = c.han_muc_goc || c.han_muc || effectiveLimit || 0;
+
+                    // Chỉ khi bị quá mức mới hiển thị thông báo để thêm hạn mức
+                    let overBudgetNoticeHtml = "";
+                    if (isOverBudget) {
+                        const overAmount = Math.abs(remaining);
+                        overBudgetNoticeHtml = `
+                            <div class="flex items-center justify-between bg-rose-50/90 border border-rose-200/90 px-2.5 py-1.5 rounded-xl text-xs gap-2" onclick="event.stopPropagation()">
+                                <div class="flex items-center gap-1.5 text-rose-700 text-[11px] font-semibold truncate">
+                                    <span>⚠️</span>
+                                    <span class="truncate">Vượt hạn mức <strong>${overAmount.toLocaleString()} đ</strong></span>
+                                </div>
+                                <button type="button" onclick="event.stopPropagation(); if(typeof openEditCategoryModal === 'function') openEditCategoryModal(${catId}, '${safeName}', 'chi', ${suggestLimit});" class="text-[10px] font-bold bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded-lg shadow-2xs whitespace-nowrap transition cursor-pointer shrink-0">
+                                    + Thêm hạn mức
+                                </button>
+                            </div>
+                        `;
+                    }
+
+                    const progressWidth = effectiveLimit > 0 ? Math.min(percent, 100) : (spent > 0 ? 100 : 0);
+
                     container.innerHTML += `
-                        <div onclick="openQuickAddTxForCategory(${catId}, '${safeName}')" class="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-sm space-y-2 cursor-pointer hover:border-teal-500 hover:shadow-md transition">
-                            <!-- Hàng 1: Tên hũ bên trái, Huy hiệu Cảnh báo bên phải (tách biệt hoàn toàn, không bao giờ đè lên nhau) -->
+                        <div onclick="openQuickAddTxForCategory(${catId}, '${safeName}')" class="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2 cursor-pointer hover:border-teal-500 hover:shadow-md transition">
+                            <!-- Hàng 1: Tên hũ & Huy hiệu -->
                             <div class="flex justify-between items-center gap-2">
                                 <span class="font-bold text-slate-800 text-[13px] truncate">🏺 ${c.name}</span>
                                 ${alertBadge}
                             </div>
 
-                            <!-- Hàng 2: Số tiền còn lại hoặc quá mức bên trái, Hạn mức tổng bên phải -->
+                            ${overBudgetNoticeHtml}
+
+                            <!-- Hàng 2: Số tiền còn lại/quá mức & Hạn mức -->
                             <div class="flex justify-between items-center text-xs">
-                                <div class="whitespace-nowrap">
-                                    <span class="text-[11px] ${remaining < 0 ? 'text-rose-500 font-semibold' : 'text-slate-400 font-medium'}">${remaining < 0 ? 'Quá mức:' : 'Còn:'}</span> 
-                                    <strong class="${remaining < 0 ? 'text-rose-500 font-extrabold' : 'text-teal-600 font-bold'} text-xs ml-0.5">${(remaining < 0 ? Math.abs(remaining) : remaining).toLocaleString()} đ</strong>
+                                <div class="text-[11px] truncate">
+                                    <span class="${isOverBudget ? 'text-rose-500 font-semibold' : 'text-slate-400 font-medium'}">${isOverBudget ? 'Quá mức:' : 'Còn lại:'}</span>
+                                    <strong class="${isOverBudget ? 'text-rose-600 font-extrabold' : 'text-teal-600 font-bold'} ml-0.5">${isOverBudget ? '-' + Math.abs(remaining).toLocaleString() + ' đ' : (effectiveLimit > 0 ? remaining.toLocaleString() + ' đ' : '0 đ')}</strong>
                                 </div>
-                                <div class="whitespace-nowrap text-right text-[10px] text-slate-400">
-                                    Hạn mức: <span class="font-semibold text-slate-600">${limit > 0 ? limit.toLocaleString() + ' đ' : `<span onclick="event.stopPropagation(); if(typeof openEditCategoryModal === 'function') openEditCategoryModal(${catId}, '${safeName}', 'chi', 0);" class="text-teal-600 underline cursor-pointer hover:text-teal-800 font-bold">Chưa đặt (Cài đặt)</span>`}</span>
+                                <div class="text-[11px] text-slate-400 shrink-0 text-right">
+                                    Hạn mức: <strong class="text-slate-600">${effectiveLimit > 0 ? effectiveLimit.toLocaleString() + ' đ' : 'Chưa đặt'}</strong>
                                 </div>
                             </div>
+
+                            <!-- Hàng 3: Thanh tiến độ -->
                             <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                <div class="${barColor} h-full transition-all duration-300" style="width: ${Math.min(percent, 100)}%"></div>
+                                <div class="${barColor} h-full transition-all duration-300" style="width: ${progressWidth}%"></div>
                             </div>
+
+                            <!-- Hàng 4: Đã chi & Nút chi tiêu -->
                             <div class="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
-                                <span class="whitespace-nowrap">Đã chi: <strong class="text-slate-600">${spent.toLocaleString()} đ</strong> (${percent}%)</span>
-                                <span onclick="event.stopPropagation(); openQuickAddTxForCategory(${c.id}, '${safeName}')" class="text-teal-600 font-semibold whitespace-nowrap hover:text-teal-800 transition flex items-center gap-0.5">
+                                <span class="truncate">Đã chi: <strong class="text-slate-600">${spent.toLocaleString()} đ</strong> ${effectiveLimit > 0 ? `(${percent}%)` : ''}</span>
+                                <span onclick="event.stopPropagation(); openQuickAddTxForCategory(${catId}, '${safeName}')" class="text-teal-600 font-semibold whitespace-nowrap hover:text-teal-800 transition flex items-center gap-0.5 shrink-0">
                                     <span>+ Chi tiêu</span>
                                     <span>➔</span>
                                 </span>
                             </div>
                         </div>`;
                 });
+            }
+
+            function goToRolloverLookup() {
+                if (typeof switchSection === 'function') {
+                    switchSection('lich-su');
+                }
+                setTimeout(() => {
+                    if (typeof setLookupMainTab === 'function') {
+                        setLookupMainTab('rollover');
+                    }
+                }, 50);
             }
 

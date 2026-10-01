@@ -88,7 +88,7 @@
             function openAddTransactionModal() {
                 closePlusModal();
                 const now = new Date();
-                const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const today = typeof getLocalDateString === 'function' ? getLocalDateString() : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                 const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 const dateEl = document.getElementById('modal-tx-date');
                 const timeEl = document.getElementById('modal-tx-time');
@@ -117,11 +117,11 @@
                 const select = document.getElementById('modal-tx-category');
                 if (select) select.value = catId;
 
-                // Reset ô nhập và gán ngày/giờ mặc định
+                // Reset ô nhập và gán ngày hôm nay mặc định
                 document.getElementById('modal-tx-amount').value = "";
                 document.getElementById('modal-tx-note').value = "";
                 const now = new Date();
-                const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const today = typeof getLocalDateString === 'function' ? getLocalDateString() : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                 const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 const dateEl = document.getElementById('modal-tx-date');
                 const timeEl = document.getElementById('modal-tx-time');
@@ -165,19 +165,18 @@
                 const category_id = parseInt(document.getElementById('modal-tx-category').value);
                 const note = document.getElementById('modal-tx-note').value.trim();
                 const txDate = document.getElementById('modal-tx-date').value;
-                const txTime = document.getElementById('modal-tx-time') ? document.getElementById('modal-tx-time').value : '';
 
                 if (!category_id || isNaN(category_id)) return showCustomModal("Thiếu danh mục", "Vui lòng chọn danh mục phù hợp!", "⚠️");
                 if (!amount || isNaN(amount) || amount < 1000) return showCustomModal("Số tiền không hợp lệ", "Số tiền giao dịch tối thiểu là 1.000 đ!", "⚠️");
                 
                 const now = new Date();
-                let fullDateTime;
-                if (!txDate) {
-                    fullDateTime = now.toISOString();
-                } else {
-                    const timePart = txTime ? `${txTime}:00` : `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-                    fullDateTime = `${txDate}T${timePart}`;
-                }
+                const curH = String(now.getHours()).padStart(2, '0');
+                const curM = String(now.getMinutes()).padStart(2, '0');
+                const curS = String(now.getSeconds()).padStart(2, '0');
+                const timePart = `${curH}:${curM}:${curS}`;
+                const todayStr = typeof getLocalDateString === 'function' ? getLocalDateString() : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const chosenDate = txDate || todayStr;
+                const fullDateTime = `${chosenDate}T${timePart}`;
 
                 const res = await fetch('/giao-dich', {
                     method: 'POST',

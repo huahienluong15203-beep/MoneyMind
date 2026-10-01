@@ -26,13 +26,13 @@
                 }
 
                 const header = document.getElementById('header-container');
-                if (sec === 'quan-ly') {
-                    header.classList.remove('hidden');
+                if (token && sec === 'quan-ly') {
+                    if (header) header.classList.remove('hidden');
                     loadSummary();
                     loadCategories();
                     loadTransactions();
                 } else {
-                    header.classList.add('hidden');
+                    if (header) header.classList.add('hidden');
                 }
 
                 if(sec === 'thong-ke') {
@@ -41,8 +41,13 @@
                     });
                 }
                 if(sec === 'lich-su') {
+                    if (typeof initLookupDateInput === 'function') initLookupDateInput();
                     loadTransactions();
-                    applyLookupFilter();
+                    if (typeof currentLookupMainTab !== 'undefined' && currentLookupMainTab === 'rollover') {
+                        if (typeof loadRolloverData === 'function') loadRolloverData();
+                    } else {
+                        applyLookupFilter();
+                    }
                 }
                 if(sec === 'thong-bao') loadNotifications();
                 if(sec === 'tai-khoan') loadUserProfile();
@@ -180,6 +185,36 @@
                 await loadNotifications();
                 await checkLoginBudgetWarnings();
                 renderJarsProgressList();
+                checkNewMonthWelcome();
+            }
+
+            function checkNewMonthWelcome() {
+                const now = new Date();
+                const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                const storageKey = `moneymind_new_month_welcomed_${currentYM}`;
+                const alreadyWelcomed = localStorage.getItem(storageKey);
+                if (!alreadyWelcomed) {
+                    const titleEl = document.getElementById('new-month-title');
+                    if (titleEl) {
+                        titleEl.innerText = `Chào Tháng ${now.getMonth() + 1}/${now.getFullYear()}! 🌟`;
+                    }
+                    const modal = document.getElementById('new-month-welcome-modal');
+                    if (modal) {
+                        modal.classList.remove('hidden');
+                    }
+                    localStorage.setItem(storageKey, "true");
+                }
+            }
+
+            function closeNewMonthModal() {
+                const modal = document.getElementById('new-month-welcome-modal');
+                if (modal) modal.classList.add('hidden');
+            }
+
+            function closeNewMonthModalAndGoToBudget() {
+                closeNewMonthModal();
+                switchSection('quan-ly');
+                switchManSubTab('ngan-sach');
             }
 
 

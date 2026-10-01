@@ -12,6 +12,23 @@ var selectedReportWeekDate = new Date(); // Ngày mốc để xác định tuầ
 var reportCategoryFilter = 'all'; // 'all' | 'spent_only'
 var expandedReportCats = new Set();
 var reportChartInstance = null;
+var reportRollovers = [];
+
+async function fetchReportRollovers() {
+    if (!token) return [];
+    try {
+        const res = await fetch('/api/ngan-sach/ket-chuyen', {
+            headers: {'Authorization': 'Bearer ' + token}
+        });
+        if (res.ok) {
+            reportRollovers = await res.json();
+            return reportRollovers;
+        }
+    } catch(e) {
+        console.error("Lỗi lấy lịch sử kết chuyển báo cáo:", e);
+    }
+    return [];
+}
 
 // Chuyển đổi chế độ lọc khoảng thời gian (Tuần / Tháng / Năm)
 function setReportFilterMode(mode) {
@@ -223,8 +240,14 @@ function updateReportSummary() {
     // 4. Vẽ biểu đồ xu hướng chuẩn xác theo dữ liệu hệ thống
     renderReportTrendChart(validTxs, range);
 
-    // 5. Tổng hợp & phân bổ chi tiết danh mục
-    renderReportCategoryBreakdown(validChiTxs, tChi, range);
+    // 5. Tổng hợp & phân bổ chi tiết danh mục kèm dữ liệu kết chuyển
+    if (token) {
+        fetchReportRollovers().then(() => {
+            renderReportCategoryBreakdown(validChiTxs, tChi, range);
+        });
+    } else {
+        renderReportCategoryBreakdown(validChiTxs, tChi, range);
+    }
 }
 
 // Vẽ biểu đồ xu hướng thu - chi (Trend Chart với Chart.js chuẩn dữ liệu hệ thống)
@@ -543,14 +566,30 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
         // Tỷ lệ % so với tổng chi kỳ này
         const pctOfTotal = tChi > 0 ? Math.round((spentAmount / tChi) * 100) : 0;
 
+        // Kiểm tra kết chuyển ngân sách của danh mục này trong tháng đang xem
+        const currentReportYM = reportFilterMode === 'month' 
+            ? `${selectedReportYear}-${String(selectedReportMonth).padStart(2, '0')}` 
+            : null;
+        let outRollover = null;
+        let inRollover = null;
+        if (currentReportYM && Array.isArray(reportRollovers)) {
+            outRollover = reportRollovers.find(r => String(r.ma_dm) === cId && r.thang_nguon === currentReportYM);
+            inRollover = reportRollovers.find(r => String(r.ma_dm) === cId && r.thang_dich === currentReportYM);
+        }
+
         // Hạn mức quy đổi theo khoảng thời gian
         let baseLimit = parseFloat(c.limit || c.han_muc || 0);
         let periodLimit = baseLimit;
-        if (reportFilterMode === 'quarter') periodLimit = baseLimit * 3;
+        if (outRollover && outRollover.han_muc_thang_truoc) {
+            periodLimit = parseFloat(outRollover.han_muc_thang_truoc);
+        } else if (reportFilterMode === 'quarter') periodLimit = baseLimit * 3;
         else if (reportFilterMode === 'year') periodLimit = baseLimit * 12;
 
         let pctOfLimit = periodLimit > 0 ? Math.round((spentAmount / periodLimit) * 100) : null;
         let remaining = periodLimit > 0 ? (periodLimit - spentAmount) : null;
+        if (outRollover) {
+            remaining = parseFloat(outRollover.so_tien_chuyen || 0);
+        }
 
         const theme = colors[idx % colors.length];
 
@@ -577,7 +616,11 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
         let headerLimitText = periodLimit > 0 
             ? `Hạn mức: ${periodLimit.toLocaleString()} đ` 
             : `<button type="button" onclick="event.stopPropagation(); if(typeof openEditCategoryModal === 'function') openEditCategoryModal(${cId}, '${(cName || '').replace(/'/g, "\\'")}', 'chi', 0);" class="text-teal-600 underline font-semibold hover:text-teal-800 transition">Chưa đặt hạn mức (Cài đặt)</button>`;
-        let headerBadgeHtml = pctOfLimit !== null ? `<span class="px-1.5 py-0.2 rounded-full ${limitBadgeClass}">Đã dùng ${pctOfLimit}%</span>` : '';
+        if (inRollover && inRollover.so_tien_chuyen > 0) {
+            headerLimitText += ` <span class="text-[9px] text-teal-600 font-semibold">(+${inRollover.so_tien_chuyen.toLocaleString()} đ từ T trước)</span>`;
+        }
+        // Chỉ giữ lại duy nhất '% tổng chi' (bỏ hẳn badge 'Đã dùng X%')
+        let headerBadgeHtml = '';
         let headerBarWidth = pctOfLimit !== null ? Math.min(100, pctOfLimit) : pctOfTotal;
         let headerBarClass = progressBarClass;
 
@@ -618,9 +661,17 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
                 const timeStr = d ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
                 const amt = Math.abs(t.amount || t.so_tien || 0);
                 const amountFormatted = amt.toLocaleString('vi-VN') + ' đ';
-                const rawNote = t.note || t.ghi_chu || 'Chi tiêu hũ';
-                // Bỏ chữ "tiết kiệm", chỉ để "Mục tiêu" (Ví dụ: "Mục tiêu: Du lịch")
-                const noteStr = rawNote.replace(/mục tiêu tiết kiệm\s*:/gi, 'Mục tiêu:').replace(/mục tiêu tiết kiệm/gi, 'Mục tiêu');
+                const rawNote = (t.note || t.ghi_chu || '').trim();
+                
+                // Chuẩn hóa tên giao dịch: làm rõ cụ thể hũ nào nếu chưa có ghi chú hoặc ghi chú chung chung 'Chi tiêu hũ'
+                const isGenericNote = !rawNote || rawNote.toLowerCase() === 'chi tiêu hũ' || rawNote.toLowerCase() === 'chi tieu hu';
+                let titleText = '';
+                if (isGenericNote) {
+                    titleText = `Chi tiêu hũ ${cName}`;
+                } else {
+                    // Bỏ chữ "tiết kiệm", chỉ để "Mục tiêu" (Ví dụ: "Mục tiêu: Du lịch")
+                    titleText = rawNote.replace(/mục tiêu tiết kiệm\s*:/gi, 'Mục tiêu:').replace(/mục tiêu tiết kiệm/gi, 'Mục tiêu');
+                }
 
                 const sign = isSavingsCat ? '+' : '-';
                 const amountColor = isSavingsCat ? 'text-teal-600' : 'text-rose-600';
@@ -628,8 +679,9 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
                 return `
                     <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-b-0 text-xs">
                         <div class="min-w-0 pr-2">
-                            <div class="font-medium text-slate-700 truncate">${noteStr}</div>
-                            <div class="text-[10px] text-slate-400 flex items-center gap-1">
+                            <div class="font-medium text-slate-700 truncate">${titleText}</div>
+                            <div class="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">Hũ ${cName}</span>
                                 <span>🗓️ ${dateStr}</span>
                                 ${timeStr ? `<span>• ${timeStr}</span>` : ''}
                             </div>
@@ -640,6 +692,47 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
                     </div>`;
             }).join('');
         }
+
+        let rolloverBannerHtml = '';
+        if (outRollover) {
+            const destParts = (outRollover.thang_dich || '').split('-');
+            const destLabel = destParts.length === 2 ? `Tháng ${parseInt(destParts[1], 10)}/${destParts[0]}` : outRollover.thang_dich;
+            rolloverBannerHtml = `
+                <div class="bg-teal-50/90 border border-teal-200/90 rounded-xl p-2.5 flex items-center justify-between text-[11px] text-teal-800 shadow-2xs">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="text-sm">🔄</span>
+                        <div class="min-w-0">
+                            <span class="font-bold">Đã dùng ${spentAmount.toLocaleString()} đ / ${periodLimit.toLocaleString()} đ (${pctOfLimit}%).</span>
+                            <span> Số dư <strong class="text-teal-700">+${outRollover.so_tien_chuyen.toLocaleString()} đ</strong> còn lại đã chuyển sang ${destLabel} để tiếp tục sử dụng.</span>
+                        </div>
+                    </div>
+                    <button type="button" onclick="event.stopPropagation(); if(typeof goToRolloverLookup === 'function') goToRolloverLookup();" class="text-[10px] text-teal-700 underline font-bold whitespace-nowrap shrink-0 hover:text-teal-900 ml-1">Tra cứu ➔</button>
+                </div>
+            `;
+        } else if (inRollover && inRollover.so_tien_chuyen > 0) {
+            const srcParts = (inRollover.thang_nguon || '').split('-');
+            const srcLabel = srcParts.length === 2 ? `Tháng ${parseInt(srcParts[1], 10)}/${srcParts[0]}` : inRollover.thang_nguon;
+            rolloverBannerHtml = `
+                <div class="bg-emerald-50/90 border border-emerald-200/90 rounded-xl p-2.5 flex items-center justify-between text-[11px] text-emerald-800 shadow-2xs">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="text-sm">🔄</span>
+                        <div class="min-w-0">
+                            <span>Nhận số dư <strong class="text-emerald-700">+${inRollover.so_tien_chuyen.toLocaleString()} đ</strong> từ ${srcLabel}</span>
+                            <span class="text-emerald-600"> (chưa tiêu hết tháng trước) để tiếp tục sử dụng.</span>
+                        </div>
+                    </div>
+                    <button type="button" onclick="event.stopPropagation(); if(typeof goToRolloverLookup === 'function') goToRolloverLookup();" class="text-[10px] text-emerald-700 underline font-bold whitespace-nowrap shrink-0 hover:text-emerald-900 ml-1">Tra cứu ➔</button>
+                </div>
+            `;
+        }
+
+        let col3Label = isSavingsCat ? 'Số tiền cần' : (outRollover ? 'Chuyển T sau' : (remaining !== null && remaining < 0 ? 'Quá mức' : 'Còn lại'));
+        let col3Val = isSavingsCat 
+            ? (totalSavingsNeeded.toLocaleString('vi-VN') + ' đ')
+            : (outRollover ? ('+' + outRollover.so_tien_chuyen.toLocaleString() + ' đ') : (remaining !== null ? (remaining < 0 ? Math.abs(remaining).toLocaleString() + 'đ' : remaining.toLocaleString() + 'đ') : '---'));
+        let col3Class = isSavingsCat 
+            ? 'text-teal-700' 
+            : (outRollover ? 'text-teal-700 font-extrabold' : (remaining !== null && remaining < 0 ? 'text-rose-600 font-extrabold' : 'text-teal-700'));
 
         html += `
             <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all duration-200">
@@ -686,6 +779,8 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
 
                 <!-- Khung Accordion mở rộng chi tiết giao dịch -->
                 <div class="${isExpanded ? 'block' : 'hidden'} bg-slate-50/70 border-t border-slate-200/80 p-3 space-y-2.5 animate-in fade-in duration-200">
+                    ${rolloverBannerHtml}
+
                     <!-- Thẻ tóm tắt thông số của riêng danh mục này -->
                     <div class="grid grid-cols-3 gap-1.5 text-center text-[10px] bg-white p-2 rounded-xl border border-slate-200/70 shadow-2xs">
                         <div class="p-1">
@@ -699,9 +794,9 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
                             <div class="font-bold ${isSavingsCat ? 'text-teal-700' : 'text-rose-600'} mt-0.5 truncate" title="${spentAmount.toLocaleString('vi-VN')} đ">${spentAmount.toLocaleString()}đ</div>
                         </div>
                         <div class="p-1">
-                            <div class="text-slate-400 font-medium" title="${isSavingsCat ? 'Cần thêm' : (remaining !== null && remaining < 0 ? 'Vượt quá hạn mức' : 'Ngân sách còn lại')}">${isSavingsCat ? 'Số tiền cần' : (remaining !== null && remaining < 0 ? 'Quá mức' : 'Còn lại')}</div>
-                            <div class="font-bold ${!isSavingsCat && remaining !== null && remaining < 0 ? 'text-rose-600 font-extrabold' : 'text-teal-700'} mt-0.5 truncate" title="${isSavingsCat ? (totalSavingsNeeded.toLocaleString('vi-VN') + ' đ') : (remaining !== null ? (remaining < 0 ? Math.abs(remaining).toLocaleString() + 'đ' : remaining.toLocaleString() + 'đ') : '---')}">
-                                ${isSavingsCat ? (totalSavingsNeeded.toLocaleString('vi-VN') + ' đ') : (remaining !== null ? (remaining < 0 ? Math.abs(remaining).toLocaleString() + 'đ' : remaining.toLocaleString() + 'đ') : '---')}
+                            <div class="text-slate-400 font-medium" title="${col3Label}">${col3Label}</div>
+                            <div class="font-bold ${col3Class} mt-0.5 truncate" title="${col3Val}">
+                                ${col3Val}
                             </div>
                         </div>
                     </div>

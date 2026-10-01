@@ -39,56 +39,44 @@
                 applyLookupFilter();
             }
 
+            function initLookupDateInput() {
+                const dateEl = document.getElementById('lookup-date');
+                if (dateEl && !dateEl.value) {
+                    const todayStr = typeof getLocalDateString === 'function' ? getLocalDateString() : new Date().toISOString().split('T')[0];
+                    dateEl.value = todayStr;
+                    const clearBtn = document.getElementById('lookup-clear-date-btn');
+                    if (clearBtn) clearBtn.classList.remove('hidden');
+                    updateMonthPresetButtons();
+                }
+            }
+
             function updateMonthPresetButtons() {
                 const monthEl = document.getElementById('lookup-month');
-                const curVal = monthEl ? monthEl.value : '';
-                const now = new Date();
-                const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                
-                let prevM = now.getMonth(); // 0-11
-                let prevY = now.getFullYear();
-                if (prevM === 0) {
-                    prevM = 12;
-                    prevY -= 1;
-                }
-                const prevYM = `${prevY}-${String(prevM).padStart(2, '0')}`;
+                const dateEl = document.getElementById('lookup-date');
+                const curMonth = monthEl ? monthEl.value : '';
+                const curDate = dateEl ? dateEl.value : '';
 
                 const btnAll = document.getElementById('lookup-preset-all');
-                const btnCurrent = document.getElementById('lookup-preset-current');
-                const btnPrev = document.getElementById('lookup-preset-prev');
+                const activeClass = "px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/70 transition shadow-2xs";
+                const inactiveClass = "px-2.5 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition";
 
-                const activeClass = "px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/70 transition shadow-2xs";
-                const inactiveClass = "px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition";
-
-                if (btnAll) btnAll.className = (!curVal ? activeClass : inactiveClass);
-                if (btnCurrent) btnCurrent.className = (curVal === curYM ? activeClass : inactiveClass);
-                if (btnPrev) btnPrev.className = (curVal === prevYM ? activeClass : inactiveClass);
+                const isAll = !curMonth && !curDate;
+                if (btnAll) btnAll.className = (isAll ? activeClass : inactiveClass);
             }
 
             function setLookupMonthPreset(preset) {
                 const monthEl = document.getElementById('lookup-month');
                 const dateEl = document.getElementById('lookup-date');
-                if (dateEl) {
-                    dateEl.value = '';
-                    const clearDateBtn = document.getElementById('lookup-clear-date-btn');
-                    if (clearDateBtn) clearDateBtn.classList.add('hidden');
-                }
 
-                const now = new Date();
                 if (preset === 'all') {
                     if (monthEl) monthEl.value = '';
-                } else if (preset === 'current') {
-                    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                    if (monthEl) monthEl.value = ym;
-                } else if (preset === 'prev') {
-                    let prevM = now.getMonth();
-                    let prevY = now.getFullYear();
-                    if (prevM === 0) {
-                        prevM = 12;
-                        prevY -= 1;
-                    }
-                    const ym = `${prevY}-${String(prevM).padStart(2, '0')}`;
-                    if (monthEl) monthEl.value = ym;
+                    if (dateEl) dateEl.value = '';
+                }
+
+                const clearBtn = document.getElementById('lookup-clear-date-btn');
+                if (clearBtn) {
+                    if (dateEl && dateEl.value) clearBtn.classList.remove('hidden');
+                    else clearBtn.classList.add('hidden');
                 }
 
                 updateMonthPresetButtons();
@@ -101,19 +89,16 @@
 
             function clearLookupDate() {
                 const dateEl = document.getElementById('lookup-date');
+                const monthEl = document.getElementById('lookup-month');
                 if (dateEl) dateEl.value = '';
+                if (monthEl) monthEl.value = '';
                 const clearBtn = document.getElementById('lookup-clear-date-btn');
                 if (clearBtn) clearBtn.classList.add('hidden');
+                updateMonthPresetButtons();
                 applyLookupFilter();
             }
 
             function onLookupMonthChange() {
-                const dateEl = document.getElementById('lookup-date');
-                if (dateEl) {
-                    dateEl.value = '';
-                    const clearBtn = document.getElementById('lookup-clear-date-btn');
-                    if (clearBtn) clearBtn.classList.add('hidden');
-                }
                 updateMonthPresetButtons();
                 applyLookupFilter();
             }
@@ -121,14 +106,11 @@
             function onLookupDateChange() {
                 const dateEl = document.getElementById('lookup-date');
                 const monthEl = document.getElementById('lookup-month');
+                if (monthEl) monthEl.value = '';
+                const clearBtn = document.getElementById('lookup-clear-date-btn');
                 if (dateEl && dateEl.value) {
-                    const clearBtn = document.getElementById('lookup-clear-date-btn');
                     if (clearBtn) clearBtn.classList.remove('hidden');
-                    if (monthEl) {
-                        monthEl.value = dateEl.value.slice(0, 7);
-                    }
                 } else {
-                    const clearBtn = document.getElementById('lookup-clear-date-btn');
                     if (clearBtn) clearBtn.classList.add('hidden');
                 }
                 updateMonthPresetButtons();
@@ -219,10 +201,15 @@
                     const isMatch = matchType && matchMonth && matchDate && matchKeyword;
                     if (isMatch) {
                         const amt = t.amount !== undefined ? t.amount : (t.so_tien || 0);
+                        const isDeletedGoal = note.includes('(đã xóa)') || note.includes('(đã xoá)');
                         if (effectiveType === 'chi') {
-                            totalChi += amt;
+                            if (!isDeletedGoal) {
+                                totalChi += amt;
+                            }
                         } else {
-                            totalThu += amt;
+                            if (!note.includes('hoàn tiền từ hũ tiết kiệm')) {
+                                totalThu += amt;
+                            }
                         }
                     }
 
@@ -232,6 +219,7 @@
                 // Cập nhật thanh tóm tắt kết quả bộ lọc
                 const summaryCountEl = document.getElementById('lookup-summary-count');
                 const summaryTotalsEl = document.getElementById('lookup-summary-totals');
+                const hasSpecificDateOrMonth = Boolean(date || month);
                 if (summaryCountEl) {
                     let label = "Tất cả";
                     if (date) {
@@ -247,7 +235,21 @@
                 }
 
                 if (summaryTotalsEl) {
-                    summaryTotalsEl.innerHTML = `<span class="text-emerald-600 font-bold">+${totalThu.toLocaleString('vi-VN')} đ</span> | <span class="text-rose-600 font-bold">-${totalChi.toLocaleString('vi-VN')} đ</span>`;
+                    // Chỉ hiển thị tổng tiền khi lọc theo ngày/tháng cụ thể VÀ có giao dịch (> 0)
+                    // Nếu là "Tất cả" hoặc không có giao dịch nào (0 giao dịch) thì ẩn đi
+                    if (hasSpecificDateOrMonth && filtered.length > 0) {
+                        if (type === 'chi') {
+                            summaryTotalsEl.innerHTML = `<span class="text-rose-600 font-bold">-${totalChi.toLocaleString('vi-VN')} đ</span>`;
+                        } else if (type === 'thu') {
+                            summaryTotalsEl.innerHTML = `<span class="text-emerald-600 font-bold">+${totalThu.toLocaleString('vi-VN')} đ</span>`;
+                        } else {
+                            summaryTotalsEl.innerHTML = `<span class="text-emerald-600 font-bold">+${totalThu.toLocaleString('vi-VN')} đ</span> | <span class="text-rose-600 font-bold">-${totalChi.toLocaleString('vi-VN')} đ</span>`;
+                        }
+                        summaryTotalsEl.classList.remove('hidden');
+                    } else {
+                        summaryTotalsEl.innerHTML = '';
+                        summaryTotalsEl.classList.add('hidden');
+                    }
                 }
 
                 renderLookupTransactions(filtered);
@@ -363,8 +365,7 @@
                                     ${isDeletedGoal ? '<span class="shrink-0 text-[9px] bg-rose-100 text-rose-600 px-1.5 py-0.2 rounded font-bold whitespace-nowrap">Đã xoá</span>' : ''}
                                 </div>
                                 <div class="flex items-center gap-1.5 shrink-0">
-                                    <!-- Số tiền được dịch sang trái một chút để chừa khoảng cách cho nút 3 chấm -->
-                                    <div class="font-extrabold text-sm whitespace-nowrap text-right ${isChi ? 'text-rose-600' : 'text-emerald-600'}">
+                                    <div class="font-extrabold text-sm whitespace-nowrap text-right ${isDeletedGoal ? 'text-slate-400 line-through' : (isChi ? 'text-rose-600' : 'text-emerald-600')}">
                                         ${isChi ? '-' : '+'}${amt.toLocaleString()} đ
                                     </div>
                                     <!-- Nút 3 chấm mở menu Sửa / Xóa giao dịch -->
@@ -573,13 +574,13 @@
                 if (!amount || isNaN(amount) || amount < 1000) return showCustomModal("Số tiền không hợp lệ", "Số tiền giao dịch tối thiểu là 1.000 đ!", "⚠️");
 
                 const now = new Date();
-                let fullDateTime;
-                if (!txDate) {
-                    fullDateTime = now.toISOString();
-                } else {
-                    const timePart = txTime ? `${txTime}:00` : `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-                    fullDateTime = `${txDate}T${timePart}`;
-                }
+                const curH = String(now.getHours()).padStart(2, '0');
+                const curM = String(now.getMinutes()).padStart(2, '0');
+                const curS = String(now.getSeconds()).padStart(2, '0');
+                const timePart = `${curH}:${curM}:${curS}`;
+                const todayStr = typeof getLocalDateString === 'function' ? getLocalDateString() : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const chosenDate = txDate || todayStr;
+                const fullDateTime = `${chosenDate}T${timePart}`;
 
                 try {
                     const res = await fetch(`/giao-dich/${txId}`, {
@@ -704,5 +705,232 @@
                     }
                 } catch (e) {
                     showCustomModal("Lỗi kết nối", "Không thể kết nối đến máy chủ. Vui lòng thử lại!", "❌");
+                }
+            }
+
+            /* ==========================================================================
+               TRA CỨU LỊCH SỬ KẾT CHUYỂN HẠN MỨC GIỮA CÁC THÁNG
+               ========================================================================== */
+            var currentLookupMainTab = 'txs';
+            var allRollovers = [];
+
+            function setLookupMainTab(tab) {
+                currentLookupMainTab = tab;
+                const btnTxs = document.getElementById('lookup-main-tab-txs');
+                const btnRollover = document.getElementById('lookup-main-tab-rollover');
+                const viewTxs = document.getElementById('lookup-view-txs');
+                const viewRollover = document.getElementById('lookup-view-rollover');
+
+                const activeClass = "flex-1 py-1.5 rounded-xl bg-white text-teal-700 shadow-sm transition flex items-center justify-center gap-1.5 font-bold text-xs";
+                const inactiveClass = "flex-1 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5 font-medium text-xs";
+
+                if (tab === 'txs') {
+                    if (btnTxs) btnTxs.className = activeClass;
+                    if (btnRollover) btnRollover.className = inactiveClass;
+                    if (viewTxs) viewTxs.classList.remove('hidden');
+                    if (viewRollover) viewRollover.classList.add('hidden');
+                    applyLookupFilter();
+                } else {
+                    if (btnTxs) btnTxs.className = inactiveClass;
+                    if (btnRollover) btnRollover.className = activeClass;
+                    if (viewTxs) viewTxs.classList.add('hidden');
+                    if (viewRollover) viewRollover.classList.remove('hidden');
+                    loadRolloverData();
+                }
+            }
+
+            async function loadRolloverData() {
+                if (!token) return;
+                try {
+                    const res = await fetch('/api/ngan-sach/ket-chuyen', {
+                        headers: {'Authorization': 'Bearer ' + token}
+                    });
+                    if (res.ok) {
+                        allRollovers = await res.json();
+                        populateRolloverCatDropdown();
+                        applyRolloverFilter();
+                    }
+                } catch (e) {
+                    console.error("Lỗi tải lịch sử kết chuyển:", e);
+                }
+            }
+
+            function populateRolloverCatDropdown() {
+                const selectEl = document.getElementById('rollover-cat-filter');
+                if (!selectEl) return;
+                const curVal = selectEl.value;
+                selectEl.innerHTML = `<option value="all">Tất cả hũ chi tiêu</option>`;
+                const chiCats = allCategories.filter(c => (c.type === 'chi' || c.loai_dm === 'chi') && c.name !== 'Tiết kiệm');
+                chiCats.forEach(c => {
+                    const cId = c.id || c.ma_dm;
+                    selectEl.innerHTML += `<option value="${cId}">🏺 ${c.name || c.ten_dm}</option>`;
+                });
+                if (curVal) selectEl.value = curVal;
+            }
+
+            function setRolloverMonthPreset(preset) {
+                const monthEl = document.getElementById('rollover-month');
+                const now = new Date();
+                const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                
+                let prevM = now.getMonth();
+                let prevY = now.getFullYear();
+                if (prevM === 0) {
+                    prevM = 12;
+                    prevY -= 1;
+                }
+                const prevYM = `${prevY}-${String(prevM).padStart(2, '0')}`;
+
+                if (preset === 'all') {
+                    if (monthEl) monthEl.value = '';
+                } else if (preset === 'current') {
+                    if (monthEl) monthEl.value = curYM;
+                } else if (preset === 'prev') {
+                    if (monthEl) monthEl.value = prevYM;
+                }
+
+                updateRolloverMonthPresets();
+                applyRolloverFilter();
+            }
+
+            function updateRolloverMonthPresets() {
+                const monthEl = document.getElementById('rollover-month');
+                const curVal = monthEl ? monthEl.value : '';
+                const now = new Date();
+                const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                
+                let prevM = now.getMonth();
+                let prevY = now.getFullYear();
+                if (prevM === 0) {
+                    prevM = 12;
+                    prevY -= 1;
+                }
+                const prevYM = `${prevY}-${String(prevM).padStart(2, '0')}`;
+
+                const bAll = document.getElementById('ro-preset-all');
+                const bCur = document.getElementById('ro-preset-current');
+                const bPrev = document.getElementById('ro-preset-prev');
+
+                const active = "px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/70 transition shadow-2xs";
+                const inactive = "px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition";
+
+                if (bAll) bAll.className = (!curVal ? active : inactive);
+                if (bCur) bCur.className = (curVal === curYM ? active : inactive);
+                if (bPrev) bPrev.className = (curVal === prevYM ? active : inactive);
+            }
+
+            function formatMonthYearLabel(ym) {
+                if (!ym) return '';
+                const parts = ym.split('-');
+                if (parts.length === 2) return `Tháng ${parseInt(parts[1], 10)}/${parts[0]}`;
+                return ym;
+            }
+
+            function applyRolloverFilter() {
+                updateRolloverMonthPresets();
+                const monthEl = document.getElementById('rollover-month');
+                const catEl = document.getElementById('rollover-cat-filter');
+                const filterMonth = monthEl ? monthEl.value : '';
+                const filterCat = catEl ? catEl.value : 'all';
+
+                let list = [...allRollovers];
+                if (filterMonth) {
+                    list = list.filter(r => (r.thang_nguon === filterMonth || r.thang_dich === filterMonth));
+                }
+                if (filterCat !== 'all') {
+                    list = list.filter(r => String(r.ma_dm) === String(filterCat));
+                }
+
+                const countEl = document.getElementById('rollover-count-label');
+                const totalEl = document.getElementById('rollover-total-transferred');
+                const container = document.getElementById('rollover-list');
+
+                const totalTransferred = list.reduce((sum, r) => sum + (parseFloat(r.so_tien_chuyen) || 0), 0);
+                if (countEl) countEl.innerText = `${list.length} lượt kết chuyển hạn mức`;
+                if (totalEl) totalEl.innerText = `Tổng số dư chuyển: +${totalTransferred.toLocaleString()} đ`;
+
+                if (!container) return;
+                if (list.length === 0) {
+                    container.innerHTML = `
+                        <div class="bg-white p-6 rounded-2xl border text-center space-y-2 text-slate-400">
+                            <span class="text-3xl block">📭</span>
+                            <p class="text-xs font-medium">Chưa có lịch sử kết chuyển hạn mức nào${filterMonth ? ` trong ${formatMonthYearLabel(filterMonth)}` : ''}.</p>
+                            <p class="text-[10px] text-slate-400">Khi kết thúc tháng, các khoản hạn mức chưa dùng hết sẽ được tự động cộng sang tháng sau.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = list.map(r => {
+                    const srcLabel = formatMonthYearLabel(r.thang_nguon);
+                    const destLabel = formatMonthYearLabel(r.thang_dich);
+                    const prevLimit = parseFloat(r.han_muc_thang_truoc || 0);
+                    const prevSpent = parseFloat(r.da_chi_thang_truoc || 0);
+                    const transferred = parseFloat(r.so_tien_chuyen || 0);
+                    const spentPct = prevLimit > 0 ? Math.round((prevSpent / prevLimit) * 100) : 0;
+
+                    let dStr = '';
+                    if (r.ngay_tao) {
+                        try {
+                            const d = new Date(String(r.ngay_tao).replace(' ', 'T'));
+                            if (!isNaN(d.getTime())) {
+                                dStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                            }
+                        } catch(e) {}
+                    }
+
+                    return `
+                        <div class="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2.5 hover:border-teal-500 hover:shadow-md transition">
+                            <!-- Hàng 1: Danh mục & Huy hiệu kết chuyển -->
+                            <div class="flex justify-between items-center gap-2">
+                                <span class="font-bold text-slate-800 text-[13px] truncate">🏺 ${r.ten_dm || 'Hũ chi tiêu'}</span>
+                                <span class="bg-teal-50 text-teal-700 border border-teal-200/80 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+                                    🔄 Tự động kết chuyển
+                                </span>
+                            </div>
+
+                            <!-- Tuyến chuyển giao tháng -->
+                            <div class="flex items-center gap-1.5 text-xs bg-slate-50 p-2 rounded-xl border border-slate-100 font-semibold text-slate-700">
+                                <span class="text-slate-500 text-[11px]">Từ:</span>
+                                <span class="bg-white px-2 py-0.5 rounded-md border text-slate-800 text-[11px] font-bold shadow-2xs">${srcLabel}</span>
+                                <span class="text-teal-600 font-extrabold text-sm">➔</span>
+                                <span class="text-slate-500 text-[11px]">Sang:</span>
+                                <span class="bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200 text-teal-700 text-[11px] font-bold shadow-2xs">${destLabel}</span>
+                            </div>
+
+                            <!-- Lưới 3 thông số chi tiết -->
+                            <div class="grid grid-cols-3 gap-1.5 text-center text-[10px] bg-slate-50/60 p-2 rounded-xl border border-slate-100">
+                                <div>
+                                    <div class="text-slate-400 font-medium">${srcLabel}</div>
+                                    <div class="font-semibold text-slate-700 mt-0.5 truncate" title="${prevLimit.toLocaleString()} đ">${prevLimit.toLocaleString()} đ</div>
+                                </div>
+                                <div class="border-x border-slate-200/60">
+                                    <div class="text-slate-400 font-medium">Đã dùng (${spentPct}%)</div>
+                                    <div class="font-semibold text-rose-600 mt-0.5 truncate" title="${prevSpent.toLocaleString()} đ">${prevSpent.toLocaleString()} đ</div>
+                                </div>
+                                <div>
+                                    <div class="text-slate-400 font-medium">Chuyển sang tiếp tục tiêu</div>
+                                    <div class="font-bold text-teal-600 mt-0.5 truncate text-[11px]" title="+${transferred.toLocaleString()} đ">+${transferred.toLocaleString()} đ</div>
+                                </div>
+                            </div>
+
+                            <!-- Hàng chân: Ngày giờ & Ghi chú -->
+                            <div class="flex justify-between items-center text-[10px] text-slate-400 pt-0.5 border-t border-slate-100">
+                                <span>🗓️ ${dStr || 'Ngày đầu tháng'}</span>
+                                <span class="text-slate-500 italic max-w-[60%] truncate" title="${r.ghi_chu || ''}">
+                                    ${r.ghi_chu || 'Số dư chưa dùng hết chuyển sang tiếp tục sử dụng'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Tự động khởi tạo ô ngày lọc theo ngày thực tế hôm nay
+            if (typeof document !== 'undefined') {
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initLookupDateInput);
+                } else {
+                    initLookupDateInput();
                 }
             }

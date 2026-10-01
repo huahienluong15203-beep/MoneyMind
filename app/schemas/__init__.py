@@ -15,6 +15,7 @@ from app.schemas.giao_dich import (
 from app.schemas.ngan_sach import (
     NganSachCreate, NganSachUpdate, NganSachResponse, CanhBaoNgayResponse
 )
+from app.schemas.ket_chuyen_ngan_sach import KetChuyenNganSachResponse
 from app.schemas.muc_tieu import (
     MucTieuCreate, MucTieuUpdate, MucTieuNopTien, MucTieuResponse
 )
@@ -36,6 +37,7 @@ __all__ = [
     "CanhBaoNganSachInfo", "GiaoDichCreateResponse",
     "TransactionCreate", "TransactionResponse",
     "NganSachCreate", "NganSachUpdate", "NganSachResponse", "CanhBaoNgayResponse",
+    "KetChuyenNganSachResponse",
     "MucTieuCreate", "MucTieuUpdate", "MucTieuNopTien", "MucTieuResponse",
     "TongQuanResponse", "SummaryResponse", "ChiTietDanhMuc", "XuHuongThang",
     "BaoCaoAIResponse", "GoiYNganSachResponse", "GoiYNganSachItem",

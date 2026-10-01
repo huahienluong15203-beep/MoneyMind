@@ -127,14 +127,20 @@
                     const actualPct = messageMatch ? messageMatch[1] : (titleMatch ? titleMatch[1] : null);
 
                     let icon = "📢";
-                    let bgTagClass = "bg-slate-100 text-slate-700";
-                    let typeLabel = "Thông tin";
+                    let bgTagClass = "bg-sky-50 text-sky-700 border border-sky-200/70";
+                    let typeLabel = "Thông báo";
 
-                    if(title.includes("Vượt") || title.includes("🚨") || message.includes("vượt quá")) {
+                    const isRollover = title.includes("KẾT CHUYỂN") || title.includes("Kết chuyển") || title.includes("CHUYỂN HẠN MỨC") || title.includes("Chuyển hạn mức") || message.includes("kết chuyển");
+
+                    if(isRollover) {
+                        icon = "🔄";
+                        bgTagClass = "bg-teal-50 text-teal-700 border border-teal-200/70";
+                        typeLabel = "Thông báo";
+                    } else if(title.includes("Vượt") || title.includes("🚨") || message.includes("vượt quá")) {
                         icon = "🚨";
                         bgTagClass = "bg-rose-100 text-rose-700";
                         typeLabel = actualPct ? `Vượt hạn mức (${actualPct}%)` : "Vượt hạn mức";
-                    } else if(title.includes("Sắp") || title.includes("⚠️") || message.includes("sắp chạm") || message.includes("hạn mức") || message.includes("ngân sách")) {
+                    } else if(title.includes("CẢNH BÁO") || title.includes("Cảnh báo") || title.includes("Sắp") || title.includes("⚠️") || message.includes("sắp chạm") || message.includes("sắp vượt")) {
                         icon = "⚠️";
                         bgTagClass = "bg-amber-100 text-amber-800";
                         typeLabel = actualPct ? `Cảnh báo (${actualPct}%)` : "Cảnh báo";
@@ -240,13 +246,19 @@
 
                 let icon = "📢";
                 let badge = "THÔNG BÁO";
-                let badgeClass = "bg-slate-100 text-slate-700";
+                let badgeClass = "bg-sky-100 text-sky-800";
 
-                if(title.includes("Vượt") || title.includes("🚨") || message.includes("vượt quá")) {
+                const isRollover = title.includes("KẾT CHUYỂN") || title.includes("Kết chuyển") || title.includes("CHUYỂN HẠN MỨC") || title.includes("Chuyển hạn mức") || message.includes("kết chuyển");
+
+                if(isRollover) {
+                    icon = "🔄";
+                    badge = "THÔNG BÁO KẾT CHUYỂN HẠN MỨC";
+                    badgeClass = "bg-teal-100 text-teal-800";
+                } else if(title.includes("Vượt") || title.includes("🚨") || message.includes("vượt quá")) {
                     icon = "🚨";
                     badge = actualPct ? `CẢNH BÁO VƯỢT HẠN MỨC (${actualPct}%)` : "CẢNH BÁO VƯỢT HẠN MỨC";
                     badgeClass = "bg-rose-100 text-rose-700";
-                } else if(title.includes("Sắp") || title.includes("⚠️") || message.includes("sắp chạm") || message.includes("hạn mức") || message.includes("ngân sách")) {
+                } else if(title.includes("CẢNH BÁO") || title.includes("Cảnh báo") || title.includes("Sắp") || title.includes("⚠️") || message.includes("sắp chạm") || message.includes("sắp vượt")) {
                     icon = "⚠️";
                     badge = actualPct ? `CẢNH BÁO SẮP CHẠM HẠN MỨC (${actualPct}%)` : "CẢNH BÁO SẮP CHẠM HẠN MỨC";
                     badgeClass = "bg-amber-100 text-amber-800";

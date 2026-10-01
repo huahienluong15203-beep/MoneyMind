@@ -117,9 +117,12 @@ var currentAuthMode = 'register';
 
             function logout() {
                 localStorage.removeItem("moneymind_token");
+                localStorage.removeItem("access_token");
                 token = "";
-                document.getElementById('header-container').classList.add('hidden');
-                document.getElementById('floating-top-controls').classList.add('hidden');
+                const header = document.getElementById('header-container');
+                if(header) header.classList.add('hidden');
+                const ft = document.getElementById('floating-top-controls');
+                if(ft) ft.classList.add('hidden');
                 const fb = document.getElementById('floating-bottom-controls');
                 if(fb) fb.classList.add('hidden');
                 document.getElementById('app-container').classList.add('hidden');
@@ -127,13 +130,20 @@ var currentAuthMode = 'register';
                 document.getElementById('onboarding-screen').classList.add('hidden');
                 document.getElementById('auth-container').classList.add('hidden');
                 document.getElementById('welcome-screen').classList.remove('hidden');
-                if (typeof switchSection === 'function') switchSection('quan-ly');
+                currentSection = 'quan-ly';
                 if (typeof switchManSubTab === 'function') switchManSubTab('ngan-sach');
             }
 
 
             function goToAuthMode(mode) {
                 currentAuthMode = mode;
+                const header = document.getElementById('header-container');
+                if(header) header.classList.add('hidden');
+                const ft = document.getElementById('floating-top-controls');
+                if(ft) ft.classList.add('hidden');
+                const fb = document.getElementById('floating-bottom-controls');
+                if(fb) fb.classList.add('hidden');
+
                 document.getElementById('welcome-screen').classList.add('hidden');
                 document.getElementById('auth-container').classList.remove('hidden');
                 

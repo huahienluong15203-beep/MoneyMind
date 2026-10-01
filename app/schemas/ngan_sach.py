@@ -19,6 +19,8 @@ class NganSachResponse(BaseModel):
     canh_bao_da_gui: bool
     ten_dm: Optional[str] = None
     ty_le: Optional[float] = None
+    so_du_chuyen_sang: Optional[float] = 0.0
+    han_muc_cap_moi: Optional[float] = 0.0
 
     class Config:
         from_attributes = True

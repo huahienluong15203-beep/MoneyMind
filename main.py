@@ -81,37 +81,50 @@ def check_and_generate_daily_7am_notifications(db: Session, user: NguoiDung):
     now = datetime.now()
     today_start = datetime(now.year, now.month, now.day, 0, 0, 0)
     today_7am = datetime(now.year, now.month, now.day, 7, 0, 0)
+    start_this = datetime(now.year, now.month, 1, 0, 0, 0)
+    end_this = datetime(now.year + 1, 1, 1, 0, 0, 0) if now.month == 12 else datetime(now.year, now.month + 1, 1, 0, 0, 0)
+    now_ym = now.strftime("%Y-%m")
 
-    # 1. Hũ dùng quá hạn mức (Chi tiêu > Hạn mức)
+    # 1. Hũ dùng quá hạn mức (Chi tiêu > Hạn mức trong tháng hiện tại)
     chi_categories = db.query(DanhMuc).filter(
         DanhMuc.ma_nd == user.ma_nd,
-        DanhMuc.loai_dm == "chi",
-        DanhMuc.han_muc > 0
+        DanhMuc.loai_dm == "chi"
     ).all()
 
     over_jars = []
     approaching_jars = []
     for c in chi_categories:
+        ns = db.query(NganSach).filter(
+            NganSach.ma_nd == user.ma_nd,
+            NganSach.ma_dm == c.ma_dm,
+            NganSach.thang_nam == now_ym
+        ).first()
+        limit = float(ns.han_muc) if (ns and ns.han_muc and ns.han_muc > 0) else 0.0
+        if limit <= 0:
+            continue
+
         txs = db.query(GiaoDich).filter(
             GiaoDich.ma_nd == user.ma_nd,
             GiaoDich.ma_dm == c.ma_dm,
-            GiaoDich.loai_gd == "chi"
+            GiaoDich.loai_gd == "chi",
+            GiaoDich.ngay_gd >= start_this,
+            GiaoDich.ngay_gd < end_this
         ).all()
         spent = sum(t.so_tien for t in txs if t.so_tien)
-        if spent > c.han_muc:
-            pct = round((spent / c.han_muc) * 100)
+        if spent > limit:
+            pct = round((spent / limit) * 100)
             over_jars.append({
                 "name": c.ten_dm,
                 "spent": spent,
-                "limit": c.han_muc,
+                "limit": limit,
                 "pct": pct
             })
-        elif spent >= c.han_muc * 0.9:
-            pct = round((spent / c.han_muc) * 100)
+        elif spent >= limit * 0.9:
+            pct = round((spent / limit) * 100)
             approaching_jars.append({
                 "name": c.ten_dm,
                 "spent": spent,
-                "limit": c.han_muc,
+                "limit": limit,
                 "pct": pct
             })
 
@@ -360,7 +373,21 @@ def doi_mat_khau(payload: dict, db: Session = Depends(get_db), current_user: Ngu
     db.commit()
     return {"thong_bao": "OK"}
 
-def _format_dm(c: DanhMuc):
+def _format_dm(c: DanhMuc, db: Optional[Session] = None):
+    now_ym = datetime.now().strftime("%Y-%m")
+    ns = None
+    if db:
+        ns = db.query(NganSach).filter(
+            NganSach.ma_dm == c.ma_dm,
+            NganSach.thang_nam == now_ym
+        ).first()
+
+    current_limit = float(ns.han_muc) if (ns and ns.han_muc and ns.han_muc > 0) else 0.0
+    so_du_chuyen = float(ns.so_du_chuyen_sang or 0.0) if ns else 0.0
+    cap_moi = float(ns.han_muc_cap_moi or 0.0) if ns else 0.0
+    da_cap_moi = (cap_moi > 0)
+    da_cap = (ns is not None and ns.han_muc is not None and ns.han_muc > 0)
+
     return {
         "id": c.ma_dm,
         "ma_dm": c.ma_dm,
@@ -368,8 +395,13 @@ def _format_dm(c: DanhMuc):
         "ten_dm": c.ten_dm,
         "type": c.loai_dm,
         "loai_dm": c.loai_dm,
-        "budget_limit": c.han_muc or 0.0,
-        "han_muc": c.han_muc or 0.0,
+        "budget_limit": current_limit,
+        "han_muc": current_limit,
+        "so_du_chuyen_sang": so_du_chuyen,
+        "han_muc_cap_moi": cap_moi,
+        "da_cap_moi": da_cap_moi,
+        "da_cap_han_muc": da_cap,
+        "han_muc_goc": float(c.han_muc or 0.0),
         "icon": c.icon or "tag",
         "mau_sac": c.mau_sac or "#0ea5e9",
         "ma_nd": c.ma_nd,
@@ -401,7 +433,20 @@ def tao_danh_muc_legacy(cat: dict, db: Session = Depends(get_db), current_user: 
         db.add(new_c)
         db.commit()
         db.refresh(new_c)
-        return _format_dm(new_c)
+
+        if limit > 0:
+            now_ym = datetime.now().strftime("%Y-%m")
+            ns = NganSach(
+                ma_nd=current_user.ma_nd,
+                ma_dm=new_c.ma_dm,
+                thang_nam=now_ym,
+                han_muc=limit,
+                so_tien_da_chi=0.0
+            )
+            db.add(ns)
+            db.commit()
+
+        return _format_dm(new_c, db)
     else:  # ctype == 'thu'
         new_c = DanhMuc(ten_dm=cname, loai_dm=ctype, han_muc=0.0, ma_nd=current_user.ma_nd)
         db.add(new_c)
@@ -421,7 +466,7 @@ def tao_danh_muc_legacy(cat: dict, db: Session = Depends(get_db), current_user: 
             db.add(tx)
             db.commit()
 
-        return _format_dm(new_c)
+        return _format_dm(new_c, db)
 
 @app.put("/danh-muc/{cat_id}")
 def sua_danh_muc_legacy(cat_id: int, cat: dict, db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
@@ -439,6 +484,7 @@ def sua_danh_muc_legacy(cat_id: int, cat: dict, db: Session = Depends(get_db), c
             now_dt = datetime.now()
             start_this = datetime(now_dt.year, now_dt.month, 1)
             end_this = datetime(now_dt.year + 1, 1, 1) if now_dt.month == 12 else datetime(now_dt.year, now_dt.month + 1, 1)
+            now_ym = now_dt.strftime("%Y-%m")
             txs = db.query(GiaoDich).filter(
                 GiaoDich.ma_dm == cat_id,
                 GiaoDich.loai_gd == "chi",
@@ -452,20 +498,43 @@ def sua_danh_muc_legacy(cat_id: int, cat: dict, db: Session = Depends(get_db), c
                     detail=f"Hạn mức mới ({new_limit:,.0f} đ) không được nhỏ hơn số tiền đã chi tháng này ({spent:,.0f} đ) trong danh mục này! Bạn chỉ có thể nâng hạn mức chứ không được giảm nhỏ hơn số tiền đã chi tháng này."
                 )
 
-            old_limit = float(c.han_muc or 0.0)
-            diff = new_limit - old_limit
+            ns = db.query(NganSach).filter(
+                NganSach.ma_nd == current_user.ma_nd,
+                NganSach.ma_dm == cat_id,
+                NganSach.thang_nam == now_ym
+            ).first()
+            old_limit = float(ns.han_muc) if (ns and ns.han_muc) else 0.0
+            so_du = float(ns.so_du_chuyen_sang or 0.0) if ns else 0.0
+            old_allocated = max(0.0, old_limit - so_du)
+            new_allocated = max(0.0, new_limit - so_du)
+            diff = new_allocated - old_allocated
             if diff > 0:
                 current_balance = _get_wallet_balance(db, current_user.ma_nd)
                 if diff > current_balance:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Số dư ví chính không đủ để tăng hạn mức thêm {diff:,.0f} đ! Số dư còn lại: {max(0.0, current_balance):,.0f} đ."
+                        detail=f"Số dư ví chính không đủ để cấp hạn mức thêm {diff:,.0f} đ cho hũ '{c.ten_dm}'! Số dư còn lại: {max(0.0, current_balance):,.0f} đ."
                     )
             c.han_muc = new_limit
+            if ns:
+                ns.han_muc = new_limit
+                ns.han_muc_cap_moi = new_allocated
+                ns.so_tien_da_chi = spent
+            elif new_limit > 0:
+                ns = NganSach(
+                    ma_nd=current_user.ma_nd,
+                    ma_dm=cat_id,
+                    thang_nam=now_ym,
+                    han_muc=new_limit,
+                    han_muc_cap_moi=new_allocated,
+                    so_du_chuyen_sang=0.0,
+                    so_tien_da_chi=spent
+                )
+                db.add(ns)
         else:
             c.han_muc = 0.0
     db.commit()
-    return _format_dm(c)
+    return _format_dm(c, db)
 
 @app.delete("/danh-muc/{cat_id}")
 def xoa_danh_muc_legacy(cat_id: int, db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
@@ -511,8 +580,19 @@ def xoa_danh_muc_legacy(cat_id: int, db: Session = Depends(get_db), current_user
 
 @app.get("/danh-muc")
 def lay_danh_sach_danh_muc_legacy(db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
+    NganSachService.tu_dong_ket_chuyen_thang_moi(db, current_user.ma_nd)
     cats = db.query(DanhMuc).filter(DanhMuc.ma_nd == current_user.ma_nd).all()
-    return [_format_dm(c) for c in cats]
+    return [_format_dm(c, db) for c in cats]
+
+@app.get("/api/ket-chuyen-ngan-sach")
+def lay_lich_su_ket_chuyen_api(
+    thang_nam: Optional[str] = None,
+    ma_dm: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: NguoiDung = Depends(get_current_active_user)
+):
+    NganSachService.tu_dong_ket_chuyen_thang_moi(db, current_user.ma_nd)
+    return NganSachService.lay_lich_su_ket_chuyen(db, current_user.ma_nd, thang_nam, ma_dm)
 
 @app.post("/quen-mat-khau")
 def quen_mat_khau_legacy(payload: dict, db: Session = Depends(get_db)):

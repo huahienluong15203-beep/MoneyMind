@@ -96,6 +96,35 @@ def migrate_legacy_data():
                 cur.execute("ALTER TABLE thong_bao ADD COLUMN da_xem BOOLEAN DEFAULT 0")
                 con.commit()
 
+        # 7. Thêm cột so_du_chuyen_sang và han_muc_cap_moi cho ngan_sach
+        if "ngan_sach" in tables:
+            ns_cols = [info[1] for info in cur.execute("PRAGMA table_info(ngan_sach)").fetchall()]
+            if "so_du_chuyen_sang" not in ns_cols:
+                cur.execute("ALTER TABLE ngan_sach ADD COLUMN so_du_chuyen_sang FLOAT DEFAULT 0.0")
+                con.commit()
+            if "han_muc_cap_moi" not in ns_cols:
+                cur.execute("ALTER TABLE ngan_sach ADD COLUMN han_muc_cap_moi FLOAT DEFAULT 0.0")
+                con.commit()
+
+        # 8. Tạo bảng ket_chuyen_ngan_sach nếu chưa có
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ket_chuyen_ngan_sach (
+                ma_kc INTEGER PRIMARY KEY AUTOINCREMENT,
+                ma_nd INTEGER,
+                ma_dm INTEGER,
+                thang_nguon VARCHAR(20),
+                thang_dich VARCHAR(20),
+                han_muc_thang_truoc FLOAT DEFAULT 0.0,
+                da_chi_thang_truoc FLOAT DEFAULT 0.0,
+                so_tien_chuyen FLOAT DEFAULT 0.0,
+                ngay_tao DATETIME,
+                ghi_chu VARCHAR(255),
+                FOREIGN KEY (ma_nd) REFERENCES nguoi_dung(ma_nd),
+                FOREIGN KEY (ma_dm) REFERENCES danh_muc(ma_dm)
+            )
+        """)
+        con.commit()
+
         con.close()
     except Exception as e:
         print("Lỗi migrate legacy data:", e)

@@ -30,6 +30,10 @@ class DanhMucResponse(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     budget_limit: Optional[float] = 0.0
+    so_du_chuyen_sang: Optional[float] = 0.0
+    han_muc_cap_moi: Optional[float] = 0.0
+    da_cap_han_muc: Optional[bool] = False
+    han_muc_goc: Optional[float] = 0.0
 
     class Config:
         from_attributes = True
