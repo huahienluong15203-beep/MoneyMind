@@ -236,4 +236,3 @@ if __name__ == "__main__":
 # chạy python quan_ly_tai_khoan.py delete example@gmail.com
 # chạy lại python quan_ly_tai_khoan.py
 
-

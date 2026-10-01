@@ -46,9 +46,16 @@
 
 
             function openEditCategoryModal(id, name, type, limit) {
-                // Tính toán chính xác tổng số tiền đã chi tiêu trong danh mục này
+                // Tính toán chính xác tổng số tiền đã chi tiêu trong tháng hiện tại của danh mục này
+                const now = new Date();
+                const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                 let spent = allTransactions
-                    .filter(t => (t.category_id == id || t.ma_dm == id || t.cat_id == id) && (t.type === 'chi' || t.loai_gd === 'chi'))
+                    .filter(t => {
+                        const tDate = t.date || t.ngay_gd || '';
+                        return (t.category_id == id || t.ma_dm == id || t.cat_id == id) && 
+                               (t.type === 'chi' || t.loai_gd === 'chi') &&
+                               tDate.startsWith(currentYM);
+                    })
                     .reduce((s, t) => s + (t.amount !== undefined ? t.amount : (t.so_tien || 0)), 0);
 
                 document.getElementById('modal-edit-cat-id').value = id;
@@ -60,7 +67,7 @@
                 const hintEl = document.getElementById('modal-edit-spent-hint');
                 if (hintEl) {
                     if (type === 'chi') {
-                        hintEl.innerHTML = `Đã chi: <strong class="text-rose-600">${spent.toLocaleString()} đ</strong> (Hạn mức mới phải ≥ ${spent.toLocaleString()} đ)`;
+                        hintEl.innerHTML = `Đã chi tháng này: <strong class="text-rose-600">${spent.toLocaleString()} đ</strong> (Hạn mức mới phải ≥ ${spent.toLocaleString()} đ)`;
                         hintEl.classList.remove('hidden');
                     } else {
                         hintEl.classList.add('hidden');
@@ -104,6 +111,9 @@
                     closeEditCategoryModal();
                     await loadCategories();
                     await loadSummary();
+                    if (typeof updateReportSummary === 'function') {
+                        updateReportSummary();
+                    }
                     showCustomModal("Thành công", "Đã cập nhật danh mục!", "✅");
                 } else {
                     let err = await res.json().catch(() => ({}));
@@ -191,7 +201,14 @@
 
                 selectedCategoryToDelete = c;
 
-                let spent = allTransactions.filter(t => (t.category_id == id || t.ma_dm == id) && (t.type === 'chi' || t.loai_gd === 'chi')).reduce((s, t) => s + (t.amount || t.so_tien || 0), 0);
+                const now = new Date();
+                const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                let spent = allTransactions.filter(t => {
+                    const tDate = t.date || t.ngay_gd || '';
+                    return (t.category_id == id || t.ma_dm == id) && 
+                           (t.type === 'chi' || t.loai_gd === 'chi') &&
+                           tDate.startsWith(currentYM);
+                }).reduce((s, t) => s + (t.amount || t.so_tien || 0), 0);
                 let remaining = (c.type === 'chi' && c.budget_limit > 0) ? Math.max(0, c.budget_limit - spent) : 0;
 
                 const refundBox = document.getElementById('confirm-del-cat-refund-box');
@@ -231,7 +248,14 @@
                 const id = c.id;
                 closeConfirmDeleteCatModal();
 
-                let spent = allTransactions.filter(t => (t.category_id == id || t.ma_dm == id) && (t.type === 'chi' || t.loai_gd === 'chi')).reduce((s, t) => s + (t.amount || t.so_tien || 0), 0);
+                const now = new Date();
+                const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                let spent = allTransactions.filter(t => {
+                    const tDate = t.date || t.ngay_gd || '';
+                    return (t.category_id == id || t.ma_dm == id) && 
+                           (t.type === 'chi' || t.loai_gd === 'chi') &&
+                           tDate.startsWith(currentYM);
+                }).reduce((s, t) => s + (t.amount || t.so_tien || 0), 0);
                 let remaining = (c.type === 'chi' && c.budget_limit > 0) ? Math.max(0, c.budget_limit - spent) : 0;
 
                 const res = await fetch(`/danh-muc/${id}`, {method: 'DELETE', headers: {'Authorization': 'Bearer ' + token}});

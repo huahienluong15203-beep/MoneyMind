@@ -111,7 +111,15 @@ def xoa_danh_muc(
 
     spent = 0.0
     if cat_type == "chi":
-        txs = db.query(GiaoDich).filter(GiaoDich.ma_dm == ma_dm, GiaoDich.loai_gd == "chi").all()
+        now_dt = datetime.now()
+        start_this = datetime(now_dt.year, now_dt.month, 1)
+        end_this = datetime(now_dt.year + 1, 1, 1) if now_dt.month == 12 else datetime(now_dt.year, now_dt.month + 1, 1)
+        txs = db.query(GiaoDich).filter(
+            GiaoDich.ma_dm == ma_dm,
+            GiaoDich.loai_gd == "chi",
+            GiaoDich.ngay_gd >= start_this,
+            GiaoDich.ngay_gd < end_this
+        ).all()
         spent = sum(t.so_tien for t in txs)
     remaining = max(0.0, cat_limit - spent)
 

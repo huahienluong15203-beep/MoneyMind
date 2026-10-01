@@ -309,6 +309,8 @@
                     renderSavingsGoalsList();
                 }
             }
+            window.loadSavingsGoals = loadSavingsGoals;
+            window.renderSavingsGoalsList = renderSavingsGoalsList;
 
 
             function renderSavingsGoalsList() {

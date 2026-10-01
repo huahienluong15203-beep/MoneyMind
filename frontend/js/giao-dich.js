@@ -87,8 +87,13 @@
 
             function openAddTransactionModal() {
                 closePlusModal();
-                const today = new Date().toISOString().split('T')[0];
-                document.getElementById('modal-tx-date').value = today;
+                const now = new Date();
+                const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                const dateEl = document.getElementById('modal-tx-date');
+                const timeEl = document.getElementById('modal-tx-time');
+                if (dateEl) dateEl.value = today;
+                if (timeEl) timeEl.value = curTime;
                 document.getElementById('modal-tx-amount').value = '';
                 document.getElementById('modal-tx-note').value = '';
                 setModalTxType('chi');
@@ -112,12 +117,16 @@
                 const select = document.getElementById('modal-tx-category');
                 if (select) select.value = catId;
 
-                // Reset ô nhập và gán ngày mặc định
+                // Reset ô nhập và gán ngày/giờ mặc định
                 document.getElementById('modal-tx-amount').value = "";
                 document.getElementById('modal-tx-note').value = "";
-                const today = new Date().toISOString().split('T')[0];
+                const now = new Date();
+                const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 const dateEl = document.getElementById('modal-tx-date');
-                if (dateEl && !dateEl.value) dateEl.value = today;
+                const timeEl = document.getElementById('modal-tx-time');
+                if (dateEl) dateEl.value = today;
+                if (timeEl) timeEl.value = curTime;
 
                 document.getElementById('add-tx-modal').classList.remove('hidden');
                 setTimeout(() => {
@@ -156,14 +165,24 @@
                 const category_id = parseInt(document.getElementById('modal-tx-category').value);
                 const note = document.getElementById('modal-tx-note').value.trim();
                 const txDate = document.getElementById('modal-tx-date').value;
+                const txTime = document.getElementById('modal-tx-time') ? document.getElementById('modal-tx-time').value : '';
 
                 if (!category_id || isNaN(category_id)) return showCustomModal("Thiếu danh mục", "Vui lòng chọn danh mục phù hợp!", "⚠️");
                 if (!amount || isNaN(amount) || amount < 1000) return showCustomModal("Số tiền không hợp lệ", "Số tiền giao dịch tối thiểu là 1.000 đ!", "⚠️");
                 
+                const now = new Date();
+                let fullDateTime;
+                if (!txDate) {
+                    fullDateTime = now.toISOString();
+                } else {
+                    const timePart = txTime ? `${txTime}:00` : `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+                    fullDateTime = `${txDate}T${timePart}`;
+                }
+
                 const res = await fetch('/giao-dich', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
-                    body: JSON.stringify({amount, type, category_id, note, date: txDate ? txDate + 'T12:00:00' : new Date().toISOString()})
+                    body: JSON.stringify({amount, type, category_id, note, date: fullDateTime, ngay_gd: fullDateTime})
                 });
 
                 if(res.ok) {
@@ -186,7 +205,14 @@
                     }
 
                     if (type === 'chi' && limit > 0) {
-                        let spent = allTransactions.filter(t => (t.category_id == category_id || t.ma_dm == category_id) && (t.type === 'chi' || t.loai_gd === 'chi')).reduce((s, t) => s + (t.amount || t.so_tien || 0), 0);
+                        const now = new Date();
+                        const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                        let spent = allTransactions.filter(t => {
+                            const tDate = t.date || t.ngay_gd || '';
+                            return (t.category_id == category_id || t.ma_dm == category_id) && 
+                                   (t.type === 'chi' || t.loai_gd === 'chi') &&
+                                   tDate.startsWith(currentYM);
+                        }).reduce((s, t) => s + (t.amount || t.so_tien || 0), 0);
                         if (data.canh_bao && data.canh_bao.so_tien_da_chi > spent) {
                             spent = data.canh_bao.so_tien_da_chi;
                         }

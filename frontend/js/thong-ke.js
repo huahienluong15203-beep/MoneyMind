@@ -550,7 +550,7 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
         else if (reportFilterMode === 'year') periodLimit = baseLimit * 12;
 
         let pctOfLimit = periodLimit > 0 ? Math.round((spentAmount / periodLimit) * 100) : null;
-        let remaining = periodLimit > 0 ? Math.max(0, periodLimit - spentAmount) : null;
+        let remaining = periodLimit > 0 ? (periodLimit - spentAmount) : null;
 
         const theme = colors[idx % colors.length];
 
@@ -574,7 +574,9 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
         }
 
         // Cấu hình hiển thị thanh tiến độ: nếu là Tiết kiệm thì hiển thị tiến độ đạt tổng mục tiêu
-        let headerLimitText = periodLimit > 0 ? `Hạn mức: ${periodLimit.toLocaleString()} đ` : 'Chưa đặt hạn mức';
+        let headerLimitText = periodLimit > 0 
+            ? `Hạn mức: ${periodLimit.toLocaleString()} đ` 
+            : `<button type="button" onclick="event.stopPropagation(); if(typeof openEditCategoryModal === 'function') openEditCategoryModal(${cId}, '${(cName || '').replace(/'/g, "\\'")}', 'chi', 0);" class="text-teal-600 underline font-semibold hover:text-teal-800 transition">Chưa đặt hạn mức (Cài đặt)</button>`;
         let headerBadgeHtml = pctOfLimit !== null ? `<span class="px-1.5 py-0.2 rounded-full ${limitBadgeClass}">Đã dùng ${pctOfLimit}%</span>` : '';
         let headerBarWidth = pctOfLimit !== null ? Math.min(100, pctOfLimit) : pctOfTotal;
         let headerBarClass = progressBarClass;
@@ -697,9 +699,9 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
                             <div class="font-bold ${isSavingsCat ? 'text-teal-700' : 'text-rose-600'} mt-0.5 truncate" title="${spentAmount.toLocaleString('vi-VN')} đ">${spentAmount.toLocaleString()}đ</div>
                         </div>
                         <div class="p-1">
-                            <div class="text-slate-400 font-medium" title="${isSavingsCat ? 'Cần thêm' : 'Ngân sách còn lại'}">${isSavingsCat ? 'Số tiền cần' : 'Còn lại'}</div>
-                            <div class="font-bold text-teal-700 mt-0.5 truncate" title="${isSavingsCat ? (totalSavingsNeeded.toLocaleString('vi-VN') + ' đ') : (remaining !== null ? remaining.toLocaleString() + 'đ' : '---')}">
-                                ${isSavingsCat ? (totalSavingsNeeded.toLocaleString('vi-VN') + ' đ') : (remaining !== null ? remaining.toLocaleString() + 'đ' : '---')}
+                            <div class="text-slate-400 font-medium" title="${isSavingsCat ? 'Cần thêm' : (remaining !== null && remaining < 0 ? 'Vượt quá hạn mức' : 'Ngân sách còn lại')}">${isSavingsCat ? 'Số tiền cần' : (remaining !== null && remaining < 0 ? 'Quá mức' : 'Còn lại')}</div>
+                            <div class="font-bold ${!isSavingsCat && remaining !== null && remaining < 0 ? 'text-rose-600 font-extrabold' : 'text-teal-700'} mt-0.5 truncate" title="${isSavingsCat ? (totalSavingsNeeded.toLocaleString('vi-VN') + ' đ') : (remaining !== null ? (remaining < 0 ? Math.abs(remaining).toLocaleString() + 'đ' : remaining.toLocaleString() + 'đ') : '---')}">
+                                ${isSavingsCat ? (totalSavingsNeeded.toLocaleString('vi-VN') + ' đ') : (remaining !== null ? (remaining < 0 ? Math.abs(remaining).toLocaleString() + 'đ' : remaining.toLocaleString() + 'đ') : '---')}
                             </div>
                         </div>
                     </div>

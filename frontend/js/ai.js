@@ -1,18 +1,53 @@
 /**
  * MoneyMind - Trợ Lý AI Tài Chính Thông Minh (Google Gemini Flash Engine)
  */
-            function toggleAiModal() { document.getElementById('ai-modal').classList.toggle('hidden'); }
+            function toggleAiModal() {
+                const modal = document.getElementById('ai-modal');
+                if (!modal) return;
+                modal.classList.toggle('hidden');
+                if (modal.classList.contains('hidden')) {
+                    if (typeof loadSummary === 'function') loadSummary();
+                    if (typeof loadSavingsGoals === 'function') loadSavingsGoals();
+                    if (typeof loadCategories === 'function') loadCategories();
+                    if (typeof loadTransactions === 'function') loadTransactions();
+                    if (typeof loadNotifications === 'function') loadNotifications();
+                }
+            }
 
             function formatAIResponse(text) {
-                // Render markdown-like formatting
-                return text
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                    .replace(/🎯|💰|📊|✅|❌|⚠️|🌟|💡|📈|📉|🏆/g, '<span style="display:inline-block">$&</span>')
-                    .replace(/•/g, '<span class="text-teal-500 font-bold">•</span>')
-                    .replace(/\n/g, '<br>')
-                    .replace(/\|(.*?)\|/g, '<span class="font-mono text-xs bg-slate-100 px-1 rounded">$1</span>');
+                if (!text) return '';
+                // 1. Chống lỗi nuốt thẻ: Escape ký tự < và > để trình duyệt không hiểu nhầm là thẻ HTML
+                let safe = text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+
+                // 2. Định dạng Markdown tiêu đề
+                safe = safe.replace(/^### (.*$)/gim, '<div class="font-bold text-sm text-teal-800 mt-2 mb-1">$1</div>');
+                safe = safe.replace(/^## (.*$)/gim, '<div class="font-bold text-base text-teal-900 mt-2 mb-1">$1</div>');
+
+                // 3. Định dạng in đậm và in nghiêng
+                safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-slate-900">$1</strong>');
+                safe = safe.replace(/\*(.*?)\*/g, '<em class="text-slate-600">$1</em>');
+
+                // 4. Định dạng gạch đầu dòng Markdown (* hoặc - hoặc •)
+                safe = safe.replace(/^[\*\-•] (.*$)/gim, '<div class="flex gap-1.5 items-start my-0.5"><span class="text-teal-500 font-bold shrink-0">•</span><span>$1</span></div>');
+
+                // 5. Định dạng emoji
+                safe = safe.replace(/🎯|💰|📊|✅|❌|⚠️|🌟|💡|📈|📉|🏆|🍜|🎈|🍽️/g, '<span style="display:inline-block">$&</span>');
+
+                // 6. Định dạng đường kẻ ngang ---
+                safe = safe.replace(/^---$/gim, '<hr class="my-2 border-slate-200">');
+
+                // 7. Định dạng bảng hoặc ký tự pipe |
+                safe = safe.replace(/\|(.*?)\|/g, '<span class="font-mono text-xs bg-slate-100 px-1 rounded">$1</span>');
+
+                // 8. Xuống dòng
+                safe = safe.replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
+
+                return safe;
             }
+
 
 
             function quickAskAi(q) {
@@ -84,6 +119,13 @@ var aiChatHistory = [];
                             <div class="w-7 h-7 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">AI</div>
                             <div class="bg-white p-2.5 rounded-2xl border text-slate-700 shadow-sm max-w-[85%] text-xs leading-relaxed" style="word-break: break-word;">${formatted}</div>
                         </div>`;
+
+                        // Tự động làm mới toàn bộ dữ liệu hệ thống (số dư ví, hũ tiết kiệm, danh mục, giao dịch, thông báo)
+                        if (typeof loadSummary === 'function') loadSummary();
+                        if (typeof loadSavingsGoals === 'function') loadSavingsGoals();
+                        if (typeof loadCategories === 'function') loadCategories();
+                        if (typeof loadTransactions === 'function') loadTransactions();
+                        if (typeof loadNotifications === 'function') loadNotifications();
                     } else {
                         const err = await res.json().catch(() => ({}));
                         box.innerHTML += `<div class="flex gap-2 items-end">

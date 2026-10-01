@@ -159,6 +159,7 @@ def tao_giao_dich(
 
 @router.get("/tim-kiem", summary="Tra cứu & lọc giao dịch có phân trang (UC005)")
 def tim_kiem_giao_dich(
+    thang: Optional[str] = Query(None, description="Lọc theo tháng định dạng YYYY-MM"),
     tu_ngay: Optional[str] = Query(None, description="Từ ngày định dạng YYYY-MM-DD"),
     den_ngay: Optional[str] = Query(None, description="Đến ngày định dạng YYYY-MM-DD"),
     ma_dm: Optional[int] = Query(None, description="Mã danh mục"),
@@ -176,6 +177,21 @@ def tim_kiem_giao_dich(
     Phân trang mặc định 20 bản ghi/trang để tối ưu hiệu năng.
     """
     query = db.query(GiaoDich).filter(GiaoDich.ma_nd == current_user.ma_nd)
+
+    if thang:
+        try:
+            parts = thang.strip().split("-")
+            if len(parts) == 2:
+                y = int(parts[0])
+                m = int(parts[1])
+                start_m = datetime(y, m, 1)
+                if m == 12:
+                    end_m = datetime(y + 1, 1, 1)
+                else:
+                    end_m = datetime(y, m + 1, 1)
+                query = query.filter(GiaoDich.ngay_gd >= start_m, GiaoDich.ngay_gd < end_m)
+        except (ValueError, IndexError):
+            pass
 
     if tu_ngay:
         try:

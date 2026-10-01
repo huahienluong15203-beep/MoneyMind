@@ -435,13 +435,21 @@ def sua_danh_muc_legacy(cat_id: int, cat: dict, db: Session = Depends(get_db), c
     if "budget_limit" in cat or "han_muc" in cat:
         new_limit = float(cat.get("budget_limit") or cat.get("han_muc") or 0.0) if c.loai_dm == 'chi' else 0.0
         if c.loai_dm == 'chi':
-            # Kiểm tra: Hạn mức mới không được nhỏ hơn số tiền đã chi trong danh mục này
-            txs = db.query(GiaoDich).filter(GiaoDich.ma_dm == cat_id, GiaoDich.loai_gd == "chi").all()
+            # Kiểm tra: Hạn mức mới không được nhỏ hơn số tiền đã chi trong tháng này của danh mục này
+            now_dt = datetime.now()
+            start_this = datetime(now_dt.year, now_dt.month, 1)
+            end_this = datetime(now_dt.year + 1, 1, 1) if now_dt.month == 12 else datetime(now_dt.year, now_dt.month + 1, 1)
+            txs = db.query(GiaoDich).filter(
+                GiaoDich.ma_dm == cat_id,
+                GiaoDich.loai_gd == "chi",
+                GiaoDich.ngay_gd >= start_this,
+                GiaoDich.ngay_gd < end_this
+            ).all()
             spent = sum(float(t.so_tien or 0.0) for t in txs)
             if new_limit < spent:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Hạn mức mới ({new_limit:,.0f} đ) không được nhỏ hơn số tiền đã chi ({spent:,.0f} đ) trong danh mục này! Bạn chỉ có thể nâng hạn mức chứ không được giảm nhỏ hơn số tiền đã chi."
+                    detail=f"Hạn mức mới ({new_limit:,.0f} đ) không được nhỏ hơn số tiền đã chi tháng này ({spent:,.0f} đ) trong danh mục này! Bạn chỉ có thể nâng hạn mức chứ không được giảm nhỏ hơn số tiền đã chi tháng này."
                 )
 
             old_limit = float(c.han_muc or 0.0)
@@ -471,7 +479,15 @@ def xoa_danh_muc_legacy(cat_id: int, db: Session = Depends(get_db), current_user
 
     spent = 0.0
     if cat_type == "chi":
-        txs = db.query(GiaoDich).filter(GiaoDich.ma_dm == cat_id, GiaoDich.loai_gd == "chi").all()
+        now_dt = datetime.now()
+        start_this = datetime(now_dt.year, now_dt.month, 1)
+        end_this = datetime(now_dt.year + 1, 1, 1) if now_dt.month == 12 else datetime(now_dt.year, now_dt.month + 1, 1)
+        txs = db.query(GiaoDich).filter(
+            GiaoDich.ma_dm == cat_id,
+            GiaoDich.loai_gd == "chi",
+            GiaoDich.ngay_gd >= start_this,
+            GiaoDich.ngay_gd < end_this
+        ).all()
         spent = sum(t.so_tien for t in txs)
     remaining = max(0.0, cat_limit - spent)
 
@@ -866,7 +882,18 @@ def ai_tro_ly_legacy(payload: dict, db: Session = Depends(get_db), current_user:
     cau_hoi = payload.get("cau_hoi", "").strip()
     lich_su_chat = payload.get("lich_su_chat") or payload.get("history") or []
     tra_loi = AIService.hoi_dap_ai(db=db, ma_nd=current_user.ma_nd, cau_hoi=cau_hoi, lich_su_chat=lich_su_chat)
-    return {"tra_loi": tra_loi}
+    co_giao_dich = (
+        "thành công" in tra_loi.lower() or
+        "đã ghi nhận" in tra_loi.lower() or
+        "đã trích" in tra_loi.lower() or
+        "đã cập nhật" in tra_loi.lower() or
+        "đã điều chỉnh" in tra_loi.lower() or
+        "đã xóa" in tra_loi.lower() or
+        "đã xoá" in tra_loi.lower() or
+        "đã rút" in tra_loi.lower() or
+        "đã tạo" in tra_loi.lower()
+    )
+    return {"tra_loi": tra_loi, "giao_dich_moi": co_giao_dich}
 
 if __name__ == "__main__":
     import uvicorn

@@ -93,15 +93,32 @@
 
             function renderJarsProgressList() {
                 const container = document.getElementById('jars-progress-list');
+                if(!container) return;
                 container.innerHTML = "";
-                const chiCats = allCategories.filter(c => c.type === 'chi' && c.name !== 'Tiết kiệm');
+                const chiCats = allCategories.filter(c => (c.type === 'chi' || c.loai_dm === 'chi') && c.name !== 'Tiết kiệm');
                 if(chiCats.length === 0) { container.innerHTML = `<p class="text-[10px] text-slate-400">Chưa có hũ chi tiêu nào.</p>`; return; }
 
+                const now = new Date();
+                const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                const titleHeader = document.getElementById('jars-month-title');
+                if (titleHeader) {
+                    titleHeader.innerText = `🏺 Hũ Ngân Sách (Tháng ${now.getMonth() + 1}/${now.getFullYear()})`;
+                }
+
                 let spentMap = {};
-                allTransactions.forEach(t => { if(t.type === 'chi') spentMap[t.category_id] = (spentMap[t.category_id] || 0) + t.amount; });
+                allTransactions.forEach(t => {
+                    const tDate = t.date || t.ngay_gd || '';
+                    const isChi = (t.type === 'chi' || t.loai_gd === 'chi');
+                    if (isChi && tDate.startsWith(currentYM)) {
+                        const catId = t.category_id || t.ma_dm;
+                        const amt = t.amount !== undefined ? t.amount : (t.so_tien || 0);
+                        spentMap[catId] = (spentMap[catId] || 0) + amt;
+                    }
+                });
 
                 chiCats.forEach(c => {
-                    let spent = spentMap[c.id] || 0;
+                    const catId = c.id || c.ma_dm;
+                    let spent = spentMap[catId] || 0;
                     let limit = parseFloat(c.budget_limit || c.han_muc || 0) || 0;
                     let remaining = limit > 0 ? (limit - spent) : (spent > 0 ? -spent : 0);
                     let percent = limit > 0 ? Math.round((spent / limit) * 100) : 0;
@@ -122,21 +139,21 @@
 
                     const safeName = (c.name || '').replace(/'/g, "\\'");
                     container.innerHTML += `
-                        <div onclick="openQuickAddTxForCategory(${c.id}, '${safeName}')" class="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-sm space-y-2 cursor-pointer hover:border-teal-500 hover:shadow-md transition">
+                        <div onclick="openQuickAddTxForCategory(${catId}, '${safeName}')" class="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-sm space-y-2 cursor-pointer hover:border-teal-500 hover:shadow-md transition">
                             <!-- Hàng 1: Tên hũ bên trái, Huy hiệu Cảnh báo bên phải (tách biệt hoàn toàn, không bao giờ đè lên nhau) -->
                             <div class="flex justify-between items-center gap-2">
                                 <span class="font-bold text-slate-800 text-[13px] truncate">🏺 ${c.name}</span>
                                 ${alertBadge}
                             </div>
 
-                            <!-- Hàng 2: Số tiền còn lại bên trái, Hạn mức tổng bên phải -->
+                            <!-- Hàng 2: Số tiền còn lại hoặc quá mức bên trái, Hạn mức tổng bên phải -->
                             <div class="flex justify-between items-center text-xs">
                                 <div class="whitespace-nowrap">
-                                    <span class="text-[11px] text-slate-400 font-medium">Còn:</span> 
-                                    <strong class="${remaining < 0 ? 'text-rose-500 font-extrabold' : 'text-teal-600 font-bold'} text-xs ml-0.5">${remaining.toLocaleString()} đ</strong>
+                                    <span class="text-[11px] ${remaining < 0 ? 'text-rose-500 font-semibold' : 'text-slate-400 font-medium'}">${remaining < 0 ? 'Quá mức:' : 'Còn:'}</span> 
+                                    <strong class="${remaining < 0 ? 'text-rose-500 font-extrabold' : 'text-teal-600 font-bold'} text-xs ml-0.5">${(remaining < 0 ? Math.abs(remaining) : remaining).toLocaleString()} đ</strong>
                                 </div>
                                 <div class="whitespace-nowrap text-right text-[10px] text-slate-400">
-                                    Hạn mức: <span class="font-semibold text-slate-600">${limit.toLocaleString()} đ</span>
+                                    Hạn mức: <span class="font-semibold text-slate-600">${limit > 0 ? limit.toLocaleString() + ' đ' : `<span onclick="event.stopPropagation(); if(typeof openEditCategoryModal === 'function') openEditCategoryModal(${catId}, '${safeName}', 'chi', 0);" class="text-teal-600 underline cursor-pointer hover:text-teal-800 font-bold">Chưa đặt (Cài đặt)</span>`}</span>
                                 </div>
                             </div>
                             <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">

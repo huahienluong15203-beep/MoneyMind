@@ -58,13 +58,20 @@
                 document.getElementById('msub-' + (tab === 'ngan-sach' ? 'ns' : (tab === 'danh-muc' ? 'dm' : 'tk'))).className = "flex-1 py-1.5 rounded-lg bg-white text-teal-600 shadow-sm";
                 
                 loadSummary();
-                if(tab === 'ngan-sach') renderJarsProgressList();
-                if(tab === 'danh-muc') renderCategoriesCrudList();
+                if(tab === 'ngan-sach') {
+                    if (typeof loadCategories === 'function') loadCategories();
+                    renderJarsProgressList();
+                }
+                if(tab === 'danh-muc') {
+                    if (typeof loadCategories === 'function') loadCategories();
+                    renderCategoriesCrudList();
+                }
                 if(tab === 'tiet-kiem') {
                     initSavingsPickers();
                     const today = getLocalDateString();
                     if(document.getElementById('sg-deadline')) document.getElementById('sg-deadline').setAttribute('min', today);
-                    renderSavingsGoalsList();
+                    if (typeof loadSavingsGoals === 'function') loadSavingsGoals();
+                    else renderSavingsGoalsList();
                 }
             }
 
@@ -177,8 +184,11 @@
 
 
             window.onload = function() {
+                const now = new Date();
                 const today = getLocalDateString();
+                const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 if(document.getElementById('modal-tx-date')) document.getElementById('modal-tx-date').value = today;
+                if(document.getElementById('modal-tx-time')) document.getElementById('modal-tx-time').value = curTime;
                 initSavingsPickers();
                 if(document.getElementById('sg-deadline')) document.getElementById('sg-deadline').setAttribute('min', today);
                 if(document.getElementById('edit-savings-deadline')) document.getElementById('edit-savings-deadline').setAttribute('min', today);

@@ -39,13 +39,108 @@
                 applyLookupFilter();
             }
 
-            function openCategoryPickerModal() {}
-            function closeCategoryPickerModal() {}
-            function selectLookupCategory() {}
+            function updateMonthPresetButtons() {
+                const monthEl = document.getElementById('lookup-month');
+                const curVal = monthEl ? monthEl.value : '';
+                const now = new Date();
+                const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                
+                let prevM = now.getMonth(); // 0-11
+                let prevY = now.getFullYear();
+                if (prevM === 0) {
+                    prevM = 12;
+                    prevY -= 1;
+                }
+                const prevYM = `${prevY}-${String(prevM).padStart(2, '0')}`;
+
+                const btnAll = document.getElementById('lookup-preset-all');
+                const btnCurrent = document.getElementById('lookup-preset-current');
+                const btnPrev = document.getElementById('lookup-preset-prev');
+
+                const activeClass = "px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/70 transition shadow-2xs";
+                const inactiveClass = "px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition";
+
+                if (btnAll) btnAll.className = (!curVal ? activeClass : inactiveClass);
+                if (btnCurrent) btnCurrent.className = (curVal === curYM ? activeClass : inactiveClass);
+                if (btnPrev) btnPrev.className = (curVal === prevYM ? activeClass : inactiveClass);
+            }
+
+            function setLookupMonthPreset(preset) {
+                const monthEl = document.getElementById('lookup-month');
+                const dateEl = document.getElementById('lookup-date');
+                if (dateEl) {
+                    dateEl.value = '';
+                    const clearDateBtn = document.getElementById('lookup-clear-date-btn');
+                    if (clearDateBtn) clearDateBtn.classList.add('hidden');
+                }
+
+                const now = new Date();
+                if (preset === 'all') {
+                    if (monthEl) monthEl.value = '';
+                } else if (preset === 'current') {
+                    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                    if (monthEl) monthEl.value = ym;
+                } else if (preset === 'prev') {
+                    let prevM = now.getMonth();
+                    let prevY = now.getFullYear();
+                    if (prevM === 0) {
+                        prevM = 12;
+                        prevY -= 1;
+                    }
+                    const ym = `${prevY}-${String(prevM).padStart(2, '0')}`;
+                    if (monthEl) monthEl.value = ym;
+                }
+
+                updateMonthPresetButtons();
+                applyLookupFilter();
+            }
+
+            function clearLookupMonth() {
+                setLookupMonthPreset('all');
+            }
+
+            function clearLookupDate() {
+                const dateEl = document.getElementById('lookup-date');
+                if (dateEl) dateEl.value = '';
+                const clearBtn = document.getElementById('lookup-clear-date-btn');
+                if (clearBtn) clearBtn.classList.add('hidden');
+                applyLookupFilter();
+            }
+
+            function onLookupMonthChange() {
+                const dateEl = document.getElementById('lookup-date');
+                if (dateEl) {
+                    dateEl.value = '';
+                    const clearBtn = document.getElementById('lookup-clear-date-btn');
+                    if (clearBtn) clearBtn.classList.add('hidden');
+                }
+                updateMonthPresetButtons();
+                applyLookupFilter();
+            }
+
+            function onLookupDateChange() {
+                const dateEl = document.getElementById('lookup-date');
+                const monthEl = document.getElementById('lookup-month');
+                if (dateEl && dateEl.value) {
+                    const clearBtn = document.getElementById('lookup-clear-date-btn');
+                    if (clearBtn) clearBtn.classList.remove('hidden');
+                    if (monthEl) {
+                        monthEl.value = dateEl.value.slice(0, 7);
+                    }
+                } else {
+                    const clearBtn = document.getElementById('lookup-clear-date-btn');
+                    if (clearBtn) clearBtn.classList.add('hidden');
+                }
+                updateMonthPresetButtons();
+                applyLookupFilter();
+            }
 
             function applyLookupFilter() {
                 const type = document.getElementById('lookup-type').value;
-                const date = document.getElementById('lookup-date').value;
+                const monthEl = document.getElementById('lookup-month');
+                const month = monthEl ? monthEl.value : '';
+                const dateEl = document.getElementById('lookup-date');
+                const date = dateEl ? dateEl.value : '';
                 const keywordEl = document.getElementById('lookup-keyword');
                 const rawKeyword = keywordEl ? keywordEl.value.trim() : '';
                 const keyword = rawKeyword.toLowerCase();
@@ -57,11 +152,26 @@
                     else clearBtn.classList.add('hidden');
                 }
 
+                const clearMonthBtn = document.getElementById('lookup-clear-month-btn');
+                if (clearMonthBtn) {
+                    if (month) clearMonthBtn.classList.remove('hidden');
+                    else clearMonthBtn.classList.add('hidden');
+                }
+
+                const clearDateBtn = document.getElementById('lookup-clear-date-btn');
+                if (clearDateBtn) {
+                    if (date) clearDateBtn.classList.remove('hidden');
+                    else clearDateBtn.classList.add('hidden');
+                }
+
                 let catMap = {}; 
                 allCategories.forEach(c => { 
                     catMap[c.id] = c.name; 
                     if(c.ma_dm) catMap[c.ma_dm] = c.name;
                 });
+
+                let totalThu = 0;
+                let totalChi = 0;
 
                 let filtered = allTransactions.filter(t => {
                     const tDate = t.date || t.ngay_gd || '';
@@ -79,6 +189,7 @@
                     }
 
                     let matchType = (type === 'all' || effectiveType === type);
+                    let matchMonth = (!month || tDate.startsWith(month));
                     let matchDate = (!date || tDate.startsWith(date));
 
                     // Lọc theo từ khóa tìm kiếm (tìm theo mô tả, danh mục hoặc mục tiêu tiết kiệm)
@@ -105,8 +216,39 @@
                         matchKeyword = matchNote || matchCatName || matchGoal;
                     }
 
-                    return matchType && matchDate && matchKeyword;
+                    const isMatch = matchType && matchMonth && matchDate && matchKeyword;
+                    if (isMatch) {
+                        const amt = t.amount !== undefined ? t.amount : (t.so_tien || 0);
+                        if (effectiveType === 'chi') {
+                            totalChi += amt;
+                        } else {
+                            totalThu += amt;
+                        }
+                    }
+
+                    return isMatch;
                 });
+
+                // Cập nhật thanh tóm tắt kết quả bộ lọc
+                const summaryCountEl = document.getElementById('lookup-summary-count');
+                const summaryTotalsEl = document.getElementById('lookup-summary-totals');
+                if (summaryCountEl) {
+                    let label = "Tất cả";
+                    if (date) {
+                        const parts = date.split('-');
+                        if (parts.length === 3) label = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                        else label = date;
+                    } else if (month) {
+                        const parts = month.split('-');
+                        if (parts.length === 2) label = `Tháng ${parts[1]}/${parts[0]}`;
+                        else label = month;
+                    }
+                    summaryCountEl.innerHTML = `<strong>${label}</strong>: ${filtered.length} giao dịch`;
+                }
+
+                if (summaryTotalsEl) {
+                    summaryTotalsEl.innerHTML = `<span class="text-emerald-600 font-bold">+${totalThu.toLocaleString('vi-VN')} đ</span> | <span class="text-rose-600 font-bold">-${totalChi.toLocaleString('vi-VN')} đ</span>`;
+                }
 
                 renderLookupTransactions(filtered);
             }
@@ -328,8 +470,19 @@
                 const rawDate = tx.date || tx.ngay_gd || '';
                 if (rawDate) {
                     document.getElementById('edit-tx-date').value = rawDate.substring(0, 10);
+                    let txTime = '';
+                    if (rawDate.includes('T') || rawDate.includes(' ')) {
+                        const timePart = rawDate.replace('T', ' ').split(' ')[1];
+                        if (timePart) txTime = timePart.substring(0, 5);
+                    }
+                    if (!txTime) txTime = "12:00";
+                    const timeEl = document.getElementById('edit-tx-time');
+                    if (timeEl) timeEl.value = txTime;
                 } else {
-                    document.getElementById('edit-tx-date').value = new Date().toISOString().substring(0, 10);
+                    const now = new Date();
+                    document.getElementById('edit-tx-date').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                    const timeEl = document.getElementById('edit-tx-time');
+                    if (timeEl) timeEl.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 }
 
                 document.getElementById('edit-tx-note').value = rawNote;
@@ -414,9 +567,19 @@
                 const category_id = parseInt(document.getElementById('edit-tx-category').value);
                 const note = document.getElementById('edit-tx-note').value.trim();
                 const txDate = document.getElementById('edit-tx-date').value;
+                const txTime = document.getElementById('edit-tx-time') ? document.getElementById('edit-tx-time').value : '';
 
                 if (!category_id || isNaN(category_id)) return showCustomModal("Thiếu danh mục", "Vui lòng chọn danh mục phù hợp!", "⚠️");
                 if (!amount || isNaN(amount) || amount < 1000) return showCustomModal("Số tiền không hợp lệ", "Số tiền giao dịch tối thiểu là 1.000 đ!", "⚠️");
+
+                const now = new Date();
+                let fullDateTime;
+                if (!txDate) {
+                    fullDateTime = now.toISOString();
+                } else {
+                    const timePart = txTime ? `${txTime}:00` : `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+                    fullDateTime = `${txDate}T${timePart}`;
+                }
 
                 try {
                     const res = await fetch(`/giao-dich/${txId}`, {
@@ -431,8 +594,8 @@
                             ma_dm: category_id,
                             note,
                             ghi_chu: note,
-                            date: txDate ? txDate + 'T12:00:00' : new Date().toISOString(),
-                            ngay_gd: txDate ? txDate + 'T12:00:00' : new Date().toISOString()
+                            date: fullDateTime,
+                            ngay_gd: fullDateTime
                         })
                     });
 
@@ -454,8 +617,8 @@
                                 ma_dm: data.ma_dm || category_id,
                                 note: data.note !== undefined ? data.note : note,
                                 ghi_chu: data.ghi_chu !== undefined ? data.ghi_chu : note,
-                                date: data.date || (txDate ? txDate + 'T12:00:00' : new Date().toISOString()),
-                                ngay_gd: data.ngay_gd || (txDate ? txDate + 'T12:00:00' : new Date().toISOString())
+                                date: data.date || fullDateTime,
+                                ngay_gd: data.ngay_gd || fullDateTime
                             };
                         }
 

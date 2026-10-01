@@ -368,32 +368,35 @@
                             <div class="flex gap-2">
                                 <div class="w-7 h-7 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">AI</div>
                                 <div class="bg-white p-3 rounded-2xl border border-slate-100 text-slate-700 shadow-sm leading-relaxed">
-                                    Xin chào! Tôi là Trợ lý AI tài chính cá nhân MoneyMind. Tôi có thể giải đáp chi tiêu, phân tích danh mục, xu hướng tiêu dùng và so sánh giữa các tháng. Bạn cần hỗ trợ gì?
+                                    Xin chào! Tôi là Trợ lý AI tài chính cá nhân MoneyMind. Bạn có thể trò chuyện tự nhiên để <strong>ghi nhanh chi tiêu</strong> (ví dụ: <em>"Ăn bánh mì 20k"</em>, <em>"Đổ xăng 50k"</em>, <em>"Nộp 500k vào hũ du lịch"</em>) hoặc hỏi đáp, phân tích ngân sách tài chính cá nhân. Bạn cần mình giúp gì nào? 😊
                                 </div>
                             </div>
                         </div>
 
-                        <!-- GỢI Ý CÂU HỎI NHANH (NẰM TRÊN PHẦN NHẬP CÂU HỎI) -->
+                        <!-- GỢI Ý CÂU HỎI & THAO TÁC NHANH (NẰM TRÊN PHẦN NHẬP CÂU HỎI) -->
                         <div class="flex gap-1.5 overflow-x-auto py-1 mb-1.5 no-scrollbar shrink-0">
+                            <button onclick="quickAskAi('tôi đi ăn bánh mì hết 20000')" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-emerald-200">
+                                🥖 Ăn bánh mì 20k
+                            </button>
+                            <button onclick="quickAskAi('vừa mua cafe 35k')" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-emerald-200">
+                                ☕ Mua cafe 35k
+                            </button>
+                            <button onclick="quickAskAi('đổ xăng 50k')" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-emerald-200">
+                                ⛽ Đổ xăng 50k
+                            </button>
                             <button onclick="quickAskAi('Tháng này tôi chi nhiều nhất vào đâu?')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
                                 📊 Tiêu nhiều vào đâu?
                             </button>
-                            <button onclick="quickAskAi('Vậy chi tiêu ít nhất vào mục nào?')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
-                                🎯 Chi tiêu ít nhất?
-                            </button>
-                            <button onclick="quickAskAi('Số dư ví chính và tình hình thặng dư tháng này?')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
-                                💰 Số dư ví & thặng dư
+                            <button onclick="quickAskAi('Số dư ví chính và số tiền còn dư tháng này?')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
+                                💰 Số dư ví & tiền còn lại
                             </button>
                             <button onclick="quickAskAi('Liệt kê chi tiết chi tiêu các danh mục trong tháng')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
                                 📋 Chi tiết danh mục
                             </button>
-                            <button onclick="quickAskAi('So sánh chi tiêu tháng này với các tháng trước')" class="px-3 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-xl text-[11px] font-semibold whitespace-nowrap transition border border-slate-200/80">
-                                📈 So sánh các tháng
-                            </button>
                         </div>
 
                         <div class="flex gap-2 pt-1">
-                            <input type="text" id="ai-input" placeholder="Hỏi AI: Tháng này tôi chi nhiều nhất vào đâu?..." class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500 transition" onkeypress="if(event.key==='Enter') sendAiMessage()">
+                            <input type="text" id="ai-input" placeholder="Nhập: 'Ăn bánh mì 20k', 'Đổ xăng 50k' hoặc hỏi AI..." class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500 transition" onkeypress="if(event.key==='Enter') sendAiMessage()">
                             <button id="ai-send-btn" onclick="sendAiMessage()" class="px-5 py-2.5 bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold rounded-xl shadow-md transition">Gửi</button>
                         </div>
                     </div>
@@ -458,10 +461,16 @@
                         <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-tx-amount" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Nhập số tiền..." class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 money-input">
                     </div>
 
-                    <!-- NGÀY GIAO DỊCH -->
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 block mb-1">Ngày giao dịch:</label>
-                        <input type="date" id="modal-tx-date" class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                    <!-- NGÀY & GIỜ GIAO DỊCH -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-600 block mb-1">Ngày giao dịch:</label>
+                            <input type="date" id="modal-tx-date" class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-600 block mb-1">Giờ giao dịch:</label>
+                            <input type="time" id="modal-tx-time" class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                        </div>
                     </div>
 
                     <!-- GHI CHÚ -->
@@ -518,10 +527,16 @@
                         <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="edit-tx-amount" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Nhập số tiền..." class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 money-input">
                     </div>
 
-                    <!-- Ngày giao dịch -->
-                    <div>
-                        <label class="text-[11px] font-bold text-slate-600 block mb-1">Ngày giao dịch:</label>
-                        <input type="date" id="edit-tx-date" class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                    <!-- Ngày & Giờ giao dịch -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-600 block mb-1">Ngày giao dịch:</label>
+                            <input type="date" id="edit-tx-date" class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-slate-600 block mb-1">Giờ giao dịch:</label>
+                            <input type="time" id="edit-tx-time" class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500">
+                        </div>
                     </div>
 
                     <!-- Ghi chú -->
@@ -707,7 +722,7 @@
                             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
                                 <div class="flex justify-between items-center gap-2 pb-1 border-b border-slate-200/60">
                                     <h2 class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5 truncate">
-                                        <span>🏺 Hũ Ngân Sách</span>
+                                        <span id="jars-month-title">🏺 Hũ Ngân Sách</span>
                                     </h2>
                                 </div>
                                 <div id="jars-progress-list" class="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1"></div>
@@ -814,19 +829,48 @@
                                     <input type="hidden" id="lookup-type" value="all">
                                 </div>
 
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label class="font-semibold text-slate-500 block mb-1 text-[11px]">Ngày giao dịch:</label>
-                                        <input type="date" id="lookup-date" onchange="applyLookupFilter()" class="w-full p-2 border rounded-xl bg-slate-50 text-xs">
+                                <div>
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label class="font-semibold text-slate-500 text-[11px]">Thời gian giao dịch:</label>
+                                        <!-- Các nút chọn nhanh tháng -->
+                                        <div class="flex gap-1" id="lookup-month-presets">
+                                            <button type="button" onclick="setLookupMonthPreset('all')" id="lookup-preset-all" class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/70 transition shadow-2xs">Tất cả</button>
+                                            <button type="button" onclick="setLookupMonthPreset('current')" id="lookup-preset-current" class="px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition">Tháng này</button>
+                                            <button type="button" onclick="setLookupMonthPreset('prev')" id="lookup-preset-prev" class="px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition">Tháng trước</button>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label class="font-semibold text-slate-500 block mb-1 text-[11px]">Từ khóa tìm kiếm:</label>
-                                        <div class="relative">
-                                            <input type="text" id="lookup-keyword" oninput="applyLookupFilter()" placeholder="Nhập từ khóa (mì cay, tiền...)" class="w-full p-2 pr-7 border rounded-xl bg-slate-50 text-xs focus:outline-none focus:border-teal-500 font-medium">
-                                            <button type="button" onclick="clearLookupKeyword()" id="lookup-clear-btn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold transition px-1" title="Xóa từ khóa">✕</button>
+
+                                    <div class="grid grid-cols-2 gap-2 mt-1.5">
+                                        <div>
+                                            <label class="text-[10px] text-slate-400 font-medium block mb-0.5">Chọn Tháng/Năm:</label>
+                                            <div class="relative">
+                                                <input type="month" id="lookup-month" onchange="onLookupMonthChange()" class="w-full p-2 pr-6 border rounded-xl bg-slate-50 text-xs font-semibold text-slate-700 focus:outline-none focus:border-teal-500">
+                                                <button type="button" onclick="clearLookupMonth()" id="lookup-clear-month-btn" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold transition px-1" title="Xem tất cả các tháng">✕</button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] text-slate-400 font-medium block mb-0.5">Ngày cụ thể (tùy chọn):</label>
+                                            <div class="relative">
+                                                <input type="date" id="lookup-date" onchange="onLookupDateChange()" class="w-full p-2 pr-6 border rounded-xl bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-500">
+                                                <button type="button" onclick="clearLookupDate()" id="lookup-clear-date-btn" class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold transition px-1" title="Xóa ngày lọc">✕</button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+
+                                <div>
+                                    <label class="font-semibold text-slate-500 block mb-1 text-[11px]">Từ khóa tìm kiếm:</label>
+                                    <div class="relative">
+                                        <input type="text" id="lookup-keyword" oninput="applyLookupFilter()" placeholder="Nhập từ khóa (mì cay, tiền...)" class="w-full p-2 pr-7 border rounded-xl bg-slate-50 text-xs focus:outline-none focus:border-teal-500 font-medium">
+                                        <button type="button" onclick="clearLookupKeyword()" id="lookup-clear-btn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold transition px-1" title="Xóa từ khóa">✕</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- THANH TỔNG HỢP KẾT QUẢ THEO THỜI GIAN LỌC -->
+                            <div id="lookup-summary-bar" class="flex justify-between items-center px-1 text-[11px] text-slate-500">
+                                <span id="lookup-summary-count" class="font-medium text-slate-600">Đang tải danh sách...</span>
+                                <span id="lookup-summary-totals" class="text-[10px] font-semibold text-slate-500"></span>
                             </div>
 
                             <div id="tx-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"></div>
@@ -999,17 +1043,17 @@
         </div>
 
         <!-- CÁC MODULE JAVASCRIPT TÁCH BIỆT THEO CHỨC NĂNG & VAI TRÒ -->
-        <script src="js/api.js?v=5.8"></script>
-        <script src="js/auth.js?v=5.8"></script>
-        <script src="js/ngan-sach.js?v=5.8"></script>
-        <script src="js/danh-muc.js?v=5.8"></script>
-        <script src="js/tiet-kiem.js?v=5.8"></script>
-        <script src="js/giao-dich.js?v=5.8"></script>
-        <script src="js/tra-cuu.js?v=5.8"></script>
-        <script src="js/thong-ke.js?v=5.8"></script>
-        <script src="js/thong-bao.js?v=5.8"></script>
-        <script src="js/ai.js?v=5.8"></script>
-        <script src="js/app.js?v=5.8"></script>
+        <script src="js/api.js?v=6.0"></script>
+        <script src="js/auth.js?v=6.0"></script>
+        <script src="js/ngan-sach.js?v=6.1"></script>
+        <script src="js/danh-muc.js?v=6.0"></script>
+        <script src="js/tiet-kiem.js?v=6.0"></script>
+        <script src="js/giao-dich.js?v=6.0"></script>
+        <script src="js/tra-cuu.js?v=6.0"></script>
+        <script src="js/thong-ke.js?v=6.1"></script>
+        <script src="js/thong-bao.js?v=6.0"></script>
+        <script src="js/ai.js?v=6.0"></script>
+        <script src="js/app.js?v=6.0"></script>
         <script>
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
