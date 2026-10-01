@@ -238,14 +238,28 @@
                     // Chỉ hiển thị tổng tiền khi lọc theo ngày/tháng cụ thể VÀ có giao dịch (> 0)
                     // Nếu là "Tất cả" hoặc không có giao dịch nào (0 giao dịch) thì ẩn đi
                     if (hasSpecificDateOrMonth && filtered.length > 0) {
+                        let totalsHtml = '';
                         if (type === 'chi') {
-                            summaryTotalsEl.innerHTML = `<span class="text-rose-600 font-bold">-${totalChi.toLocaleString('vi-VN')} đ</span>`;
+                            totalsHtml = totalChi > 0 ? `<span class="text-rose-600 font-bold whitespace-nowrap">-${totalChi.toLocaleString('vi-VN')} đ</span>` : '';
                         } else if (type === 'thu') {
-                            summaryTotalsEl.innerHTML = `<span class="text-emerald-600 font-bold">+${totalThu.toLocaleString('vi-VN')} đ</span>`;
+                            totalsHtml = totalThu > 0 ? `<span class="text-emerald-600 font-bold whitespace-nowrap">+${totalThu.toLocaleString('vi-VN')} đ</span>` : '';
                         } else {
-                            summaryTotalsEl.innerHTML = `<span class="text-emerald-600 font-bold">+${totalThu.toLocaleString('vi-VN')} đ</span> | <span class="text-rose-600 font-bold">-${totalChi.toLocaleString('vi-VN')} đ</span>`;
+                            if (totalThu > 0 && totalChi > 0) {
+                                totalsHtml = `<span class="text-emerald-600 font-bold whitespace-nowrap">+${totalThu.toLocaleString('vi-VN')} đ</span> <span class="text-slate-300">|</span> <span class="text-rose-600 font-bold whitespace-nowrap">-${totalChi.toLocaleString('vi-VN')} đ</span>`;
+                            } else if (totalThu > 0) {
+                                totalsHtml = `<span class="text-emerald-600 font-bold whitespace-nowrap">+${totalThu.toLocaleString('vi-VN')} đ</span>`;
+                            } else if (totalChi > 0) {
+                                totalsHtml = `<span class="text-rose-600 font-bold whitespace-nowrap">-${totalChi.toLocaleString('vi-VN')} đ</span>`;
+                            }
                         }
-                        summaryTotalsEl.classList.remove('hidden');
+
+                        if (totalsHtml) {
+                            summaryTotalsEl.innerHTML = totalsHtml;
+                            summaryTotalsEl.classList.remove('hidden');
+                        } else {
+                            summaryTotalsEl.innerHTML = '';
+                            summaryTotalsEl.classList.add('hidden');
+                        }
                     } else {
                         summaryTotalsEl.innerHTML = '';
                         summaryTotalsEl.classList.add('hidden');
