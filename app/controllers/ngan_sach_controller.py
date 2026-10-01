@@ -178,15 +178,49 @@ def sua_ngan_sach(
     if ns.ma_nd != current_user.ma_nd:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Không có quyền thao tác trên ngân sách của người khác")
 
-    so_du = float(ns.so_du_chuyen_sang or 0.0)
-    ns.han_muc = payload.han_muc
-    ns.han_muc_cap_moi = max(0.0, payload.han_muc - so_du)
-    ns.canh_bao_da_gui = (ns.so_tien_da_chi > payload.han_muc)
-    db.commit()
-    db.refresh(ns)
-
     dm = db.query(DanhMuc).filter(DanhMuc.ma_dm == ns.ma_dm).first()
     ten_dm = dm.ten_dm if dm else "Không rõ"
+
+    old_limit = float(ns.han_muc or 0.0)
+    so_du = float(ns.so_du_chuyen_sang or 0.0)
+    old_allocated = max(0.0, old_limit - so_du)
+    new_allocated = max(0.0, payload.han_muc - so_du)
+    diff = new_allocated - old_allocated
+    if diff > 0:
+        current_balance = NganSachService.tinh_so_du_vi_chinh(db, current_user.ma_nd)
+        if diff > current_balance:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Số dư ví chính không đủ để cấp hạn mức thêm {diff:,.0f} đ cho hũ '{ten_dm}'! Số dư còn lại: {max(0.0, current_balance):,.0f} đ."
+            )
+
+    ns.han_muc = payload.han_muc
+    ns.han_muc_cap_moi = new_allocated
+    ns.canh_bao_da_gui = (ns.so_tien_da_chi > payload.han_muc)
+
+    now_ym = datetime.now().strftime("%Y-%m")
+    if dm and ns.thang_nam == now_ym:
+        dm.han_muc = payload.han_muc
+
+    from app.models.thong_bao import ThongBao
+    if diff > 0:
+        tb = ThongBao(
+            ma_nd=current_user.ma_nd,
+            tieu_de="📤 Tăng Hạn Mức Hũ Chi Tiêu",
+            noi_dung=f"Đã tăng hạn mức hũ '{ten_dm}' thêm {diff:,.0f} đ (hạn mức mới: {payload.han_muc:,.0f} đ). Số tiền {diff:,.0f} đ đã được trích từ ví chính vào hũ."
+        )
+        db.add(tb)
+    elif diff < 0:
+        refund_amt = abs(diff)
+        tb = ThongBao(
+            ma_nd=current_user.ma_nd,
+            tieu_de="💰 Hoàn Trả Hạn Mức Về Ví Chính",
+            noi_dung=f"Đã giảm hạn mức hũ '{ten_dm}' bớt {refund_amt:,.0f} đ (hạn mức mới: {payload.han_muc:,.0f} đ). Số tiền {refund_amt:,.0f} đ đã được hoàn trả về ví chính để bạn sử dụng cho các mục tiêu tiếp theo."
+        )
+        db.add(tb)
+
+    db.commit()
+    db.refresh(ns)
     ty_le = round(ns.so_tien_da_chi / ns.han_muc, 2) if ns.han_muc > 0 else 0.0
 
     return NganSachResponse(

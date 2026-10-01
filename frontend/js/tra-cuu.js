@@ -217,21 +217,31 @@
                 });
 
                 // Cập nhật thanh tóm tắt kết quả bộ lọc
+                const summaryDateEl = document.getElementById('lookup-summary-date');
                 const summaryCountEl = document.getElementById('lookup-summary-count');
                 const summaryTotalsEl = document.getElementById('lookup-summary-totals');
                 const hasSpecificDateOrMonth = Boolean(date || month);
+
+                let label = "Tất cả";
+                if (date) {
+                    const parts = date.split('-');
+                    if (parts.length === 3) label = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    else label = date;
+                } else if (month) {
+                    const parts = month.split('-');
+                    if (parts.length === 2) label = `Tháng ${parts[1]}/${parts[0]}`;
+                    else label = month;
+                }
+
+                if (summaryDateEl) {
+                    summaryDateEl.innerText = label;
+                }
                 if (summaryCountEl) {
-                    let label = "Tất cả";
-                    if (date) {
-                        const parts = date.split('-');
-                        if (parts.length === 3) label = `${parts[2]}/${parts[1]}/${parts[0]}`;
-                        else label = date;
-                    } else if (month) {
-                        const parts = month.split('-');
-                        if (parts.length === 2) label = `Tháng ${parts[1]}/${parts[0]}`;
-                        else label = month;
+                    if (summaryDateEl) {
+                        summaryCountEl.innerText = `${filtered.length} giao dịch`;
+                    } else {
+                        summaryCountEl.innerHTML = `<strong>${label}</strong>: ${filtered.length} giao dịch`;
                     }
-                    summaryCountEl.innerHTML = `<strong>${label}</strong>: ${filtered.length} giao dịch`;
                 }
 
                 if (summaryTotalsEl) {

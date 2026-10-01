@@ -140,13 +140,28 @@ def sua_danh_muc(
                     detail=f"Hạn mức mới ({payload.han_muc:,.0f} đ) không được nhỏ hơn số tiền đã chi ({spent:,.0f} đ) trong danh mục này! Bạn chỉ có thể nâng hạn mức chứ không được giảm nhỏ hơn số tiền đã chi."
                 )
             
+            from app.services.ngan_sach_service import NganSachService
             ns = db.query(NganSach).filter(
                 NganSach.ma_nd == current_user.ma_nd,
                 NganSach.ma_dm == ma_dm,
                 NganSach.thang_nam == now_ym
             ).first()
+            old_limit = float(ns.han_muc) if (ns and ns.han_muc) else float(cat.han_muc or 0.0)
+            so_du = float(ns.so_du_chuyen_sang or 0.0) if ns else 0.0
+            old_allocated = max(0.0, old_limit - so_du)
+            new_allocated = max(0.0, payload.han_muc - so_du)
+            diff = new_allocated - old_allocated
+            if diff > 0:
+                current_balance = NganSachService.tinh_so_du_vi_chinh(db, current_user.ma_nd)
+                if diff > current_balance:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Số dư ví chính không đủ để cấp hạn mức thêm {diff:,.0f} đ cho hũ '{cat.ten_dm}'! Số dư còn lại: {max(0.0, current_balance):,.0f} đ."
+                    )
+
             if ns:
                 ns.han_muc = payload.han_muc
+                ns.han_muc_cap_moi = new_allocated
                 ns.so_tien_da_chi = spent
             elif payload.han_muc > 0:
                 ns = NganSach(
@@ -154,9 +169,31 @@ def sua_danh_muc(
                     ma_dm=ma_dm,
                     thang_nam=now_ym,
                     han_muc=payload.han_muc,
+                    han_muc_cap_moi=new_allocated,
+                    so_du_chuyen_sang=0.0,
                     so_tien_da_chi=spent
                 )
                 db.add(ns)
+
+            if diff > 0:
+                tb = ThongBao(
+                    ma_nd=current_user.ma_nd,
+                    tieu_de="📤 Tăng Hạn Mức Hũ Chi Tiêu",
+                    noi_dung=f"Đã tăng hạn mức hũ '{cat.ten_dm}' thêm {diff:,.0f} đ (hạn mức mới: {payload.han_muc:,.0f} đ). Số tiền {diff:,.0f} đ đã được trích từ ví chính vào hũ."
+                )
+                db.add(tb)
+            elif diff < 0:
+                refund_amt = abs(diff)
+                tb = ThongBao(
+                    ma_nd=current_user.ma_nd,
+                    tieu_de="💰 Hoàn Trả Hạn Mức Về Ví Chính",
+                    noi_dung=f"Đã giảm hạn mức hũ '{cat.ten_dm}' bớt {refund_amt:,.0f} đ (hạn mức mới: {payload.han_muc:,.0f} đ). Số tiền {refund_amt:,.0f} đ đã được hoàn trả về ví chính để bạn sử dụng cho các mục tiêu tiếp theo."
+                )
+                db.add(tb)
+        else:
+            cat.han_muc = 0.0
+            now_ym = datetime.now().strftime("%Y-%m")
+            db.query(NganSach).filter(NganSach.ma_nd == current_user.ma_nd, NganSach.ma_dm == ma_dm, NganSach.thang_nam == now_ym).delete()
         cat.han_muc = payload.han_muc
 
     db.commit()

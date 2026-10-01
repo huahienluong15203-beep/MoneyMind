@@ -503,7 +503,7 @@ def sua_danh_muc_legacy(cat_id: int, cat: dict, db: Session = Depends(get_db), c
                 NganSach.ma_dm == cat_id,
                 NganSach.thang_nam == now_ym
             ).first()
-            old_limit = float(ns.han_muc) if (ns and ns.han_muc) else 0.0
+            old_limit = float(ns.han_muc) if (ns and ns.han_muc) else float(c.han_muc or 0.0)
             so_du = float(ns.so_du_chuyen_sang or 0.0) if ns else 0.0
             old_allocated = max(0.0, old_limit - so_du)
             new_allocated = max(0.0, new_limit - so_du)
@@ -531,10 +531,31 @@ def sua_danh_muc_legacy(cat_id: int, cat: dict, db: Session = Depends(get_db), c
                     so_tien_da_chi=spent
                 )
                 db.add(ns)
+
+            # Lưu thông báo biến động số dư ví chính khi điều chỉnh hạn mức
+            if diff > 0:
+                save_notification(
+                    db, current_user.ma_nd,
+                    "📤 Tăng Hạn Mức Hũ Chi Tiêu",
+                    f"Đã tăng hạn mức hũ '{c.ten_dm}' thêm {diff:,.0f} đ (hạn mức mới: {new_limit:,.0f} đ). Số tiền {diff:,.0f} đ đã được trích từ ví chính vào hũ."
+                )
+            elif diff < 0:
+                refund_amt = abs(diff)
+                save_notification(
+                    db, current_user.ma_nd,
+                    "💰 Hoàn Trả Hạn Mức Về Ví Chính",
+                    f"Đã giảm hạn mức hũ '{c.ten_dm}' bớt {refund_amt:,.0f} đ (hạn mức mới: {new_limit:,.0f} đ). Số tiền {refund_amt:,.0f} đ đã được hoàn trả về ví chính để bạn sử dụng cho các mục tiêu tiếp theo."
+                )
         else:
             c.han_muc = 0.0
+            now_ym = datetime.now().strftime("%Y-%m")
+            db.query(NganSach).filter(NganSach.ma_nd == current_user.ma_nd, NganSach.ma_dm == cat_id, NganSach.thang_nam == now_ym).delete()
     db.commit()
-    return _format_dm(c, db)
+    res = _format_dm(c, db)
+    res["diff"] = diff
+    res["so_tien_trich"] = diff if diff > 0 else 0.0
+    res["so_tien_hoan"] = abs(diff) if diff < 0 else 0.0
+    return res
 
 @app.delete("/danh-muc/{cat_id}")
 def xoa_danh_muc_legacy(cat_id: int, db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
@@ -764,39 +785,16 @@ def xoa_giao_dich_legacy(tx_id: int, db: Session = Depends(get_db), current_user
 
 @app.get("/thong-ke")
 def thong_ke_tai_chinh_legacy(db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
-    txs = db.query(GiaoDich).filter(GiaoDich.ma_nd == current_user.ma_nd).all()
-    categories = db.query(DanhMuc).filter(DanhMuc.ma_nd == current_user.ma_nd).all()
+    details = NganSachService.tinh_chi_tiet_vi_chinh(db, current_user.ma_nd)
     savings_goals = db.query(MucTieuTietKiem).filter(MucTieuTietKiem.ma_nd == current_user.ma_nd).all()
-
-    # Không cộng đúp tiền hoàn từ hũ tiết kiệm đã xóa vào thu nhập cơ bản
-    t_thu = sum(t.so_tien for t in txs if t.loai_gd == "thu" and not (t.ghi_chu and ("Hoàn tiền từ hũ tiết kiệm" in t.ghi_chu or "Hoàn Trả Hạn Mức" in t.ghi_chu)))
-    # Không tính các giao dịch tiền đã hoàn về ví chính (hũ tiết kiệm đã xóa / hoàn trả hạn mức) vào tổng chi
-    t_chi = sum(t.so_tien for t in txs if t.loai_gd == "chi" and not (t.ghi_chu and ("(đã xoá)" in t.ghi_chu.lower() or "(đã xóa)" in t.ghi_chu.lower() or "hoàn trả" in t.ghi_chu.lower() or "hoàn tiền" in t.ghi_chu.lower())))
     total_savings = sum(g.so_tien_hien_tai for g in savings_goals)
 
-    # Tính tổng tiền phân bổ cho các hũ chi tiêu:
-    spent_by_cat = {}
-    for t in txs:
-        if t.loai_gd == "chi" and not (t.ghi_chu and t.ghi_chu.startswith("Trích quỹ tiết kiệm")):
-            spent_by_cat[t.ma_dm] = spent_by_cat.get(t.ma_dm, 0.0) + t.so_tien
-
-    total_allocated_chi = 0.0
-    for c in categories:
-        if c.loai_dm == "chi" and c.ten_dm != "Tiết kiệm":
-            c_spent = spent_by_cat.get(c.ma_dm, 0.0)
-            if c.han_muc and c.han_muc > 0:
-                total_allocated_chi += max(float(c.han_muc), c_spent)
-            else:
-                total_allocated_chi += c_spent
-
-    # Số dư ví chính = Tổng thu - Tổng tiền cấp cho các hũ chi tiêu - Tổng tiền vào tiết kiệm
-    so_du_vi_chinh = NganSachService.tinh_so_du_vi_chinh(db, current_user.ma_nd)
-
     return {
-        "tong_thu": t_thu,
-        "tong_chi": t_chi,
-        "so_du": so_du_vi_chinh,
-        "tong_cap_hu": total_allocated_chi,
+        "tong_thu": details["tong_thu"],
+        "tong_chi": details["tong_chi"],
+        "so_du": details["so_du"],
+        "tong_cap_hu": details["tong_cap_hu"],
+        "tong_trong_hu": details["tong_trong_hu"],
         "tong_tiet_kiem": total_savings
     }
 

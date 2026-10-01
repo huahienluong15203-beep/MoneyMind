@@ -18,6 +18,8 @@ class TongQuanResponse(BaseModel):
     tong_thu: float
     tong_chi: float
     so_du: float
+    tong_cap_hu: float = 0.0
+    tong_trong_hu: float = 0.0
     chi_theo_danh_muc: List[ChiTietDanhMuc] = []
     xu_huong_6_thang: List[XuHuongThang] = []
     giao_dich_gan_day: List[Dict[str, Any]] = []

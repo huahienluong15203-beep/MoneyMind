@@ -38,9 +38,13 @@ def lay_thong_ke_tong_quan(
         gc = t.ghi_chu.lower()
         return "(đã xoá)" in gc or "(đã xóa)" in gc or "hoàn trả" in gc or "hoàn tiền" in gc
 
+    from app.services.ngan_sach_service import NganSachService
+    details = NganSachService.tinh_chi_tiet_vi_chinh(db, current_user.ma_nd)
     tong_thu = sum(t.so_tien for t in month_txs if t.loai_gd == "thu" and not (t.ghi_chu and "hoàn tiền từ hũ tiết kiệm" in t.ghi_chu.lower()))
     tong_chi = sum(t.so_tien for t in month_txs if t.loai_gd == "chi" and not _is_refund_excluded(t))
-    so_du = tong_thu - tong_chi
+    so_du = details["so_du"]
+    tong_cap_hu = details["tong_cap_hu"]
+    tong_trong_hu = details["tong_trong_hu"]
 
     # Chi theo danh mục (Pie chart)
     danh_mucs = {dm.ma_dm: dm for dm in db.query(DanhMuc).filter(DanhMuc.ma_nd == current_user.ma_nd).all()}
@@ -118,6 +122,8 @@ def lay_thong_ke_tong_quan(
         tong_thu=tong_thu,
         tong_chi=tong_chi,
         so_du=so_du,
+        tong_cap_hu=tong_cap_hu,
+        tong_trong_hu=tong_trong_hu,
         chi_theo_danh_muc=chi_theo_danh_muc,
         xu_huong_6_thang=xu_huong_6_thang,
         giao_dich_gan_day=giao_dich_gan_day

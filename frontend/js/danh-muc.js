@@ -74,6 +74,17 @@
                     }
                 }
 
+                const noteEl = document.getElementById('modal-edit-wallet-note');
+                if (noteEl) {
+                    if (type === 'chi') {
+                        const curBalance = parseFloat((document.getElementById('so-du')?.innerText || '0').replace(/[^\d]/g, '')) || 0;
+                        noteEl.innerHTML = `💡 <em>Nâng hạn mức sẽ trích thêm từ ví chính; giảm hạn mức sẽ hoàn lại vào ví chính (Số dư ví hiện tại: <strong>${curBalance.toLocaleString()} đ</strong>).</em>`;
+                        noteEl.classList.remove('hidden');
+                    } else {
+                        noteEl.classList.add('hidden');
+                    }
+                }
+
                 toggleModalEditLimit();
                 document.getElementById('edit-category-modal').classList.remove('hidden');
             }
@@ -108,13 +119,24 @@
                 });
 
                 if(res.ok) {
+                    const data = await res.json().catch(() => ({}));
                     closeEditCategoryModal();
                     await loadCategories();
                     await loadSummary();
                     if (typeof updateReportSummary === 'function') {
                         updateReportSummary();
                     }
-                    showCustomModal("Thành công", "Đã cập nhật danh mục!", "✅");
+                    if (typeof loadNotifications === 'function') {
+                        loadNotifications();
+                    }
+                    if (data && data.diff > 0) {
+                        showCustomModal("Tăng hạn mức thành công", `Đã tăng hạn mức hũ "${name}" lên ${limit.toLocaleString()} đ (đã trích thêm ${data.diff.toLocaleString()} đ từ ví chính vào hũ)!`, "📤");
+                    } else if (data && data.diff < 0) {
+                        const refund = Math.abs(data.diff);
+                        showCustomModal("Hoàn tiền thành công", `Đã giảm hạn mức hũ "${name}" còn ${limit.toLocaleString()} đ (đã hoàn trả ${refund.toLocaleString()} đ về ví chính)!`, "💰");
+                    } else {
+                        showCustomModal("Thành công", `Đã cập nhật danh mục "${name}"!`, "✅");
+                    }
                 } else {
                     let err = await res.json().catch(() => ({}));
                     showCustomModal("Lỗi cập nhật", err.detail || "Không thể cập nhật danh mục!", "❌");

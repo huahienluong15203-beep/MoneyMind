@@ -234,3 +234,94 @@ def test_ket_chuyen_ngan_sach_tu_dong_va_tra_cuu_lich_su(client, db_session, use
     rolled_second = NganSachService.tu_dong_ket_chuyen_thang_moi(db_session, user_a.ma_nd, "2026-10")
     duplicate_match = [r for r in rolled_second if r["name"] == "Ăn uống tháng 9"]
     assert len(duplicate_match) == 0
+
+def test_sua_han_muc_tru_va_hoan_tien_vi_chinh(client, user_a, auth_headers_a, db_session):
+    """
+    Kiểm tra cơ chế đồng bộ biến động số dư Ví chính khi chỉnh sửa hạn mức hũ:
+    1. Cấp thu nhập ban đầu 10,000,000 đ vào ví chính.
+    2. Tạo hũ chi tiêu với hạn mức 2,000,000 đ -> Số dư ví chính còn 8,000,000 đ.
+    3. Tăng hạn mức hũ lên 3,000,000 đ (+1,000,000 đ) -> Số dư ví chính trừ thêm 1,000,000 đ còn 7,000,000 đ.
+    4. Giảm hạn mức hũ xuống 1,500,000 đ (-1,500,000 đ) -> Số dư ví chính được hoàn lại 1,500,000 đ thành 8,500,000 đ.
+    5. Không cho phép giảm hạn mức nhỏ hơn số tiền đã chi tiêu trong tháng.
+    6. Không cho phép tăng hạn mức vượt quá số dư khả dụng của ví chính.
+    """
+    # 1. Thu nhập 10,000,000 đ
+    tx_thu = GiaoDich(
+        ma_nd=user_a.ma_nd,
+        so_tien=10000000.0,
+        loai_gd="thu",
+        ghi_chu="Thu nhập tháng kiểm thử",
+        ngay_gd=datetime.now()
+    )
+    db_session.add(tx_thu)
+    db_session.commit()
+
+    # Kiểm tra ban đầu: ví chính = 10,000,000 đ
+    bal_0 = NganSachService.tinh_so_du_vi_chinh(db_session, user_a.ma_nd)
+    assert bal_0 == 10000000.0
+
+    # 2. Tạo danh mục chi với hạn mức 2,000,000 đ
+    res_create = client.post("/api/danh-muc", json={
+        "ten_dm": "Hũ thử nghiệm",
+        "loai_dm": "chi",
+        "han_muc": 2000000.0
+    }, headers=auth_headers_a)
+    assert res_create.status_code == status.HTTP_201_CREATED
+    cat_id = res_create.json()["ma_dm"]
+
+    # Số dư ví chính sau khi trích 2 triệu: 8,000,000 đ
+    bal_1 = NganSachService.tinh_so_du_vi_chinh(db_session, user_a.ma_nd)
+    assert bal_1 == 8000000.0
+
+    # 3. Nâng hạn mức lên 3,000,000 đ (tăng 1,000,000 đ)
+    res_up = client.put(f"/api/danh-muc/{cat_id}", json={
+        "ten_dm": "Hũ thử nghiệm",
+        "loai_dm": "chi",
+        "han_muc": 3000000.0
+    }, headers=auth_headers_a)
+    assert res_up.status_code == status.HTTP_200_OK
+
+    # Số dư ví chính trừ thêm 1 triệu: 7,000,000 đ
+    bal_2 = NganSachService.tinh_so_du_vi_chinh(db_session, user_a.ma_nd)
+    assert bal_2 == 7000000.0
+
+    # 4. Giảm hạn mức xuống 1,500,000 đ (giảm 1,500,000 đ)
+    res_down = client.put(f"/api/danh-muc/{cat_id}", json={
+        "ten_dm": "Hũ thử nghiệm",
+        "loai_dm": "chi",
+        "han_muc": 1500000.0
+    }, headers=auth_headers_a)
+    assert res_down.status_code == status.HTTP_200_OK
+
+    # Số dư ví chính được hoàn lại 1.5 triệu: 8,500,000 đ
+    bal_3 = NganSachService.tinh_so_du_vi_chinh(db_session, user_a.ma_nd)
+    assert bal_3 == 8500000.0
+
+    # Chi 500,000 đ từ hũ này
+    tx_chi = GiaoDich(
+        ma_nd=user_a.ma_nd,
+        ma_dm=cat_id,
+        so_tien=500000.0,
+        loai_gd="chi",
+        ghi_chu="Chi thực tế",
+        ngay_gd=datetime.now()
+    )
+    db_session.add(tx_chi)
+    db_session.commit()
+
+    # 5. Thử giảm hạn mức xuống 400,000 đ (< 500,000 đ đã chi) -> phải báo lỗi 400
+    res_fail_spent = client.put(f"/api/danh-muc/{cat_id}", json={
+        "ten_dm": "Hũ thử nghiệm",
+        "loai_dm": "chi",
+        "han_muc": 400000.0
+    }, headers=auth_headers_a)
+    assert res_fail_spent.status_code == status.HTTP_400_BAD_REQUEST
+
+    # 6. Thử tăng hạn mức quá số dư khả dụng (ví chính còn 8.5M, thử tăng thêm 20M) -> báo lỗi 400
+    res_fail_bal = client.put(f"/api/danh-muc/{cat_id}", json={
+        "ten_dm": "Hũ thử nghiệm",
+        "loai_dm": "chi",
+        "han_muc": 25000000.0
+    }, headers=auth_headers_a)
+    assert res_fail_bal.status_code == status.HTTP_400_BAD_REQUEST
+

@@ -135,6 +135,11 @@ var currentAuthMode = 'register';
             }
 
 
+            function goToWelcomeScreen() {
+                document.getElementById('auth-container').classList.add('hidden');
+                document.getElementById('welcome-screen').classList.remove('hidden');
+            }
+
             function goToAuthMode(mode) {
                 currentAuthMode = mode;
                 const header = document.getElementById('header-container');
@@ -150,17 +155,26 @@ var currentAuthMode = 'register';
                 const titleEl = document.getElementById('auth-title');
                 const btnEl = document.getElementById('btn-auth-submit');
                 const switchEl = document.getElementById('auth-switch-link');
+                const forgotBox = document.getElementById('auth-forgot-box');
                 const confirmBox = document.getElementById('confirm-pass-container');
 
                 if(mode === 'login') {
                     titleEl.innerText = "Đăng nhập tài khoản";
                     btnEl.innerText = "Đăng nhập";
-                    switchEl.innerText = "Chưa có tài khoản? Đăng ký ngay";
+                    if(forgotBox) forgotBox.classList.remove('hidden');
+                    if(switchEl) {
+                        switchEl.innerText = "Chưa có tài khoản? Đăng ký ngay";
+                        switchEl.className = "text-[11px] text-slate-400 hover:text-teal-600 cursor-pointer";
+                    }
                     confirmBox.classList.add('hidden');
                 } else {
                     titleEl.innerText = "Đăng ký tài khoản";
                     btnEl.innerText = "Đăng ký";
-                    switchEl.innerText = "Đã có tài khoản? Đăng nhập";
+                    if(forgotBox) forgotBox.classList.add('hidden');
+                    if(switchEl) {
+                        switchEl.innerText = "Đã có tài khoản? Đăng nhập";
+                        switchEl.className = "text-xs text-teal-600 font-bold cursor-pointer";
+                    }
                     confirmBox.classList.remove('hidden');
                 }
             }
@@ -336,6 +350,184 @@ var currentAuthMode = 'register';
                 if (otpResendCountdownInterval) clearInterval(otpResendCountdownInterval);
                 document.getElementById('register-otp-modal').classList.add('hidden');
             }
+
+            // ==========================================
+            // CHỨC NĂNG QUÊN MẬT KHẨU & ĐẶT LẠI QUA GMAIL THẬT
+            // ==========================================
+            var forgotResendCountdownInterval = null;
+
+            function openForgotPasswordModal(e) {
+                if (e) e.preventDefault();
+                const currentEmail = (document.getElementById('auth-email')?.value || '').trim();
+                const forgotEmailInput = document.getElementById('forgot-email');
+                if (forgotEmailInput && currentEmail) {
+                    forgotEmailInput.value = currentEmail;
+                }
+                document.getElementById('forgot-step-1').classList.remove('hidden');
+                document.getElementById('forgot-step-2').classList.add('hidden');
+                document.getElementById('forgot-password-modal').classList.remove('hidden');
+                if (forgotEmailInput) {
+                    setTimeout(() => forgotEmailInput.focus(), 150);
+                }
+            }
+
+            function closeForgotPasswordModal() {
+                if (forgotResendCountdownInterval) clearInterval(forgotResendCountdownInterval);
+                document.getElementById('forgot-password-modal').classList.add('hidden');
+            }
+
+            function backToForgotStep1() {
+                if (forgotResendCountdownInterval) clearInterval(forgotResendCountdownInterval);
+                document.getElementById('forgot-step-2').classList.add('hidden');
+                document.getElementById('forgot-step-1').classList.remove('hidden');
+                const emailInput = document.getElementById('forgot-email');
+                if (emailInput) setTimeout(() => emailInput.focus(), 150);
+            }
+
+            function startForgotOtpResendTimer() {
+                const btn = document.getElementById('btn-forgot-resend-otp');
+                if (!btn) return;
+                let seconds = 60;
+                btn.disabled = true;
+                btn.className = "text-slate-400 font-semibold cursor-not-allowed text-xs";
+                btn.innerText = `Gửi lại sau (${seconds}s)`;
+                if (forgotResendCountdownInterval) clearInterval(forgotResendCountdownInterval);
+                forgotResendCountdownInterval = setInterval(() => {
+                    seconds--;
+                    if (seconds <= 0) {
+                        clearInterval(forgotResendCountdownInterval);
+                        btn.disabled = false;
+                        btn.className = "text-teal-600 hover:text-teal-700 font-semibold transition cursor-pointer text-xs";
+                        btn.innerText = "Gửi lại mã OTP";
+                    } else {
+                        btn.innerText = `Gửi lại sau (${seconds}s)`;
+                    }
+                }, 1000);
+            }
+
+            async function submitForgotPasswordRequest() {
+                const emailInput = document.getElementById('forgot-email');
+                const email = (emailInput ? emailInput.value : "").trim().toLowerCase();
+
+                if (!email || !email.includes('@')) {
+                    return showCustomModal("Thiếu thông tin", "Vui lòng nhập địa chỉ Gmail hợp lệ (ví dụ: yourname@gmail.com)!", "⚠️");
+                }
+
+                const btn = document.getElementById('btn-forgot-send-otp');
+                btn.disabled = true;
+                const oldText = btn.innerText;
+                btn.innerText = "Đang gửi mã về Gmail...";
+
+                try {
+                    const res = await fetch('/quen-mat-khau', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({email: email})
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        document.getElementById('forgot-email-display').innerText = email;
+                        document.getElementById('forgot-step-1').classList.add('hidden');
+                        document.getElementById('forgot-step-2').classList.remove('hidden');
+                        const otpInput = document.getElementById('forgot-otp-code');
+                        if (otpInput) {
+                            otpInput.value = "";
+                            setTimeout(() => otpInput.focus(), 150);
+                        }
+                        document.getElementById('forgot-new-pass').value = "";
+                        document.getElementById('forgot-confirm-pass').value = "";
+                        startForgotOtpResendTimer();
+                        showCustomModal("Đã gửi mã xác nhận", data.thong_bao || `Mã OTP đã được gửi đến hòm thư ${email}. Vui lòng kiểm tra hộp thư đến hoặc mục Thư rác (Spam).`, "✉️");
+                    } else {
+                        showCustomModal("Không thể gửi mã", data.detail || "Không tìm thấy tài khoản tương ứng với Gmail này!", "❌");
+                    }
+                } catch (e) {
+                    showCustomModal("Lỗi kết nối", e.message || "Không thể kết nối đến máy chủ!", "❌");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = oldText;
+                }
+            }
+
+            async function resendForgotPasswordOtp() {
+                const email = document.getElementById('forgot-email-display').innerText.trim().toLowerCase();
+                if (!email) return;
+
+                const btn = document.getElementById('btn-forgot-resend-otp');
+                btn.disabled = true;
+                btn.innerText = "Đang gửi...";
+
+                try {
+                    const res = await fetch('/quen-mat-khau', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({email: email})
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        startForgotOtpResendTimer();
+                        showCustomModal("Đã gửi lại mã", data.thong_bao || "Mã OTP mới đã được gửi về Gmail của bạn. Vui lòng kiểm tra hộp thư!", "✉️");
+                    } else {
+                        btn.disabled = false;
+                        btn.innerText = "Gửi lại mã OTP";
+                        showCustomModal("Lỗi gửi mã", data.detail || "Không thể gửi lại mã xác nhận!", "❌");
+                    }
+                } catch (e) {
+                    btn.disabled = false;
+                    btn.innerText = "Gửi lại mã OTP";
+                    showCustomModal("Lỗi kết nối", e.message, "❌");
+                }
+            }
+
+            async function submitResetPasswordConfirm() {
+                const email = document.getElementById('forgot-email-display').innerText.trim().toLowerCase();
+                const otp = document.getElementById('forgot-otp-code').value.trim();
+                const newPass = document.getElementById('forgot-new-pass').value;
+                const confirmPass = document.getElementById('forgot-confirm-pass').value;
+
+                if (!otp || otp.length < 4) {
+                    return showCustomModal("Thiếu mã OTP", "Vui lòng nhập đầy đủ mã OTP đã được gửi về Gmail!", "⚠️");
+                }
+                if (!newPass || newPass.length < 4) {
+                    return showCustomModal("Mật khẩu yếu", "Mật khẩu mới phải có tối thiểu 4 ký tự!", "⚠️");
+                }
+                if (newPass !== confirmPass) {
+                    return showCustomModal("Không trùng khớp", "Mật khẩu mới và xác nhận mật khẩu không trùng khớp!", "⚠️");
+                }
+
+                const btn = document.getElementById('btn-forgot-confirm-reset');
+                btn.disabled = true;
+                const oldText = btn.innerText;
+                btn.innerText = "Đang xác thực...";
+
+                try {
+                    const res = await fetch('/dat-lai-mat-khau', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            email: email,
+                            otp: otp,
+                            new_password: newPass
+                        })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        closeForgotPasswordModal();
+                        document.getElementById('auth-email').value = email;
+                        document.getElementById('auth-pass').value = newPass;
+                        goToAuthMode('login');
+                        showCustomModal("Đặt lại mật khẩu thành công! 🎉", "Mật khẩu của bạn đã được cập nhật. Bạn có thể nhấn 'Đăng nhập' ngay bây giờ!", "✅");
+                    } else {
+                        showCustomModal("Xác thực thất bại", data.detail || "Mã OTP không chính xác hoặc đã hết hạn!", "❌");
+                    }
+                } catch (e) {
+                    showCustomModal("Lỗi kết nối", e.message || "Không thể kết nối đến máy chủ!", "❌");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = oldText;
+                }
+            }
+
 
 
             async function submitOnboarding() {

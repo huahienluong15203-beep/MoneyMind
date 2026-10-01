@@ -285,6 +285,7 @@
                             <label class="font-semibold text-slate-500 block mb-1">Hạn mức ngân sách (đ):</label>
                             <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-edit-limit" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Hạn mức (đ)" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
                             <p id="modal-edit-spent-hint" class="text-[10px] text-slate-500 mt-1"></p>
+                            <p id="modal-edit-wallet-note" class="text-[10px] text-teal-600 mt-1 leading-relaxed hidden"></p>
                         </div>
                     </div>
                     <div class="flex gap-2 pt-1">
@@ -321,6 +322,77 @@
                         <button type="button" id="btn-reg-resend-otp" onclick="resendRegistrationOtp()" class="text-teal-600 font-semibold hover:underline">Gửi lại mã OTP</button>
                         <button type="button" onclick="closeRegisterOtpModal()" class="text-slate-400 hover:text-slate-600">Đổi thông tin</button>
                     </div>
+                </div>
+            </div>
+
+            <!-- MODAL QUÊN MẬT KHẨU (GỬI MÃ VỀ GMAIL THẬT) -->
+            <div id="forgot-password-modal" class="hidden absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    
+                    <!-- BƯỚC 1: NHẬP GMAIL ĐỂ NHẬN MÃ OTP -->
+                    <div id="forgot-step-1" class="space-y-4">
+                        <div class="text-center">
+                            <div class="w-12 h-12 bg-teal-100 text-teal-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-2">🔑</div>
+                            <h3 class="text-base font-bold text-slate-800">Quên Mật Khẩu</h3>
+                            <p class="text-xs text-slate-500 mt-1">
+                                Nhập địa chỉ Gmail tài khoản của bạn để nhận mã xác nhận đặt lại mật khẩu:
+                            </p>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-600 block mb-1">Địa chỉ Gmail:</label>
+                                <input type="email" id="forgot-email" placeholder="vidu@gmail.com" class="w-full p-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:border-teal-500">
+                            </div>
+
+                            <button type="button" onclick="submitForgotPasswordRequest()" id="btn-forgot-send-otp" class="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-2xl shadow-md transition">
+                                Gửi Mã Đặt Lại Mật Khẩu Về Gmail
+                            </button>
+                        </div>
+
+                        <div class="text-center pt-1 border-t border-slate-100">
+                            <button type="button" onclick="closeForgotPasswordModal()" class="text-xs text-slate-400 hover:text-slate-600 font-semibold">Quay lại Đăng nhập</button>
+                        </div>
+                    </div>
+
+                    <!-- BƯỚC 2: NHẬP MÃ OTP & MẬT KHẨU MỚI -->
+                    <div id="forgot-step-2" class="hidden space-y-4">
+                        <div class="text-center">
+                            <div class="w-12 h-12 bg-teal-100 text-teal-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-2">✉️</div>
+                            <h3 class="text-base font-bold text-slate-800">Đặt Lại Mật Khẩu Mới</h3>
+                            <p class="text-xs text-slate-500 mt-1">
+                                Mã OTP 6 số đã được gửi đến hòm thư:
+                            </p>
+                            <p id="forgot-email-display" class="text-xs font-bold text-teal-700 mt-0.5 break-all"></p>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-600 block mb-1">Mã xác thực OTP (6 số từ Gmail):</label>
+                                <input type="text" id="forgot-otp-code" maxlength="6" inputmode="numeric" placeholder="• • • • • •" class="w-full p-3 border border-teal-400 rounded-2xl text-center text-xl font-bold tracking-widest text-teal-900 bg-slate-50 focus:outline-none focus:border-teal-600">
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-600 block mb-1">Mật khẩu mới:</label>
+                                <input type="password" id="forgot-new-pass" placeholder="Tối thiểu 4 ký tự" class="w-full p-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:border-teal-500">
+                            </div>
+
+                            <div>
+                                <label class="text-[11px] font-bold text-slate-600 block mb-1">Xác nhận mật khẩu mới:</label>
+                                <input type="password" id="forgot-confirm-pass" placeholder="Nhập lại mật khẩu mới" class="w-full p-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:border-teal-500">
+                            </div>
+
+                            <button type="button" onclick="submitResetPasswordConfirm()" id="btn-forgot-confirm-reset" class="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-2xl shadow-md transition">
+                                Xác Nhận & Cập Nhật Mật Khẩu
+                            </button>
+                        </div>
+
+                        <div class="flex justify-between items-center text-xs pt-1 border-t border-slate-100 text-slate-500">
+                            <button type="button" id="btn-forgot-resend-otp" onclick="resendForgotPasswordOtp()" class="text-teal-600 font-semibold hover:underline">Gửi lại mã OTP</button>
+                            <button type="button" onclick="backToForgotStep1()" class="text-slate-400 hover:text-slate-600">Đổi email khác</button>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
@@ -649,6 +721,10 @@
                         <div><span class="text-emerald-100">Thu:</span> <span id="tong-thu" class="font-semibold">0 đ</span></div>
                         <div><span class="text-rose-100">Chi:</span> <span id="tong-chi" class="font-semibold">0 đ</span></div>
                     </div>
+                    <div class="flex justify-between mt-1.5 pt-1.5 border-t border-white/10 text-[11px] text-teal-100">
+                        <span>Đang giữ trong các hũ chi:</span>
+                        <span id="tong-trong-hu" class="font-semibold text-white">0 đ</span>
+                    </div>
                 </div>
             </div>
 
@@ -672,7 +748,10 @@
 
                 <!-- 2. AUTH CONTAINER -->
                 <div id="auth-container" class="hidden space-y-4 pt-6 max-w-sm mx-auto w-full">
-                    <div class="text-center pb-2">
+                    <div class="relative flex items-center justify-center pb-2">
+                        <button type="button" onclick="goToWelcomeScreen()" class="absolute left-0 text-slate-400 hover:text-slate-600 text-xs font-semibold flex items-center gap-1 transition p-1" title="Quay lại">
+                            ← Quay lại
+                        </button>
                         <h2 id="auth-title" class="text-xl font-bold text-slate-800">Đăng ký tài khoản</h2>
                     </div>
                     <div class="space-y-3">
@@ -691,8 +770,13 @@
                         <button onclick="submitAuth()" id="btn-auth-submit" class="w-full py-3.5 bg-teal-500 text-white text-xs font-bold rounded-2xl shadow-lg">Đăng ký</button>
                     </div>
 
-                    <div class="text-center pt-2">
-                        <a href="#" onclick="toggleAuthMode(event)" id="auth-switch-link" class="text-xs text-teal-600 font-bold">Đã có tài khoản? Đăng nhập</a>
+                    <div class="text-center pt-2 space-y-2">
+                        <div id="auth-forgot-box" class="hidden">
+                            <a href="#" onclick="openForgotPasswordModal(event)" id="auth-forgot-link" class="text-xs text-teal-600 font-bold hover:underline cursor-pointer">Quên mật khẩu?</a>
+                        </div>
+                        <div>
+                            <a href="#" onclick="toggleAuthMode(event)" id="auth-switch-link" class="text-xs text-teal-600 font-bold cursor-pointer">Đã có tài khoản? Đăng nhập</a>
+                        </div>
                     </div>
                 </div>
 
@@ -899,9 +983,14 @@
                                 </div>
 
                                 <!-- THANH TỔNG HỢP KẾT QUẢ THEO THỜI GIAN LỌC -->
-                                <div id="lookup-summary-bar" class="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 px-1 text-[11px] text-slate-500">
-                                    <span id="lookup-summary-count" class="font-medium text-slate-600 whitespace-nowrap shrink-0">Đang tải danh sách...</span>
-                                    <span id="lookup-summary-totals" class="text-[10px] font-semibold text-slate-500 whitespace-nowrap shrink-0 ml-auto"></span>
+                                <div id="lookup-summary-bar" class="px-1 text-slate-500">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span id="lookup-summary-date" class="font-bold text-xs text-slate-700 whitespace-nowrap">Đang tải danh sách...</span>
+                                        <span id="lookup-summary-totals" class="text-xs font-bold text-slate-600 whitespace-nowrap shrink-0 -translate-y-0.5"></span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-[11px] text-slate-400 mt-0.5">
+                                        <span id="lookup-summary-count" class="font-medium whitespace-nowrap"></span>
+                                    </div>
                                 </div>
 
                                 <div id="tx-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"></div>

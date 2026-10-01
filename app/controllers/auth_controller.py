@@ -363,3 +363,120 @@ def xac_nhan_otp(payload: dict, db: Session = Depends(get_db)):
         }
     }
 
+
+@router.post("/quen-mat-khau", summary="Yêu cầu gửi mã OTP đặt lại mật khẩu về Gmail thật")
+def quen_mat_khau(payload: dict, db: Session = Depends(get_db)):
+    """
+    Gửi mã OTP 6 số về Gmail thật để xác nhận đặt lại mật khẩu.
+    """
+    email = payload.get("email", "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vui lòng nhập địa chỉ Gmail hợp lệ.")
+
+    user = db.query(NguoiDung).filter(NguoiDung.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Email này chưa được đăng ký trong hệ thống MoneyMind. Vui lòng kiểm tra lại địa chỉ Gmail."
+        )
+
+    from app.services.email_service import EmailService
+    from app.models.xac_nhan_otp import XacNhanOTP
+    from app.models.dat_lai_mat_khau import DatLaiMatKhau
+
+    otp_code = EmailService.generate_otp()
+    het_han = datetime.utcnow() + timedelta(minutes=10)
+
+    # Lưu mã OTP
+    otp_record = XacNhanOTP(
+        email=email,
+        otp_code=otp_code,
+        het_han=het_han,
+        da_dung=False
+    )
+    db.add(otp_record)
+
+    reset_record = DatLaiMatKhau(
+        ma_nd=user.ma_nd,
+        token=otp_code,
+        het_han=het_han,
+        da_dung=False
+    )
+    db.add(reset_record)
+    db.commit()
+
+    # Gửi email trong luồng nền để không chặn người dùng
+    import threading
+    t = threading.Thread(
+        target=EmailService.send_password_reset_otp,
+        args=(email, otp_code),
+        daemon=True
+    )
+    t.start()
+
+    msg = f"Mã xác nhận đặt lại mật khẩu đã được gửi đến hòm thư {email}. Vui lòng kiểm tra hộp thư đến hoặc mục Thư rác (Spam)."
+    return {
+        "thong_bao": msg,
+        "email": email,
+        "dev_otp": otp_code
+    }
+
+
+@router.post("/dat-lai-mat-khau", summary="Xác nhận mã OTP Gmail và cập nhật mật khẩu mới")
+def dat_lai_mat_khau(payload: dict, db: Session = Depends(get_db)):
+    """
+    Xác thực mã OTP từ Gmail và đặt lại mật khẩu mới cho tài khoản.
+    """
+    email = payload.get("email", "").strip().lower()
+    otp_code = str(payload.get("otp") or payload.get("ma_otp") or "").strip()
+    new_password = str(payload.get("new_password") or payload.get("mat_khau_moi") or payload.get("password") or "").strip()
+
+    if not email or not otp_code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vui lòng nhập đầy đủ Email và mã OTP.")
+
+    if not new_password or len(new_password) < 4:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mật khẩu mới phải có tối thiểu 4 ký tự.")
+
+    user = db.query(NguoiDung).filter(NguoiDung.email == email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy tài khoản người dùng tương ứng.")
+
+    from app.models.xac_nhan_otp import XacNhanOTP
+    from app.models.dat_lai_mat_khau import DatLaiMatKhau
+
+    record = db.query(XacNhanOTP).filter(
+        XacNhanOTP.email == email,
+        XacNhanOTP.otp_code == otp_code,
+        XacNhanOTP.da_dung == False,
+        XacNhanOTP.het_han > datetime.utcnow()
+    ).order_by(XacNhanOTP.id.desc()).first()
+
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mã xác nhận OTP không chính xác hoặc đã hết hạn. Vui lòng kiểm tra lại Gmail hoặc yêu cầu gửi lại mã."
+        )
+
+    # Đánh dấu OTP đã dùng
+    record.da_dung = True
+
+    reset_rec = db.query(DatLaiMatKhau).filter(
+        DatLaiMatKhau.ma_nd == user.ma_nd,
+        DatLaiMatKhau.token == otp_code,
+        DatLaiMatKhau.da_dung == False
+    ).order_by(DatLaiMatKhau.id.desc()).first()
+    if reset_rec:
+        reset_rec.da_dung = True
+
+    # Cập nhật mật khẩu mới và mở khóa tài khoản nếu đang bị khóa
+    user.mat_khau_hash = get_password_hash(new_password)
+    user.so_lan_sai = 0
+    user.trang_thai = "hoat_dong"
+    user.khoa_den = None
+    db.commit()
+
+    return {
+        "thong_bao": "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay bây giờ.",
+        "email": email
+    }
+

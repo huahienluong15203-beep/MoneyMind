@@ -91,3 +91,43 @@ def test_uc002_xem_va_cap_nhat_thong_tin(client, user_a, auth_headers_a):
     data = res_put.json()
     assert data["ho_ten"] == "Họ Tên Đã Đổi"
     assert data["occupation"] == "Kỹ sư phần mềm"
+
+def test_quen_mat_khau_email_khong_ton_tai(client):
+    """Kiểm thử yêu cầu quên mật khẩu với email chưa đăng ký -> 404"""
+    resp = client.post("/api/auth/quen-mat-khau", json={"email": "notfound12345@gmail.com"})
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    assert "chưa được đăng ký" in resp.json()["detail"].lower()
+
+def test_quen_mat_khau_va_dat_lai_thanh_cong(client, user_a):
+    """Kiểm thử toàn bộ luồng quên mật khẩu và đặt lại mật khẩu mới"""
+    # 1. Yêu cầu mã OTP đặt lại mật khẩu
+    resp_forgot = client.post("/api/auth/quen-mat-khau", json={"email": user_a.email})
+    assert resp_forgot.status_code == status.HTTP_200_OK
+    data_forgot = resp_forgot.json()
+    otp_code = data_forgot.get("dev_otp")
+    assert otp_code is not None
+
+    # 2. Xác nhận OTP và đặt mật khẩu mới
+    new_pass = "brand_new_secret_pass_888"
+    resp_reset = client.post("/api/auth/dat-lai-mat-khau", json={
+        "email": user_a.email,
+        "otp": otp_code,
+        "new_password": new_pass
+    })
+    assert resp_reset.status_code == status.HTTP_200_OK
+
+    # 3. Đăng nhập bằng mật khẩu mới thành công
+    resp_login_new = client.post("/api/auth/dang-nhap", json={
+        "email": user_a.email,
+        "password": new_pass
+    })
+    assert resp_login_new.status_code == status.HTTP_200_OK
+    assert "access_token" in resp_login_new.json()
+
+    # 4. Đăng nhập bằng mật khẩu cũ phải thất bại
+    resp_login_old = client.post("/api/auth/dang-nhap", json={
+        "email": user_a.email,
+        "password": "password123"
+    })
+    assert resp_login_old.status_code == status.HTTP_401_UNAUTHORIZED
+

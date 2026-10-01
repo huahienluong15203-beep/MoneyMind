@@ -142,9 +142,12 @@
                 const res = await fetch('/thong-ke', {headers: {'Authorization': 'Bearer ' + token}});
                 if(res.ok) {
                     const d = await res.json();
-                    document.getElementById('so-du').innerText = d.so_du.toLocaleString() + " đ";
-                    document.getElementById('tong-thu').innerText = d.tong_thu.toLocaleString() + " đ";
-                    document.getElementById('tong-chi').innerText = d.tong_chi.toLocaleString() + " đ";
+                    if(document.getElementById('so-du')) document.getElementById('so-du').innerText = d.so_du.toLocaleString() + " đ";
+                    if(document.getElementById('tong-thu')) document.getElementById('tong-thu').innerText = d.tong_thu.toLocaleString() + " đ";
+                    if(document.getElementById('tong-chi')) document.getElementById('tong-chi').innerText = d.tong_chi.toLocaleString() + " đ";
+                    if(document.getElementById('tong-trong-hu')) {
+                        document.getElementById('tong-trong-hu').innerText = (d.tong_trong_hu || 0).toLocaleString() + " đ";
+                    }
                 }
             }
 

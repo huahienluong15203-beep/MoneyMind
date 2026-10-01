@@ -262,10 +262,11 @@ class NganSachService:
         return results
 
     @staticmethod
-    def tinh_so_du_vi_chinh(db: Session, ma_nd: int) -> float:
+    def tinh_chi_tiet_vi_chinh(db: Session, ma_nd: int) -> dict:
         """
-        Tính số dư thực tế khả dụng của ví chính.
-        Số dư ví chính = Tổng thu thực tế - Tổng chi thực tế (bao gồm tiền đã nạp vào các hũ tiết kiệm đang hoạt động).
+        Tính chi tiết tài chính ví chính và số dư thực tế khả dụng.
+        Số dư ví chính = Tổng thu thực tế - Tổng chi thực tế (bao gồm tiền đã nạp vào các hũ tiết kiệm đang hoạt động)
+                        - Tổng hạn mức khả dụng chưa chi tiêu đang nằm trong các hũ chi tiêu của tháng hiện tại.
         Loại trừ các khoản tiền hoàn trả hoặc mục tiêu tiết kiệm đã xóa.
         """
         txs = db.query(GiaoDich).filter(GiaoDich.ma_nd == ma_nd).all()
@@ -284,7 +285,57 @@ class NganSachService:
             t.so_tien for t in txs 
             if t.loai_gd == "chi" and not _is_refund_or_deleted(t)
         )
-        return float(t_thu - t_chi)
+
+        now = datetime.now()
+        start_month = datetime(now.year, now.month, 1)
+        end_month = datetime(now.year + 1, 1, 1) if now.month == 12 else datetime(now.year, now.month + 1, 1)
+        now_ym = now.strftime("%Y-%m")
+
+        categories = db.query(DanhMuc).filter(
+            DanhMuc.ma_nd == ma_nd,
+            DanhMuc.loai_dm == "chi",
+            DanhMuc.ten_dm != "Tiết kiệm"
+        ).all()
+
+        total_unspent_in_jars = 0.0
+        total_limit_in_jars = 0.0
+
+        for c in categories:
+            ns = db.query(NganSach).filter(
+                NganSach.ma_nd == ma_nd,
+                NganSach.ma_dm == c.ma_dm,
+                NganSach.thang_nam == now_ym
+            ).first()
+            limit = float(ns.han_muc) if (ns and ns.han_muc is not None and ns.han_muc > 0) else float(c.han_muc or 0.0)
+
+            if limit > 0:
+                total_limit_in_jars += limit
+                spent = sum(
+                    t.so_tien for t in txs
+                    if t.ma_dm == c.ma_dm and t.loai_gd == "chi" and not _is_refund_or_deleted(t)
+                    and t.ngay_gd and t.ngay_gd >= start_month and t.ngay_gd < end_month
+                )
+                unspent = max(0.0, limit - spent)
+                total_unspent_in_jars += unspent
+
+        so_du = float(t_thu - t_chi - total_unspent_in_jars)
+        return {
+            "so_du": so_du,
+            "tong_thu": float(t_thu),
+            "tong_chi": float(t_chi),
+            "tong_cap_hu": float(total_limit_in_jars),
+            "tong_trong_hu": float(total_unspent_in_jars)
+        }
+
+    @staticmethod
+    def tinh_so_du_vi_chinh(db: Session, ma_nd: int) -> float:
+        """
+        Tính số dư thực tế khả dụng của ví chính.
+        Số dư ví chính = Tổng thu thực tế - Tổng chi thực tế (bao gồm tiền đã nạp vào các hũ tiết kiệm đang hoạt động)
+                        - Tổng hạn mức khả dụng chưa chi tiêu đang nằm trong các hũ chi tiêu của tháng hiện tại.
+        Loại trừ các khoản tiền hoàn trả hoặc mục tiêu tiết kiệm đã xóa.
+        """
+        return NganSachService.tinh_chi_tiet_vi_chinh(db, ma_nd)["so_du"]
 
     @staticmethod
     def tu_dong_ket_chuyen_thang_moi(db: Session, ma_nd: int, target_ym: Optional[str] = None) -> List[dict]:
