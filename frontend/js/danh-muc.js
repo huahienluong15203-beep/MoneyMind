@@ -166,7 +166,7 @@
                 const limit = type === 'chi' ? (parseFloat(document.getElementById('modal-edit-limit').value) || 0) : 0;
 
                 if(!name) return showCustomModal("Thiếu tên", "Vui lòng nhập tên danh mục!", "⚠️");
-                if(type === 'chi' && limit > 0 && limit < 1000) return showCustomModal("Hạn mức không hợp lệ", "Hạn mức ngân sách tối thiểu là 1.000 đ!", "⚠️");
+                if(type === 'chi' && limit < 1000) return showCustomModal("Hạn mức không hợp lệ", "Hạn mức ngân sách tối thiểu là 1.000 đ!", "⚠️");
 
                 // Quy tắc: Không được sửa hạn mức nhỏ hơn số tiền đã chi trong danh mục đó
                 if(type === 'chi' && limit < spent) {
@@ -330,15 +330,59 @@
             }
 
 
-            async function saveCategoryCrud() {
-                const name = document.getElementById('cat-name-input').value.trim();
-                const type = document.getElementById('cat-type-input').value;
-                const amount = parseFloat(document.getElementById('cat-limit-input').value) || 0;
+            function handleCatLimitInput(input) {
+                if (!input) return;
+                const raw = input.value.replace(/[^0-9]/g, '').replace(/^0+/, '');
+                input.value = raw ? Number(raw).toLocaleString('vi-VN') : '';
+                const num = parseFloat(raw) || 0;
+                const errEl = document.getElementById('cat-limit-error');
+                const hintEl = document.getElementById('cat-limit-hint');
+                if (num > 0 && num < 1000) {
+                    if (errEl) errEl.classList.remove('hidden');
+                    if (hintEl) hintEl.classList.add('hidden');
+                    input.classList.add('border-rose-400');
+                } else {
+                    if (errEl) errEl.classList.add('hidden');
+                    if (hintEl) hintEl.classList.remove('hidden');
+                    input.classList.remove('border-rose-400');
+                }
+            }
+            window.handleCatLimitInput = handleCatLimitInput;
 
-                if(!name) return showCustomModal("Thiếu tên", "Vui lòng nhập tên danh mục!", "⚠️");
-                if(amount > 0 && amount < 1000) return showCustomModal("Hạn mức không hợp lệ", "Số tiền cấp cho hũ tối thiểu là 1.000 đ!", "⚠️");
+            async function saveCategoryCrud() {
+                const nameInput = document.getElementById('cat-name-input');
+                const name = (nameInput ? nameInput.value : '').trim();
+                const typeInput = document.getElementById('cat-type-input');
+                const type = (typeInput ? typeInput.value : 'chi');
+                const limitInput = document.getElementById('cat-limit-input');
+                const rawAmount = (limitInput ? limitInput.value : '').replace(/[^0-9]/g, '');
+                const amount = parseFloat(rawAmount) || 0;
+
+                if(!name) {
+                    if (nameInput) nameInput.focus();
+                    return showCustomModal("Thiếu tên", "Vui lòng nhập tên danh mục!", "⚠️");
+                }
+
                 if(name.toLowerCase() === 'tiết kiệm' || name.toLowerCase() === 'tiet kiem') {
                     return showCustomModal("Thông báo", "Quỹ Tiết kiệm đã được quản lý chuyên biệt tại mục Tiết Kiệm!", "ℹ️");
+                }
+
+                // Ràng buộc số tiền cấp cho hũ tối thiểu là 1.000 đ
+                if(type === 'chi' && (!rawAmount || amount < 1000)) {
+                    const errEl = document.getElementById('cat-limit-error');
+                    if (errEl) errEl.classList.remove('hidden');
+                    const hintEl = document.getElementById('cat-limit-hint');
+                    if (hintEl) hintEl.classList.add('hidden');
+                    if (limitInput) {
+                        limitInput.classList.add('border-rose-400');
+                        limitInput.focus();
+                    }
+                    return showCustomModal("Số tiền không hợp lệ", "Số tiền cấp cho hũ tối thiểu là 1.000 đ!", "⚠️");
+                }
+
+                if(type === 'thu' && amount > 0 && amount < 1000) {
+                    if (limitInput) limitInput.focus();
+                    return showCustomModal("Số tiền không hợp lệ", "Số tiền thu nhập cộng vào ví tối thiểu là 1.000 đ!", "⚠️");
                 }
 
                 const res = await fetch('/danh-muc', {
@@ -349,8 +393,15 @@
 
                 if(res.ok) {
                     closeAddCategoryModal();
-                    document.getElementById('cat-name-input').value = "";
-                    document.getElementById('cat-limit-input').value = "";
+                    if (nameInput) nameInput.value = "";
+                    if (limitInput) {
+                        limitInput.value = "";
+                        limitInput.classList.remove('border-rose-400');
+                    }
+                    const errEl = document.getElementById('cat-limit-error');
+                    if (errEl) errEl.classList.add('hidden');
+                    const hintEl = document.getElementById('cat-limit-hint');
+                    if (hintEl) hintEl.classList.remove('hidden');
                     setCategoryTabType(type);
                     await loadCategories();
                     await loadSummary();

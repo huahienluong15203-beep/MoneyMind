@@ -453,13 +453,17 @@ def tao_danh_muc_legacy(cat: dict, db: Session = Depends(get_db), current_user: 
 
     if ctype == 'chi':
         limit = amount
-        if limit > 0:
-            current_balance = _get_wallet_balance(db, current_user.ma_nd)
-            if limit > current_balance:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Số dư ví chính không đủ để trích cấp cho hũ '{cname}'! Số dư hiện tại: {max(0.0, current_balance):,.0f} đ, cần cấp: {limit:,.0f} đ."
-                )
+        if limit < 1000:
+            raise HTTPException(
+                status_code=400,
+                detail="Số tiền cấp cho hũ tối thiểu là 1.000 đ!"
+            )
+        current_balance = _get_wallet_balance(db, current_user.ma_nd)
+        if limit > current_balance:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Số dư ví chính không đủ để trích cấp cho hũ '{cname}'! Số dư hiện tại: {max(0.0, current_balance):,.0f} đ, cần cấp: {limit:,.0f} đ."
+            )
         new_c = DanhMuc(ten_dm=cname, loai_dm=ctype, han_muc=limit, ma_nd=current_user.ma_nd)
         db.add(new_c)
         db.commit()
