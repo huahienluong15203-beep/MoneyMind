@@ -530,6 +530,18 @@ var currentAuthMode = 'register';
 
 
 
+            function selectOccupation(val, btnEl) {
+                const input = document.getElementById('ob-occupation');
+                if (input) input.value = val;
+                const allBtns = document.querySelectorAll('.ob-occ-btn');
+                allBtns.forEach(b => {
+                    b.className = "ob-occ-btn p-2.5 rounded-xl border text-xs flex items-center gap-2 transition text-left cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-slate-50 font-medium";
+                });
+                if (btnEl) {
+                    btnEl.className = "ob-occ-btn p-2.5 rounded-xl border text-xs flex items-center gap-2 transition text-left cursor-pointer border-teal-500 bg-teal-50/90 text-teal-800 font-bold shadow-xs";
+                }
+            }
+
             async function submitOnboarding() {
                 const name = document.getElementById('ob-name').value;
                 const dob = document.getElementById('ob-dob').value;
