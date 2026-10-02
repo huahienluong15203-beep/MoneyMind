@@ -68,12 +68,25 @@
                 const type = document.getElementById('modal-edit-type')?.value;
                 const wrapper = document.getElementById('modal-edit-limit-wrapper');
                 const hintEl = document.getElementById('modal-edit-spent-hint');
+                const spent = parseFloat(document.getElementById('modal-edit-spent')?.value) || 0;
+
                 if(type === 'thu') {
                     if (wrapper) wrapper.classList.add('hidden');
-                    if (hintEl) hintEl.classList.add('hidden');
+                    if (hintEl) {
+                        hintEl.innerHTML = '';
+                        hintEl.classList.add('hidden');
+                    }
                 } else {
                     if (wrapper) wrapper.classList.remove('hidden');
-                    if (hintEl) hintEl.classList.remove('hidden');
+                    if (hintEl) {
+                        if (spent > 0) {
+                            hintEl.innerHTML = `Đã chi tháng này: <strong class="text-rose-600">${spent.toLocaleString('vi-VN')} đ</strong> (Hạn mức mới phải ≥ ${spent.toLocaleString('vi-VN')} đ)`;
+                            hintEl.classList.remove('hidden');
+                        } else {
+                            hintEl.innerHTML = '';
+                            hintEl.classList.add('hidden');
+                        }
+                    }
                 }
             }
 
@@ -119,31 +132,21 @@
 
                 document.getElementById('modal-edit-cat-id').value = id;
                 document.getElementById('modal-edit-name').value = name;
-                setModalEditCategoryType(type || 'chi');
+                document.getElementById('modal-edit-spent').value = spent;
+
                 const oldLimitVal = (limit && limit > 0) ? limit : 0;
                 const oldLimitInput = document.getElementById('modal-edit-old-limit');
                 if (oldLimitInput) oldLimitInput.value = oldLimitVal;
 
                 const curLimitValEl = document.getElementById('modal-edit-current-limit-val');
-                if (curLimitValEl) curLimitValEl.innerText = oldLimitVal > 0 ? `${oldLimitVal.toLocaleString()} đ` : 'Chưa đặt';
+                if (curLimitValEl) curLimitValEl.innerText = oldLimitVal > 0 ? `${oldLimitVal.toLocaleString('vi-VN')} đ` : 'Chưa đặt';
 
                 const limitInput = document.getElementById('modal-edit-limit');
                 if (limitInput) {
                     limitInput.value = (limit && limit > 0) ? limit : '';
                 }
-                document.getElementById('modal-edit-spent').value = spent;
 
-                const hintEl = document.getElementById('modal-edit-spent-hint');
-                if (hintEl) {
-                    if (type === 'chi') {
-                        hintEl.innerHTML = `Đã chi tháng này: <strong class="text-rose-600">${spent.toLocaleString()} đ</strong> (Hạn mức mới phải ≥ ${spent.toLocaleString()} đ)`;
-                        hintEl.classList.remove('hidden');
-                    } else {
-                        hintEl.classList.add('hidden');
-                    }
-                }
-
-                toggleModalEditLimit();
+                setModalEditCategoryType(type || 'chi');
                 handleEditLimitChange(limitInput ? limitInput.value : '');
                 document.getElementById('edit-category-modal').classList.remove('hidden');
                 setTimeout(() => {
@@ -155,6 +158,14 @@
             }
 
             function closeEditCategoryModal() {
+                const hintEl = document.getElementById('modal-edit-spent-hint');
+                if (hintEl) {
+                    hintEl.innerHTML = '';
+                    hintEl.classList.add('hidden');
+                }
+                const diffBox = document.getElementById('modal-edit-diff-box');
+                if (diffBox) diffBox.classList.add('hidden');
+                document.getElementById('modal-edit-spent').value = '0';
                 document.getElementById('edit-category-modal').classList.add('hidden');
             }
 
