@@ -571,10 +571,8 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
             ? `${selectedReportYear}-${String(selectedReportMonth).padStart(2, '0')}` 
             : null;
         let outRollover = null;
-        let inRollover = null;
         if (currentReportYM && Array.isArray(reportRollovers)) {
             outRollover = reportRollovers.find(r => String(r.ma_dm) === cId && r.thang_nguon === currentReportYM);
-            inRollover = reportRollovers.find(r => String(r.ma_dm) === cId && r.thang_dich === currentReportYM);
         }
 
         // Hạn mức quy đổi theo khoảng thời gian
@@ -616,9 +614,6 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
         let headerLimitText = periodLimit > 0 
             ? `Hạn mức: ${periodLimit.toLocaleString()} đ` 
             : `<button type="button" onclick="event.stopPropagation(); if(typeof openEditCategoryModal === 'function') openEditCategoryModal(${cId}, '${(cName || '').replace(/'/g, "\\'")}', 'chi', 0);" class="text-teal-600 underline font-semibold hover:text-teal-800 transition">Chưa đặt hạn mức (Cài đặt)</button>`;
-        if (inRollover && inRollover.so_tien_chuyen > 0) {
-            headerLimitText += ` <span class="text-[9px] text-teal-600 font-semibold">(+${inRollover.so_tien_chuyen.toLocaleString()} đ từ T trước)</span>`;
-        }
         // Chỉ giữ lại duy nhất '% tổng chi' (bỏ hẳn badge 'Đã dùng X%')
         let headerBadgeHtml = '';
         let headerBarWidth = pctOfLimit !== null ? Math.min(100, pctOfLimit) : pctOfTotal;
@@ -693,46 +688,13 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
             }).join('');
         }
 
-        let rolloverBannerHtml = '';
-        if (outRollover) {
-            const destParts = (outRollover.thang_dich || '').split('-');
-            const destLabel = destParts.length === 2 ? `Tháng ${parseInt(destParts[1], 10)}/${destParts[0]}` : outRollover.thang_dich;
-            rolloverBannerHtml = `
-                <div class="bg-teal-50/90 border border-teal-200/90 rounded-xl p-2.5 flex items-center justify-between text-[11px] text-teal-800 shadow-2xs">
-                    <div class="flex items-center gap-1.5 min-w-0">
-                        <span class="text-sm">🔄</span>
-                        <div class="min-w-0">
-                            <span class="font-bold">Đã dùng ${spentAmount.toLocaleString()} đ / ${periodLimit.toLocaleString()} đ (${pctOfLimit}%).</span>
-                            <span> Số dư <strong class="text-teal-700">+${outRollover.so_tien_chuyen.toLocaleString()} đ</strong> còn lại đã chuyển sang ${destLabel} để tiếp tục sử dụng.</span>
-                        </div>
-                    </div>
-                    <button type="button" onclick="event.stopPropagation(); if(typeof goToRolloverLookup === 'function') goToRolloverLookup();" class="text-[10px] text-teal-700 underline font-bold whitespace-nowrap shrink-0 hover:text-teal-900 ml-1">Tra cứu ➔</button>
-                </div>
-            `;
-        } else if (inRollover && inRollover.so_tien_chuyen > 0) {
-            const srcParts = (inRollover.thang_nguon || '').split('-');
-            const srcLabel = srcParts.length === 2 ? `Tháng ${parseInt(srcParts[1], 10)}/${srcParts[0]}` : inRollover.thang_nguon;
-            rolloverBannerHtml = `
-                <div class="bg-emerald-50/90 border border-emerald-200/90 rounded-xl p-2.5 flex items-center justify-between text-[11px] text-emerald-800 shadow-2xs">
-                    <div class="flex items-center gap-1.5 min-w-0">
-                        <span class="text-sm">🔄</span>
-                        <div class="min-w-0">
-                            <span>Nhận số dư <strong class="text-emerald-700">+${inRollover.so_tien_chuyen.toLocaleString()} đ</strong> từ ${srcLabel}</span>
-                            <span class="text-emerald-600"> (chưa tiêu hết tháng trước) để tiếp tục sử dụng.</span>
-                        </div>
-                    </div>
-                    <button type="button" onclick="event.stopPropagation(); if(typeof goToRolloverLookup === 'function') goToRolloverLookup();" class="text-[10px] text-emerald-700 underline font-bold whitespace-nowrap shrink-0 hover:text-emerald-900 ml-1">Tra cứu ➔</button>
-                </div>
-            `;
-        }
-
-        let col3Label = isSavingsCat ? 'Số tiền cần' : (outRollover ? 'Chuyển T sau' : (remaining !== null && remaining < 0 ? 'Quá mức' : 'Còn lại'));
+        let col3Label = isSavingsCat ? 'Số tiền cần' : (remaining !== null && remaining < 0 ? 'Quá mức' : 'Còn lại');
         let col3Val = isSavingsCat 
             ? (totalSavingsNeeded.toLocaleString('vi-VN') + ' đ')
-            : (outRollover ? ('+' + outRollover.so_tien_chuyen.toLocaleString() + ' đ') : (remaining !== null ? (remaining < 0 ? Math.abs(remaining).toLocaleString() + 'đ' : remaining.toLocaleString() + 'đ') : '---'));
+            : (remaining !== null ? (remaining < 0 ? Math.abs(remaining).toLocaleString() + 'đ' : remaining.toLocaleString() + 'đ') : '---');
         let col3Class = isSavingsCat 
             ? 'text-teal-700' 
-            : (outRollover ? 'text-teal-700 font-extrabold' : (remaining !== null && remaining < 0 ? 'text-rose-600 font-extrabold' : 'text-teal-700'));
+            : (remaining !== null && remaining < 0 ? 'text-rose-600 font-extrabold' : 'text-teal-700');
 
         html += `
             <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden transition-all duration-200">
@@ -779,8 +741,6 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
 
                 <!-- Khung Accordion mở rộng chi tiết giao dịch -->
                 <div class="${isExpanded ? 'block' : 'hidden'} bg-slate-50/70 border-t border-slate-200/80 p-3 space-y-2.5 animate-in fade-in duration-200">
-                    ${rolloverBannerHtml}
-
                     <!-- Thẻ tóm tắt thông số của riêng danh mục này -->
                     <div class="grid grid-cols-3 gap-1.5 text-center text-[10px] bg-white p-2 rounded-xl border border-slate-200/70 shadow-2xs">
                         <div class="p-1">
