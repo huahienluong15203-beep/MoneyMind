@@ -92,27 +92,14 @@
                 const curBalance = parseFloat((document.getElementById('so-du')?.innerText || '0').replace(/[^\d]/g, '')) || 0;
                 const diff = newLimit - oldLimit;
 
-                diffBox.classList.remove('hidden');
-                if (diff > 0) {
-                    if (diff > curBalance) {
-                        diffBox.className = "mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-rose-50 border border-rose-200 text-rose-700 leading-snug";
-                        diffBox.innerHTML = `⚠️ <strong>Cần trích thêm: +${diff.toLocaleString()} đ</strong> từ ví chính.<br><span class="text-rose-600 font-bold">Số dư ví (${curBalance.toLocaleString()} đ) không đủ để trích!</span>`;
-                        if (submitBtn) submitBtn.disabled = true;
-                    } else {
-                        const remBal = curBalance - diff;
-                        diffBox.className = "mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-teal-50 border border-teal-200 text-teal-800 leading-snug";
-                        diffBox.innerHTML = `📤 <strong>Trích thêm từ ví chính: +${diff.toLocaleString()} đ</strong><br><span class="text-slate-500">Số dư ví sau khi trích: <strong class="text-teal-700">${remBal.toLocaleString()} đ</strong></span>`;
-                        if (submitBtn) submitBtn.disabled = false;
-                    }
-                } else if (diff < 0) {
-                    const refund = Math.abs(diff);
-                    const newBal = curBalance + refund;
-                    diffBox.className = "mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-800 leading-snug";
-                    diffBox.innerHTML = `💰 <strong>Hoàn trả về ví chính: +${refund.toLocaleString()} đ</strong><br><span class="text-slate-500">Số dư ví sau khi hoàn: <strong class="text-emerald-700">${newBal.toLocaleString()} đ</strong></span>`;
-                    if (submitBtn) submitBtn.disabled = false;
+                // Chỉ hiển thị cảnh báo đỏ khi số tiền trích thêm vượt quá số dư ví chính
+                if (diff > 0 && diff > curBalance) {
+                    diffBox.classList.remove('hidden');
+                    diffBox.className = "mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-rose-50 border border-rose-200 text-rose-700 leading-snug";
+                    diffBox.innerHTML = `⚠️ <strong>Cần trích thêm: +${diff.toLocaleString()} đ</strong>.<br><span class="text-rose-600 font-bold">Số dư ví (${curBalance.toLocaleString()} đ) không đủ để trích!</span>`;
+                    if (submitBtn) submitBtn.disabled = true;
                 } else {
-                    diffBox.className = "mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-slate-100 border border-slate-200 text-slate-600 leading-snug";
-                    diffBox.innerHTML = `ℹ️ <strong>Giữ nguyên hạn mức (${oldLimit.toLocaleString()} đ)</strong>. Số dư ví chính không đổi.`;
+                    diffBox.classList.add('hidden');
                     if (submitBtn) submitBtn.disabled = false;
                 }
             }
