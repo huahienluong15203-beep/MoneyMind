@@ -658,13 +658,12 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
                 const amountFormatted = amt.toLocaleString('vi-VN') + ' đ';
                 const rawNote = (t.note || t.ghi_chu || '').trim();
                 
-                // Chuẩn hóa tên giao dịch: làm rõ cụ thể hũ nào nếu chưa có ghi chú hoặc ghi chú chung chung 'Chi tiêu hũ'
+                // Chuẩn hóa tên giao dịch
                 const isGenericNote = !rawNote || rawNote.toLowerCase() === 'chi tiêu hũ' || rawNote.toLowerCase() === 'chi tieu hu';
                 let titleText = '';
                 if (isGenericNote) {
-                    titleText = `Chi tiêu hũ ${cName}`;
+                    titleText = isSavingsCat ? 'Nạp tiết kiệm' : 'Chi tiêu';
                 } else {
-                    // Bỏ chữ "tiết kiệm", chỉ để "Mục tiêu" (Ví dụ: "Mục tiêu: Du lịch")
                     titleText = rawNote.replace(/mục tiêu tiết kiệm\s*:/gi, 'Mục tiêu:').replace(/mục tiêu tiết kiệm/gi, 'Mục tiêu');
                 }
 
@@ -672,16 +671,15 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
                 const amountColor = isSavingsCat ? 'text-teal-600' : 'text-rose-600';
 
                 return `
-                    <div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-b-0 text-xs">
-                        <div class="min-w-0 pr-2">
-                            <div class="font-medium text-slate-700 truncate">${titleText}</div>
-                            <div class="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                                <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">Hũ ${cName}</span>
-                                <span>🗓️ ${dateStr}</span>
+                    <div class="flex items-center justify-between py-1.5">
+                        <div class="min-w-0 pr-3">
+                            <div class="font-medium text-slate-800 text-[11px] truncate leading-tight">${titleText}</div>
+                            <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                                <span>${dateStr}</span>
                                 ${timeStr ? `<span>• ${timeStr}</span>` : ''}
                             </div>
                         </div>
-                        <div class="font-bold ${amountColor} shrink-0 whitespace-nowrap text-right">
+                        <div class="font-bold ${amountColor} shrink-0 whitespace-nowrap text-xs text-right">
                             ${sign}${amountFormatted}
                         </div>
                     </div>`;
