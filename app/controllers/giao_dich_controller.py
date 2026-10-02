@@ -122,6 +122,7 @@ def tao_giao_dich(
 
     # NFR-02 & UC007 & TC-04: Cảnh báo vượt ngân sách real-time ngay trong cùng một response
     canh_bao_info = CanhBaoNganSachInfo()
+    phan_bo_hu = None
     if loai_gd == "chi":
         canh_bao_info = NganSachService.kiem_tra_ngan_sach(
             db=db,
@@ -129,6 +130,17 @@ def tao_giao_dich(
             ma_dm=ma_dm,
             ngay_gd=parsed_date
         )
+    elif loai_gd == "thu":
+        # 💧 Waterfall: phân bổ thu nhập mới vào các hũ từ trên xuống
+        try:
+            phan_bo_hu = NganSachService.cap_tien_waterfall_khi_co_thu_nhap(
+                db=db,
+                ma_nd=current_user.ma_nd,
+                so_tien_thu_moi=so_tien
+            )
+        except Exception as e:
+            print(f"[WARN] Waterfall phân bổ hũ thất bại: {e}")
+
 
     tx_resp = GiaoDichResponse.model_validate(new_tx)
     tx_resp.id = new_tx.ma_gd
@@ -142,6 +154,7 @@ def tao_giao_dich(
     return {
         "giao_dich": tx_resp,
         "canh_bao": canh_bao_info,
+        "phan_bo_hu": phan_bo_hu,   # Kết quả waterfall phân bổ thu nhập vào hũ (chỉ có khi loai_gd == "thu")
         # Trả về cả các thuộc tính top-level để frontend cũ vẫn hoạt động trơn tru
         "id": new_tx.ma_gd,
         "ma_gd": new_tx.ma_gd,
@@ -156,6 +169,7 @@ def tao_giao_dich(
         "ngay_gd": new_tx.ngay_gd,
         "date": new_tx.ngay_gd
     }
+
 
 @router.get("/tim-kiem", summary="Tra cứu & lọc giao dịch có phân trang (UC005)")
 def tim_kiem_giao_dich(

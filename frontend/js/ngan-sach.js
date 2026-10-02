@@ -2,7 +2,13 @@
  * MoneyMind - Quản Lý Ngân Sách Hũ & Cảnh Báo Hạn Mức
  */
             function closeBudgetWarningModal() {
-                document.getElementById('budget-warning-modal').classList.add('hidden');
+                const modal = document.getElementById('budget-warning-modal');
+                if (modal) modal.classList.add('hidden');
+                const topupBtn = document.getElementById('budget-warning-topup-btn');
+                if (topupBtn) {
+                    topupBtn.classList.add('hidden');
+                    topupBtn.onclick = null;
+                }
                 loadNotifications();
             }
 
@@ -79,7 +85,31 @@
                     await loadCategories();
                     await loadSummary();
                     await loadTransactions();
+
                     if(type === 'thu') {
+                        if (amount > 0) {
+                            // Kiểm tra các hũ còn thiếu hạn mức tháng này để hỏi người dùng
+                            try {
+                                let chkRes = await fetch('/api/ngan-sach/kiem-tra-hu-thieu', {headers: {'Authorization': 'Bearer ' + token}});
+                                if (!chkRes.ok) chkRes = await fetch('/ngan-sach/kiem-tra-hu-thieu', {headers: {'Authorization': 'Bearer ' + token}});
+                                if (chkRes.ok) {
+                                    const chkData = await chkRes.json();
+                                    if (chkData.co_hu_thieu && chkData.shortage_list && chkData.shortage_list.length > 0) {
+                                        let shortageLines = chkData.shortage_list.map(h =>
+                                            `  • Hũ "${h.name}": đang có ${(h.current_limit||0).toLocaleString()} đ / định mức ${(h.target_limit||0).toLocaleString()} đ (thiếu ${(h.shortage||0).toLocaleString()} đ)`
+                                        ).join('\n');
+                                        let msgText = `💰 Đã cộng +${amount.toLocaleString()} đ vào ví chính từ danh mục thu "${name}".\n\n` +
+                                            `📋 Phát hiện các hũ chi tiêu tháng này chưa đủ định mức của tháng trước:\n${shortageLines}\n\n` +
+                                            `💡 Tổng thiếu: ${(chkData.total_shortage||0).toLocaleString()} đ | Ví chính khả dụng: ${(chkData.available_wallet||0).toLocaleString()} đ\n\n` +
+                                            `Bạn có muốn hệ thống tự động trừ từ ví chính để bổ sung cho các hũ còn thiếu theo đúng hạn mức tháng trước không?`;
+                                        if (typeof showTopupConfirmModal === 'function') {
+                                            showTopupConfirmModal(msgText, chkData.shortage_list, amount);
+                                            return;
+                                        }
+                                    }
+                                }
+                            } catch(e) {}
+                        }
                         showCustomModal("Thành công", `Đã thiết lập danh mục thu "${name}" và cộng ${amount > 0 ? amount.toLocaleString() + ' đ' : ''} vào ví chính!`, "💰");
                     } else {
                         showCustomModal("Thành công", `Đã thiết lập hũ chi tiêu "${name}" và trích ${amount > 0 ? amount.toLocaleString() + ' đ' : ''} từ ví chính!`, "✅");
@@ -124,12 +154,12 @@
                     let capMoi = parseFloat(c.han_muc_cap_moi || 0) || 0;
                     let daCap = (c.da_cap_han_muc === true) || (limit > 0) || (capMoi > 0);
                     let effectiveLimit = limit > 0 ? limit : (rollover > 0 ? rollover : 0);
-                    let remaining = effectiveLimit > 0 ? (effectiveLimit - spent) : (spent > 0 ? -spent : 0);
+                    let remaining = effectiveLimit > 0 ? (effectiveLimit - spent) : 0;
                     let percent = effectiveLimit > 0 ? Math.round((spent / effectiveLimit) * 100) : 0;
                     
                     let alertBadge = "";
                     let barColor = "bg-teal-500";
-                    let isOverBudget = remaining < 0;
+                    let isOverBudget = effectiveLimit > 0 && remaining < 0;
 
                     if (isOverBudget) {
                         barColor = "bg-rose-500 animate-pulse";
@@ -140,15 +170,22 @@
                     } else if (effectiveLimit > 0 && percent >= 80) {
                         barColor = "bg-amber-400";
                         alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⚠️ Cảnh báo (${percent}%)</span>`;
-                    } else if (!daCap && effectiveLimit <= 0 && spent === 0) {
-                        barColor = "bg-slate-200";
+                    } else if (c.chua_du_han_muc && c.so_tien_thieu > 0) {
+                        if (effectiveLimit <= 0) {
+                            barColor = "bg-slate-200";
+                            alertBadge = `<span class="bg-rose-100 text-rose-700 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⚠️ Chưa đủ tiền cấp</span>`;
+                        } else {
+                            alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⏳ Thiếu ${c.so_tien_thieu.toLocaleString()} đ</span>`;
+                        }
+                    } else if (effectiveLimit <= 0) {
+                        barColor = spent > 0 ? "bg-teal-400" : "bg-slate-200";
                         alertBadge = `<span class="bg-slate-100 text-slate-500 text-[9px] font-medium px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">Chưa đặt hạn mức</span>`;
                     }
 
                     const safeName = (c.name || '').replace(/'/g, "\\'");
-                    const suggestLimit = c.han_muc_goc || c.han_muc || effectiveLimit || 0;
+                    const suggestLimit = c.han_muc_dinh_muc || c.han_muc_goc || c.han_muc || effectiveLimit || 0;
 
-                    // Chỉ khi bị quá mức mới hiển thị thông báo để thêm hạn mức
+                    // Chỉ khi thực sự có hạn mức và bị quá mức mới hiển thị thông báo vượt hạn mức
                     let overBudgetNoticeHtml = "";
                     if (isOverBudget) {
                         const overAmount = Math.abs(remaining);
@@ -165,7 +202,23 @@
                         `;
                     }
 
-                    const progressWidth = effectiveLimit > 0 ? Math.min(percent, 100) : (spent > 0 ? 100 : 0);
+                    let shortageNoticeHtml = "";
+                    if (c.chua_du_han_muc && c.so_tien_thieu > 0 && !isOverBudget) {
+                        const dinhMuc = parseFloat(c.han_muc_dinh_muc || 0) || 0;
+                        shortageNoticeHtml = `
+                            <div class="flex items-center justify-between bg-amber-50/90 border border-amber-200/90 px-2.5 py-1.5 rounded-xl text-xs gap-2" onclick="event.stopPropagation()">
+                                <div class="flex items-center gap-1.5 text-amber-800 text-[11px] font-medium truncate">
+                                    <span>⚠️</span>
+                                    <span class="truncate">Ví chính chưa đủ tiền cấp: thiếu <strong>${c.so_tien_thieu.toLocaleString()} đ</strong>${dinhMuc > 0 ? ` (Định mức: ${dinhMuc.toLocaleString()} đ)` : ''}</span>
+                                </div>
+                                <button type="button" onclick="event.stopPropagation(); if(typeof openEditCategoryModal === 'function') openEditCategoryModal(${catId}, '${safeName}', 'chi', ${suggestLimit});" class="text-[10px] font-bold bg-amber-600 hover:bg-amber-700 text-white px-2 py-0.5 rounded-lg shadow-2xs whitespace-nowrap transition cursor-pointer shrink-0">
+                                    + Cấp thêm
+                                </button>
+                            </div>
+                        `;
+                    }
+
+                    const progressWidth = effectiveLimit > 0 ? Math.min(percent, 100) : 0;
 
                     container.innerHTML += `
                         <div onclick="openQuickAddTxForCategory(${catId}, '${safeName}')" class="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2 cursor-pointer hover:border-teal-500 hover:shadow-md transition">
@@ -176,6 +229,7 @@
                             </div>
 
                             ${overBudgetNoticeHtml}
+                            ${shortageNoticeHtml}
 
                             <!-- Hàng 2: Số tiền còn lại/quá mức & Hạn mức -->
                             <div class="flex justify-between items-center text-xs">
@@ -210,8 +264,8 @@
                     switchSection('lich-su');
                 }
                 setTimeout(() => {
-                    if (typeof setLookupMainTab === 'function') {
-                        setLookupMainTab('rollover');
+                    if (typeof setLookupType === 'function') {
+                        setLookupType('refund');
                     }
                 }, 50);
             }

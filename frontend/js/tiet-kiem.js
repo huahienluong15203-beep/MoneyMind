@@ -392,6 +392,32 @@
             }
 
 
+            function toggleAddSavingsForm(show) {
+                const box = document.getElementById('box-add-savings-form');
+                const btnText = document.getElementById('btn-toggle-add-savings-text');
+                if (!box) return;
+                const isCurrentlyHidden = box.classList.contains('hidden');
+                const shouldOpen = typeof show === 'boolean' ? show : isCurrentlyHidden;
+
+                if (shouldOpen) {
+                    box.classList.remove('hidden');
+                    if (btnText) btnText.innerText = "✕ Đóng";
+                    initSavingsPickers();
+                    const titleInput = document.getElementById('sg-title');
+                    if (titleInput) {
+                        titleInput.value = '';
+                        setTimeout(() => titleInput.focus(), 100);
+                    }
+                    const targetInput = document.getElementById('sg-target');
+                    if (targetInput) targetInput.value = '';
+                    clearCreateSavingsDeadline();
+                } else {
+                    box.classList.add('hidden');
+                    if (btnText) btnText.innerText = "+ Thêm mục tiêu";
+                }
+            }
+            window.toggleAddSavingsForm = toggleAddSavingsForm;
+
             async function createSavingsGoal() {
                 const title = document.getElementById('sg-title').value.trim();
                 const target = parseFloat(document.getElementById('sg-target').value);
@@ -413,6 +439,7 @@
                     document.getElementById('sg-title').value = "";
                     document.getElementById('sg-target').value = "";
                     clearCreateSavingsDeadline();
+                    toggleAddSavingsForm(false);
                     showCustomModal("Thành công", "Đã tạo mục tiêu tiết kiệm mới!", "✅"); 
                 } else {
                     let err = await res.json().catch(() => ({}));

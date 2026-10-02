@@ -25,8 +25,8 @@
         <!-- CHART.JS: BIỂU ĐỒ XU HƯỚNG TÀI CHÍNH & BÁO CÁO THỐNG KÊ -->
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
                 <!-- CSS FILES TÁCH BIỆT THEO CHỨC NĂNG & GIAO DIỆN -->
-        <link rel="stylesheet" href="css/style.css?v=2.6">
-        <link rel="stylesheet" href="css/layout.css?v=2.6">
+        <link rel="stylesheet" href="css/style.css?v=2.7">
+        <link rel="stylesheet" href="css/layout.css?v=2.7">
     </head>
     <body class="bg-slate-950 text-slate-800 min-h-screen flex items-center justify-center p-0 sm:p-4 select-none">
         
@@ -68,9 +68,27 @@
                     <div class="w-14 h-14 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner" id="budget-warning-icon">🚨</div>
                     <div class="space-y-1">
                         <h3 id="budget-warning-title" class="text-base font-bold text-slate-800">Cảnh Báo Hạn Mức Chi Tiêu!</h3>
-                        <p id="budget-warning-text" class="text-xs text-slate-600 leading-relaxed font-medium">Số tiền chi tiêu vượt quá số dư trong hũ! Yêu cầu phải nâng thêm hạn mức mới cho phép tiếp tục chi tiêu.</p>
+                        <p id="budget-warning-text" class="text-xs text-slate-600 leading-relaxed font-medium whitespace-pre-line">Số tiền chi tiêu vượt quá số dư trong hũ! Yêu cầu phải nâng thêm hạn mức mới cho phép tiếp tục chi tiêu.</p>
                     </div>
-                    <button onclick="closeBudgetWarningModal()" class="w-full py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl transition shadow-sm">Đã hiểu, tôi sẽ chi tiêu ít lại</button>
+                    <div id="budget-warning-actions" class="flex gap-2">
+                        <button id="budget-warning-topup-btn" type="button" class="hidden flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer">+ Thêm hạn mức</button>
+                        <button id="budget-warning-close-btn" type="button" onclick="closeBudgetWarningModal()" class="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer">Đã hiểu</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL XÁC NHẬN BỔ SUNG TIỀN VÀO HŨ KHI NẠP THU NHẬP -->
+            <div id="topup-confirm-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-teal-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center space-y-2">
+                        <div class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">💰</div>
+                        <h3 class="text-base font-bold text-slate-800">Bổ Sung Hạn Mức Cho Hũ?</h3>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-700 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-line" id="topup-confirm-msg"></div>
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="doTopupJars()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm">✅ Có, bổ sung ngay</button>
+                        <button onclick="closeTopupConfirmModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">❌ Không, thôi</button>
+                    </div>
                 </div>
             </div>
 
@@ -260,6 +278,43 @@
                 </div>
             </div>
 
+            <!-- MODAL THÊM DANH MỤC -->
+            <div id="add-category-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="text-center">
+                        <span class="text-2xl">📁</span>
+                        <h3 class="text-sm font-bold text-slate-800 mt-1">Thêm Danh Mục Mới</h3>
+                        <p class="text-[11px] text-slate-400">Tạo hũ chi tiêu hoặc danh mục thu nhập</p>
+                    </div>
+                    
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1">Tên danh mục:</label>
+                            <input type="text" id="cat-name-input" placeholder="Ví dụ: Tiền lương, Mua sắm..." class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                        </div>
+
+                        <div>
+                            <label class="font-semibold text-slate-500 block mb-1.5">Loại danh mục:</label>
+                            <div class="flex bg-slate-200/70 p-1 rounded-xl">
+                                <button type="button" id="cat-btn-chi" onclick="setCategoryTabType('chi')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition">Danh mục Chi</button>
+                                <button type="button" id="cat-btn-thu" onclick="setCategoryTabType('thu')" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 transition">Danh mục Thu</button>
+                            </div>
+                            <input type="hidden" id="cat-type-input" value="chi">
+                        </div>
+
+                        <div id="cat-limit-wrapper">
+                            <label id="cat-limit-label" class="font-semibold text-slate-500 block mb-1">Số tiền cấp cho hũ (đ):</label>
+                            <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="cat-limit-input" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Ví dụ: 2000000" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="saveCategoryCrud()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer">Lưu Danh Mục</button>
+                        <button onclick="closeAddCategoryModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer">Hủy</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- MODAL SỬA DANH MỤC -->
             <div id="edit-category-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
@@ -282,15 +337,20 @@
                             </select>
                         </div>
                         <div id="modal-edit-limit-wrapper">
-                            <label class="font-semibold text-slate-500 block mb-1">Hạn mức ngân sách (đ):</label>
-                            <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-edit-limit" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Hạn mức (đ)" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="font-semibold text-slate-500 block">Hạn mức ngân sách (đ):</label>
+                                <span class="text-[10px] text-slate-400">Hiện tại: <strong id="modal-edit-current-limit-val" class="text-teal-700">0 đ</strong></span>
+                            </div>
+                            <input type="hidden" id="modal-edit-old-limit" value="0">
+                            <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-edit-limit" onfocus="this.select()" oninput="handleEditLimitChange(this.value)" placeholder="Nhập hạn mức mới (đ)" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
                             <p id="modal-edit-spent-hint" class="text-[10px] text-slate-500 mt-1"></p>
-                            <p id="modal-edit-wallet-note" class="text-[10px] text-teal-600 mt-1 leading-relaxed hidden"></p>
+                            <div id="modal-edit-diff-box" class="mt-1.5 p-2 rounded-xl text-[11px] font-medium hidden"></div>
+                            <p id="modal-edit-wallet-note" class="text-[10px] text-slate-400 mt-1 leading-relaxed hidden"></p>
                         </div>
                     </div>
                     <div class="flex gap-2 pt-1">
-                        <button onclick="submitEditCategory()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm">Cập nhật</button>
-                        <button onclick="closeEditCategoryModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">Hủy</button>
+                        <button onclick="submitEditCategory()" id="btn-submit-edit-cat" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer">Cập nhật</button>
+                        <button onclick="closeEditCategoryModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer">Hủy</button>
                     </div>
                 </div>
             </div>
@@ -709,7 +769,7 @@
             </div>
 
             <!-- HEADER TOP (TỐI ƯU CHO SMARTPHONE) -->
-            <div id="header-container" class="hidden bg-gradient-to-r from-teal-500 to-cyan-600 p-4 pt-6 sm:pt-7 text-white shrink-0 relative">
+            <div id="header-container" class="hidden bg-gradient-to-r from-teal-500 to-cyan-600 px-4 pt-5 sm:pt-6 pb-2.5 text-white shrink-0 relative">
                 <div class="flex justify-between items-center mb-2">
                     <h1 class="text-base font-bold tracking-tight">MoneyMind 💰</h1>
                 </div>
@@ -721,15 +781,11 @@
                         <div><span class="text-emerald-100">Thu:</span> <span id="tong-thu" class="font-semibold">0 đ</span></div>
                         <div><span class="text-rose-100">Chi:</span> <span id="tong-chi" class="font-semibold">0 đ</span></div>
                     </div>
-                    <div class="flex justify-between mt-1.5 pt-1.5 border-t border-white/10 text-[11px] text-teal-100">
-                        <span>Đang giữ trong các hũ chi:</span>
-                        <span id="tong-trong-hu" class="font-semibold text-white">0 đ</span>
-                    </div>
                 </div>
             </div>
 
             <!-- MAIN CONTAINER -->
-            <div class="flex-1 overflow-y-auto content-scroll-container space-y-4 bg-white relative">
+            <div class="flex-1 overflow-y-auto content-scroll-container space-y-2.5 bg-white relative">
                 
                 <!-- 1. WELCOME -->
                 <div id="welcome-screen" class="flex flex-col justify-between h-full py-6 text-center">
@@ -749,8 +805,8 @@
                 <!-- 2. AUTH CONTAINER -->
                 <div id="auth-container" class="hidden space-y-4 pt-6 max-w-sm mx-auto w-full">
                     <div class="relative flex items-center justify-center pb-2">
-                        <button type="button" onclick="goToWelcomeScreen()" class="absolute left-0 text-slate-400 hover:text-slate-600 text-xs font-semibold flex items-center gap-1 transition p-1" title="Quay lại">
-                            ← Quay lại
+                        <button type="button" onclick="goToWelcomeScreen()" class="absolute left-0 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full text-base font-bold transition" title="Quay lại">
+                            ←
                         </button>
                         <h2 id="auth-title" class="text-xl font-bold text-slate-800">Đăng ký tài khoản</h2>
                     </div>
@@ -823,10 +879,10 @@
                 </div>
 
                 <!-- 4. APP CONTAINER -->
-                <div id="app-container" class="hidden flex-1 flex flex-col min-h-0 space-y-4">
+                <div id="app-container" class="hidden flex-1 flex flex-col min-h-0 space-y-2.5">
                     
                     <!-- TAB 1: QUẢN LÝ -->
-                    <div id="section-quan-ly" class="flex-1 flex flex-col min-h-0 space-y-4">
+                    <div id="section-quan-ly" class="flex-1 flex flex-col min-h-0 space-y-2.5">
                         <div class="flex bg-slate-200/70 p-1 rounded-xl text-xs font-bold subtabs-bar-fixed shrink-0">
                             <button onclick="switchManSubTab('ngan-sach')" id="msub-ns" class="flex-1 py-1.5 rounded-lg bg-white text-teal-600 shadow-sm">Ngân Sách Hũ</button>
                             <button onclick="switchManSubTab('danh-muc')" id="msub-dm" class="flex-1 py-1.5 rounded-lg text-slate-600">Danh Mục</button>
@@ -848,29 +904,41 @@
                         <!-- SubTab 1.2: Quản lý danh mục thu/chi -->
                         <div id="man-danh-muc" class="hidden flex-1 flex flex-col min-h-0 space-y-3">
                             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
-                                <h2 class="text-xs font-bold text-slate-700 uppercase">📁 Quản Lý Danh Mục (Thu & Chi)</h2>
-                                <div class="space-y-3 bg-white p-4 rounded-2xl border shadow-sm text-xs">
+                                <div class="flex justify-between items-center gap-2 pb-1 border-b border-slate-200/60">
+                                    <h2 class="text-[10.5px] sm:text-[11px] font-bold text-slate-600 uppercase tracking-tight truncate">📁 Quản Lý Danh Mục (Thu & Chi)</h2>
+                                    <button type="button" id="btn-toggle-add-cat" onclick="if(window.toggleAddCategoryForm){ toggleAddCategoryForm(); } else { const b = document.getElementById('box-add-category-form'); if(b){ b.classList.toggle('hidden'); const t = document.getElementById('btn-toggle-add-cat-text'); if(t) t.innerText = b.classList.contains('hidden') ? '+ Thêm danh mục' : '✕ Đóng'; } }" class="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer shrink-0">
+                                        <span id="btn-toggle-add-cat-text">+ Thêm danh mục</span>
+                                    </button>
+                                </div>
+
+                                <!-- Form thêm danh mục inline xổ ra khi bấm nút "+ Thêm danh mục" -->
+                                <div id="box-add-category-form" class="hidden space-y-2.5 bg-white p-3.5 rounded-2xl border border-teal-100 shadow-sm text-xs animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div class="flex items-center justify-between pb-1 border-b border-slate-100">
+                                        <span class="font-bold text-teal-800 text-xs flex items-center gap-1">➕ Thêm Danh Mục Mới</span>
+                                        <button type="button" onclick="toggleAddCategoryForm(false)" class="text-slate-400 hover:text-rose-500 font-bold text-xs p-1" title="Đóng form">✕</button>
+                                    </div>
                                     <div>
                                         <label class="font-semibold text-slate-500 block mb-1">Tên danh mục:</label>
-                                        <input type="text" id="cat-name-input" placeholder="Ví dụ: Tiền lương, Mua sắm..." class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                                        <input type="text" id="cat-name-input" placeholder="Ví dụ: Tiền lương, Mua sắm..." class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
                                     </div>
-
                                     <div>
                                         <label class="font-semibold text-slate-500 block mb-1.5">Loại danh mục:</label>
                                         <div class="flex bg-slate-200/70 p-1 rounded-xl">
-                                            <button type="button" id="cat-btn-chi" onclick="setCategoryTabType('chi')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition">Danh mục Chi</button>
-                                            <button type="button" id="cat-btn-thu" onclick="setCategoryTabType('thu')" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 transition">Danh mục Thu</button>
+                                            <button type="button" id="cat-btn-chi" onclick="setCategoryTabType('chi')" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition">Danh mục Chi</button>
+                                            <button type="button" id="cat-btn-thu" onclick="setCategoryTabType('thu')" class="flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-600 transition">Danh mục Thu</button>
                                         </div>
                                         <input type="hidden" id="cat-type-input" value="chi">
                                     </div>
-
                                     <div id="cat-limit-wrapper">
                                         <label id="cat-limit-label" class="font-semibold text-slate-500 block mb-1">Số tiền cấp cho hũ (đ):</label>
-                                        <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="cat-limit-input" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Ví dụ: 2000000" class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
+                                        <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="cat-limit-input" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Ví dụ: 2000000" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
                                     </div>
-
-                                    <button onclick="saveCategoryCrud()" class="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-md">Lưu Danh Mục</button>
+                                    <div class="flex gap-2 pt-1">
+                                        <button type="button" onclick="saveCategoryCrud()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer">Lưu Danh Mục</button>
+                                        <button type="button" onclick="toggleAddCategoryForm(false)" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer">Hủy</button>
+                                    </div>
                                 </div>
+
                                 <div id="categories-crud-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"></div>
                             </div>
                         </div>
@@ -878,20 +946,41 @@
                         <!-- SubTab 1.3: Mục tiêu tiết kiệm -->
                         <div id="man-tiet-kiem" class="hidden flex-1 flex flex-col min-h-0 space-y-3">
                             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
-                                <h2 class="text-xs font-bold text-slate-700 uppercase">🎯 Mục Tiêu & Hũ Tiết Kiệm</h2>
-                                <div class="space-y-2.5 bg-white p-4 rounded-2xl border shadow-sm text-xs">
-                                    <input type="text" id="sg-title" placeholder="Tên mục tiêu (Ví dụ: Mua laptop, Đi Tam đảo...)" class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
-                                    <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="sg-target" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Số tiền đích (đ)" class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
+                                <div class="flex justify-between items-center gap-2 pb-1 border-b border-slate-200/60">
+                                    <h2 class="text-[10.5px] sm:text-[11px] font-bold text-slate-600 uppercase tracking-tight truncate">🎯 Mục Tiêu & Hũ Tiết Kiệm</h2>
+                                    <button type="button" id="btn-toggle-add-savings" onclick="if(window.toggleAddSavingsForm){ toggleAddSavingsForm(); } else { const b = document.getElementById('box-add-savings-form'); if(b){ b.classList.toggle('hidden'); const t = document.getElementById('btn-toggle-add-savings-text'); if(t) t.innerText = b.classList.contains('hidden') ? '+ Thêm mục tiêu' : '✕ Đóng'; } }" class="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer shrink-0">
+                                        <span id="btn-toggle-add-savings-text">+ Thêm mục tiêu</span>
+                                    </button>
+                                </div>
+
+                                <!-- Form thêm mục tiêu tiết kiệm xổ ra khi bấm nút "+ Thêm mục tiêu" -->
+                                <div id="box-add-savings-form" class="hidden space-y-2.5 bg-white p-3.5 rounded-2xl border border-teal-100 shadow-sm text-xs animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div class="flex items-center justify-between pb-1 border-b border-slate-100">
+                                        <span class="font-bold text-teal-800 text-xs flex items-center gap-1">🎯 Tạo Hũ Tiết Kiệm Mới</span>
+                                        <button type="button" onclick="toggleAddSavingsForm(false)" class="text-slate-400 hover:text-rose-500 font-bold text-xs p-1" title="Đóng form">✕</button>
+                                    </div>
+                                    <div>
+                                        <label class="font-semibold text-slate-500 block mb-1">Tên mục tiêu:</label>
+                                        <input type="text" id="sg-title" placeholder="Tên mục tiêu (Ví dụ: Mua laptop, Đi Tam đảo...)" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
+                                    </div>
+                                    <div>
+                                        <label class="font-semibold text-slate-500 block mb-1">Số tiền đích (đ):</label>
+                                        <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="sg-target" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Số tiền đích (đ)" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
+                                    </div>
                                     <div>
                                         <label class="text-[11px] font-semibold text-slate-500 block mb-1">Hạn chót hoàn thành (tùy chọn):</label>
                                         <div class="relative">
-                                            <input type="text" id="sg-deadline" placeholder="Chọn hạn chót" class="w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 cursor-pointer font-medium text-slate-700 pr-12">
+                                            <input type="text" id="sg-deadline" placeholder="Chọn hạn chót" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 cursor-pointer font-medium text-slate-700 pr-12">
                                             <button type="button" onclick="clearCreateSavingsDeadline()" class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-rose-500 font-semibold px-1 py-0.5 rounded transition" title="Bỏ chọn hạn chót">Xóa</button>
                                         </div>
                                     </div>
-                                    <button onclick="createSavingsGoal()" class="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-md">Tạo Hũ Tiết Kiệm</button>
+                                    <div class="flex gap-2 pt-1">
+                                        <button type="button" onclick="createSavingsGoal()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-md cursor-pointer">Tạo Hũ Tiết Kiệm</button>
+                                        <button type="button" onclick="toggleAddSavingsForm(false)" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer">Hủy</button>
+                                    </div>
                                 </div>
-                                <div class="pt-2">
+
+                                <div class="pt-1 flex-1 flex flex-col min-h-0">
                                     <h3 class="text-xs font-bold text-slate-700 mb-2">📋 Danh Sách Hũ Tiết Kiệm</h3>
                                     <div id="savings-goals-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"></div>
                                 </div>
@@ -931,56 +1020,61 @@
 
                     <!-- TAB 3: LỊCH SỬ & TRA CỨU GIAO DỊCH -->
                     <div id="section-lich-su" class="hidden flex-1 flex flex-col min-h-0 space-y-3">
-                        <!-- SUB TABS TRA CỨU: GIAO DỊCH vs CHUYỂN HẠN MỨC -->
-                        <div class="flex bg-slate-200/80 p-1 rounded-2xl gap-1 shrink-0 text-xs font-bold shadow-2xs">
-                            <button type="button" id="lookup-main-tab-txs" onclick="setLookupMainTab('txs')" class="flex-1 py-1.5 rounded-xl bg-white text-teal-700 shadow-sm transition flex items-center justify-center gap-1.5">
-                                <span>📜</span><span>Giao Dịch Thu - Chi</span>
-                            </button>
-                            <button type="button" id="lookup-main-tab-rollover" onclick="setLookupMainTab('rollover')" class="flex-1 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5">
-                                <span>🔄</span><span>Chuyển Hạn Mức</span>
-                            </button>
-                        </div>
-
-                        <!-- 1. GIAO DIỆN TRA CỨU GIAO DỊCH THU - CHI -->
+                        <!-- 1. GIAO DIỆN TRA CỨU GIAO DỊCH THU - CHI & HOÀN TIỀN -->
                         <div id="lookup-view-txs" class="flex-1 flex flex-col min-h-0 space-y-3">
                             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card flex-1 flex flex-col min-h-0">
                                 <h2 class="text-xs font-bold text-slate-700 uppercase">🔍 Tra Cứu & Lọc Giao Dịch</h2>
                                 
                                 <div class="bg-white p-3.5 rounded-2xl border space-y-3 text-xs shadow-sm shrink-0">
                                     <div>
-                                        <label class="font-semibold text-slate-500 block mb-1">Loại giao dịch:</label>
-                                        <div class="flex bg-slate-200/70 p-1 rounded-xl">
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <label class="font-semibold text-slate-500">Loại giao dịch:</label>
+                                            <button type="button" id="lookup-toggle-filter-btn" onclick="toggleLookupAdvancedFilters()" title="Mở bộ lọc ngày & tìm kiếm" class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 text-[11px] font-bold transition border border-slate-200/80 shadow-2xs">
+                                                <svg class="w-3.5 h-3.5 text-slate-600 transition" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                                                </svg>
+                                                <span>Bộ lọc</span>
+                                                <span id="lookup-filter-active-dot" class="hidden w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+                                            </button>
+                                        </div>
+                                        <div class="flex bg-slate-200/70 p-1 rounded-xl gap-1">
                                             <button type="button" id="lookup-btn-all" onclick="setLookupType('all')" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-teal-600 shadow-sm transition">Tất cả</button>
                                             <button type="button" id="lookup-btn-thu" onclick="setLookupType('thu')" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition">Thu</button>
                                             <button type="button" id="lookup-btn-chi" onclick="setLookupType('chi')" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition">Chi</button>
+                                            <button type="button" id="lookup-btn-refund" onclick="setLookupType('refund')" class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition whitespace-nowrap">💰 Hoàn về ví</button>
                                         </div>
                                         <input type="hidden" id="lookup-type" value="all">
                                     </div>
 
-                                    <div>
-                                        <div class="flex justify-between items-center mb-1">
-                                            <label class="font-semibold text-slate-500 text-[11px]">Lọc theo ngày giao dịch:</label>
-                                            <!-- Nút chọn xem tất cả -->
-                                            <div class="flex gap-1" id="lookup-month-presets">
-                                                <button type="button" onclick="setLookupMonthPreset('all')" id="lookup-preset-all" class="px-2.5 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition">Tất cả</button>
+                                    <!-- KHU VỰC LỌC THEO NGÀY & TÌM KIẾM - BẤM VÀO PHỄU LỌC MỚI HIỆN RA -->
+                                    <div id="lookup-advanced-filters" class="hidden pt-2.5 border-t border-slate-100 space-y-2.5 animate-in fade-in duration-150">
+                                        <div>
+                                            <div class="flex justify-between items-center mb-1">
+                                                <label class="font-semibold text-slate-500 text-[11px]">Lọc theo ngày giao dịch:</label>
+                                                <!-- Nút chọn xem tất cả -->
+                                                <div class="flex gap-1" id="lookup-month-presets">
+                                                    <button type="button" onclick="setLookupMonthPreset('all')" id="lookup-preset-all" class="px-2.5 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition">Tất cả</button>
+                                                </div>
                                             </div>
+
+                                            <div class="relative mt-1">
+                                                <input type="date" id="lookup-date" onchange="onLookupDateChange()" class="w-full p-2 pr-7 border rounded-xl bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-500">
+                                                <button type="button" onclick="clearLookupDate()" id="lookup-clear-date-btn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold transition px-1" title="Xóa ngày lọc">✕</button>
+                                            </div>
+                                            <input type="hidden" id="lookup-month" value="">
                                         </div>
 
-                                        <div class="relative mt-1">
-                                            <input type="date" id="lookup-date" onchange="onLookupDateChange()" class="w-full p-2 pr-7 border rounded-xl bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-teal-500">
-                                            <button type="button" onclick="clearLookupDate()" id="lookup-clear-date-btn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold transition px-1" title="Xóa ngày lọc">✕</button>
-                                        </div>
-                                        <input type="hidden" id="lookup-month" value="">
-                                    </div>
-
-                                    <div>
-                                        <label class="font-semibold text-slate-500 block mb-1 text-[11px]">Từ khóa tìm kiếm:</label>
-                                        <div class="relative">
-                                            <input type="text" id="lookup-keyword" oninput="applyLookupFilter()" placeholder="Nhập từ khóa (mì cay, tiền...)" class="w-full p-2 pr-7 border rounded-xl bg-slate-50 text-xs focus:outline-none focus:border-teal-500 font-medium">
-                                            <button type="button" onclick="clearLookupKeyword()" id="lookup-clear-btn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold transition px-1" title="Xóa từ khóa">✕</button>
+                                        <div>
+                                            <label class="font-semibold text-slate-500 block mb-1 text-[11px]">Từ khóa tìm kiếm:</label>
+                                            <div class="relative">
+                                                <input type="text" id="lookup-keyword" oninput="applyLookupFilter()" placeholder="Nhập từ khóa (mì cay, tiền...)" class="w-full p-2 pr-7 border rounded-xl bg-slate-50 text-xs focus:outline-none focus:border-teal-500 font-medium">
+                                                <button type="button" onclick="clearLookupKeyword()" id="lookup-clear-btn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 text-xs font-bold transition px-1" title="Xóa từ khóa">✕</button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+
+
 
                                 <!-- THANH TỔNG HỢP KẾT QUẢ THEO THỜI GIAN LỌC -->
                                 <div id="lookup-summary-bar" class="px-1 text-slate-500">
@@ -994,53 +1088,6 @@
                                 </div>
 
                                 <div id="tx-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"></div>
-                            </div>
-                        </div>
-
-                        <!-- 2. GIAO DIỆN TRA CỨU KẾT CHUYỂN HẠN MỨC GIỮA CÁC THÁNG -->
-                        <div id="lookup-view-rollover" class="hidden flex-1 flex flex-col min-h-0 space-y-3">
-                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card flex-1 flex flex-col min-h-0">
-                                <div class="flex justify-between items-center">
-                                    <h2 class="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
-                                        <span>🔄</span><span>Lịch Sử Chuyển Hạn Mức</span>
-                                    </h2>
-                                    <span class="text-[10px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200/80">Tự động cộng dồn</span>
-                                </div>
-
-                                <!-- Bộ lọc thời gian & danh mục cho kết chuyển -->
-                                <div class="bg-white p-3.5 rounded-2xl border space-y-3 text-xs shadow-sm shrink-0">
-                                    <div>
-                                        <div class="flex justify-between items-center mb-1">
-                                            <label class="font-semibold text-slate-500 text-[11px]">Thời gian kết chuyển:</label>
-                                            <div class="flex gap-1" id="rollover-month-presets">
-                                                <button type="button" onclick="setRolloverMonthPreset('all')" id="ro-preset-all" class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/70 transition shadow-2xs">Tất cả</button>
-                                                <button type="button" onclick="setRolloverMonthPreset('current')" id="ro-preset-current" class="px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition">Tháng này</button>
-                                                <button type="button" onclick="setRolloverMonthPreset('prev')" id="ro-preset-prev" class="px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition">Tháng trước</button>
-                                            </div>
-                                        </div>
-                                        <div class="grid grid-cols-2 gap-2 mt-1.5">
-                                            <div>
-                                                <label class="text-[10px] text-slate-400 font-medium block mb-0.5">Chọn Tháng:</label>
-                                                <input type="month" id="rollover-month" onchange="applyRolloverFilter()" class="w-full p-2 border rounded-xl bg-slate-50 text-xs font-semibold text-slate-700 focus:outline-none focus:border-teal-500">
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] text-slate-400 font-medium block mb-0.5">Lọc danh mục:</label>
-                                                <select id="rollover-cat-filter" onchange="applyRolloverFilter()" class="w-full p-2 border rounded-xl bg-slate-50 text-xs font-medium text-slate-700 focus:outline-none focus:border-teal-500">
-                                                    <option value="all">Tất cả hũ chi tiêu</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Thanh tóm tắt tổng số tiền kết chuyển -->
-                                <div id="rollover-summary-bar" class="flex justify-between items-center px-1 text-[11px] text-slate-600">
-                                    <span id="rollover-count-label" class="font-medium">Đang tải lịch sử...</span>
-                                    <span id="rollover-total-transferred" class="text-teal-700 font-bold text-xs"></span>
-                                </div>
-
-                                <!-- Danh sách thẻ kết chuyển -->
-                                <div id="rollover-list" class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"></div>
                             </div>
                         </div>
                     </div>
@@ -1211,17 +1258,17 @@
         </div>
 
         <!-- CÁC MODULE JAVASCRIPT TÁCH BIỆT THEO CHỨC NĂNG & VAI TRÒ -->
-        <script src="js/api.js?v=6.0"></script>
-        <script src="js/auth.js?v=6.0"></script>
-        <script src="js/ngan-sach.js?v=6.1"></script>
-        <script src="js/danh-muc.js?v=6.0"></script>
-        <script src="js/tiet-kiem.js?v=6.0"></script>
-        <script src="js/giao-dich.js?v=6.0"></script>
-        <script src="js/tra-cuu.js?v=6.3"></script>
-        <script src="js/thong-ke.js?v=6.2"></script>
-        <script src="js/thong-bao.js?v=6.0"></script>
-        <script src="js/ai.js?v=6.0"></script>
-        <script src="js/app.js?v=6.0"></script>
+        <script src="js/api.js?v=7.0"></script>
+        <script src="js/auth.js?v=7.0"></script>
+        <script src="js/ngan-sach.js?v=7.0"></script>
+        <script src="js/danh-muc.js?v=7.0"></script>
+        <script src="js/tiet-kiem.js?v=7.0"></script>
+        <script src="js/giao-dich.js?v=7.0"></script>
+        <script src="js/tra-cuu.js?v=7.0"></script>
+        <script src="js/thong-ke.js?v=7.0"></script>
+        <script src="js/thong-bao.js?v=7.0"></script>
+        <script src="js/ai.js?v=7.0"></script>
+        <script src="js/app.js?v=7.0"></script>
         <script>
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {

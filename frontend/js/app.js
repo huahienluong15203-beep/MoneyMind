@@ -43,13 +43,10 @@
                 if(sec === 'lich-su') {
                     if (typeof initLookupDateInput === 'function') initLookupDateInput();
                     loadTransactions();
-                    if (typeof currentLookupMainTab !== 'undefined' && currentLookupMainTab === 'rollover') {
-                        if (typeof loadRolloverData === 'function') loadRolloverData();
-                    } else {
-                        applyLookupFilter();
-                    }
+                    if (typeof loadRefundHistory === 'function') loadRefundHistory();
+                    applyLookupFilter();
                 }
-                if(sec === 'thong-bao') loadNotifications();
+                if(typeof loadNotifications === 'function') loadNotifications();
                 if(sec === 'tai-khoan') loadUserProfile();
             }
 
@@ -66,6 +63,7 @@
                 if(tab === 'ngan-sach') {
                     if (typeof loadCategories === 'function') loadCategories();
                     renderJarsProgressList();
+                    if (typeof loadNotifications === 'function') loadNotifications();
                 }
                 if(tab === 'danh-muc') {
                     if (typeof loadCategories === 'function') loadCategories();

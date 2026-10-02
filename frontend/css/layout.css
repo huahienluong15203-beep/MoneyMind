@@ -37,7 +37,7 @@
     flex-direction: column !important;
     min-height: 0 !important;
     overflow-y: auto !important;
-    padding: 0.75rem 0.875rem 0.5rem 0.875rem !important; /* pb sát mép thanh điều hướng */
+    padding: 0.25rem 0.875rem 0.5rem 0.875rem !important; /* Đẩy nội dung bên dưới lên sát header hơn */
 }
 
 /* 2. Container app chính: chiếm trọn chiều cao vùng cuộn */

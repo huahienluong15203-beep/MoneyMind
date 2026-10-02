@@ -145,10 +145,54 @@
                     if(document.getElementById('so-du')) document.getElementById('so-du').innerText = d.so_du.toLocaleString() + " đ";
                     if(document.getElementById('tong-thu')) document.getElementById('tong-thu').innerText = d.tong_thu.toLocaleString() + " đ";
                     if(document.getElementById('tong-chi')) document.getElementById('tong-chi').innerText = d.tong_chi.toLocaleString() + " đ";
-                    if(document.getElementById('tong-trong-hu')) {
-                        document.getElementById('tong-trong-hu').innerText = (d.tong_trong_hu || 0).toLocaleString() + " đ";
-                    }
+                    // Cập nhật tổng trong hũ sau khi có data
+                    updateTongTrongHu();
                 }
+            }
+
+
+            // Tính lại tổng trong hũ trực tiếp từ frontend data
+            // Đảm bảo nhất quán với renderJarsProgressList()
+            function updateTongTrongHu() {
+                const el = document.getElementById('tong-trong-hu');
+                if (!el) return;
+
+                const now = new Date();
+                const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+                // Chỉ lấy danh mục chi (không bao gồm Tiết kiệm)
+                const chiCats = (allCategories || []).filter(c => (c.type === 'chi' || c.loai_dm === 'chi') && c.name !== 'Tiết kiệm');
+
+                let tongConLai = 0;
+                chiCats.forEach(c => {
+                    const catId = c.id || c.ma_dm;
+                    // Tính hạn mức hiệu dụng (giống với renderJarsProgressList)
+                    let limit = parseFloat(c.budget_limit !== undefined ? c.budget_limit : (c.han_muc || 0)) || 0;
+                    let rollover = parseFloat(c.so_du_chuyen_sang || 0) || 0;
+                    let effectiveLimit = limit > 0 ? limit : (rollover > 0 ? rollover : 0);
+
+                    if (effectiveLimit <= 0) return; // Chưa đặt hạn mức, bỏ qua
+
+                    // Tính chi tíeu trong tháng hiện tại
+                    const spent = (allTransactions || []).reduce((sum, t) => {
+                        const tDate = t.date || t.ngay_gd || '';
+                        const isChi = (t.type === 'chi' || t.loai_gd === 'chi');
+                        const isCat = (t.category_id == catId || t.ma_dm == catId);
+                        const isThisMonth = tDate.startsWith(currentYM);
+                        // Bỏ qua giao dịch tiết kiệm
+                        const note = (t.note || t.ghi_chu || '').toLowerCase();
+                        const isSavings = note.includes('tiết kiệm') || note.includes('trích quỹ') || note.includes('mục tiêu');
+                        if (isChi && isCat && isThisMonth && !isSavings) {
+                            return sum + (t.amount !== undefined ? t.amount : (t.so_tien || 0));
+                        }
+                        return sum;
+                    }, 0);
+
+                    const remaining = Math.max(0, effectiveLimit - spent);
+                    tongConLai += remaining;
+                });
+
+                el.innerText = tongConLai.toLocaleString('vi-VN') + ' đ';
             }
 
 
@@ -158,6 +202,7 @@
                     allTransactions = await res.json();
                     applyLookupFilter();
                     renderJarsProgressList();
+                    updateTongTrongHu(); // Cập nhật tổng trong hũ sau khi có giao dịch mới
                 }
             }
 
@@ -206,7 +251,7 @@
                         limit = data.canh_bao.han_muc;
                     }
 
-                    if (type === 'chi' && limit > 0) {
+                    if (type === 'chi') {
                         const now = new Date();
                         const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                         let spent = allTransactions.filter(t => {
@@ -219,27 +264,130 @@
                             spent = data.canh_bao.so_tien_da_chi;
                         }
 
-                        let pct = Math.round((spent / limit) * 100);
-                        if (pct >= 90 || (data.canh_bao && (data.canh_bao.co_canh_bao || data.canh_bao.vuot_ngan_sach))) {
+                        let pct = limit > 0 ? Math.round((spent / limit) * 100) : (spent > 0 ? 100 : 0);
+                        let isVuot = (limit > 0 && spent > limit) || (limit <= 0 && spent > 0) || (data.canh_bao && data.canh_bao.vuot_ngan_sach);
+                        let isSapCham = limit > 0 && pct >= 90;
+
+                        // Kiểm tra hũ có thiếu hạn mức định mức không (hũ mới tháng này, chưa được cấp đủ)
+                        let targetCatFull = allCategories.find(c => c.id == category_id || c.ma_dm == category_id);
+                        let isHuThieu = targetCatFull && targetCatFull.chua_du_han_muc && targetCatFull.so_tien_thieu > 0;
+
+                        const topupBtn = document.getElementById('budget-warning-topup-btn');
+                        const closeBtn = document.getElementById('budget-warning-close-btn');
+
+                        if (isVuot || isSapCham || (data.canh_bao && data.canh_bao.co_canh_bao)) {
                             let catName = targetCat ? targetCat.name : (data.canh_bao && data.canh_bao.ten_dm ? data.canh_bao.ten_dm : "khoản chi");
-                            let title = (pct >= 100 || (data.canh_bao && data.canh_bao.vuot_ngan_sach)) ? `🚨 CẢNH BÁO: HŨ "${catName}" VƯỢT HẠN MỨC (${pct}%)!` : `⚠️ CẢNH BÁO: HŨ "${catName}" ĐÃ CHI TIÊU ĐẠT ${pct}% HẠN MỨC!`;
-                            let icon = (pct >= 100 || (data.canh_bao && data.canh_bao.vuot_ngan_sach)) ? "🛑" : "⚠️";
-                            let msg = (pct >= 100 || (data.canh_bao && data.canh_bao.vuot_ngan_sach))
-                                ? `✅ Đã ghi nhận giao dịch thành công!\n\n🚨 CẢNH BÁO: Hũ "${catName}" đã chi tiêu vượt quá hạn mức (${spent.toLocaleString()} đ / ${limit.toLocaleString()} đ, đạt ${pct}%).\n\n⚠️ YÊU CẦU: Bạn đã vượt quá hạn mức cho phép, vui lòng chi tiêu ít lại và dừng các khoản chi tiêu không cần thiết!`
+                            let title = isVuot 
+                                ? (limit > 0 ? `🚨 CẢNH BÁO: HŨ "${catName}" VƯỢT HẠN MỨC (${pct}%)!` : `🚨 CẢNH BÁO: HŨ "${catName}" VƯỢT HẠN MỨC!`)
+                                : `⚠️ CẢNH BÁO: HŨ "${catName}" ĐÃ CHI TIÊU ĐẠT ${pct}% HẠN MỨC!`;
+                            let icon = isVuot ? "🛑" : "⚠️";
+                            let msg = isVuot
+                                ? (limit > 0 
+                                    ? `✅ Đã ghi nhận giao dịch thành công!\n\n🚨 CẢNH BÁO: Hũ "${catName}" đã chi tiêu vượt quá hạn mức (${spent.toLocaleString()} đ / ${limit.toLocaleString()} đ, đạt ${pct}%).\n\n⚠️ YÊU CẦU: Bạn đã vượt quá hạn mức cho phép, vui lòng chi tiêu ít lại và dừng các khoản chi tiêu không cần thiết!`
+                                    : `✅ Đã ghi nhận giao dịch thành công!\n\n🚨 CẢNH BÁO: Hũ "${catName}" chưa được cấp hạn mức trong tháng này nhưng đã phát sinh chi tiêu ${spent.toLocaleString()} đ.\n\n💡 Vui lòng vào tab Ngân Sách Hũ → bấm vào hũ → "Thêm hạn mức" để thiết lập hạn mức cho hũ này!`)
                                 : `✅ Đã ghi nhận giao dịch thành công!\n\n⚠️ CẢNH BÁO: Hũ "${catName}" đã chi tiêu đạt ${pct}% hạn mức (${spent.toLocaleString()} đ / ${limit.toLocaleString()} đ).\n\n⚠️ YÊU CẦU: Bạn đang sắp chạm hạn mức cho phép, vui lòng chi tiêu ít lại và tiết kiệm chi tiêu!`;
 
-                            // Tải lại thông báo (đã được backend ghi nhận duy nhất 1 bản ghi cảnh báo)
                             await loadNotifications();
 
                             document.getElementById('budget-warning-title').innerText = title;
                             document.getElementById('budget-warning-text').innerText = msg;
                             document.getElementById('budget-warning-icon').innerText = icon;
+                            if (topupBtn) {
+                                topupBtn.classList.remove('hidden');
+                                topupBtn.innerText = "+ Thêm hạn mức";
+                                const editCatId = targetCat ? (targetCat.id || targetCat.ma_dm) : category_id;
+                                const editCatName = targetCat ? targetCat.name : catName;
+                                const safeName = (editCatName || '').replace(/'/g, "\\'");
+                                topupBtn.onclick = function() {
+                                    closeBudgetWarningModal();
+                                    if (typeof openEditCategoryModal === 'function') {
+                                        openEditCategoryModal(editCatId, safeName, 'chi', limit > 0 ? limit : spent);
+                                    }
+                                };
+                            }
+                            if (closeBtn) closeBtn.innerText = "Đã hiểu";
+                            document.getElementById('budget-warning-modal').classList.remove('hidden');
+                            return;
+                        }
+
+                        // Cảnh báo hũ thiếu hạn mức (tháng mới chưa được cấp đủ định mức)
+                        if (isHuThieu && !isVuot && !isSapCham) {
+                            let catName = targetCat ? targetCat.name : "hũ này";
+                            let soThieu = targetCatFull.so_tien_thieu;
+                            let dinhmuc = targetCatFull.han_muc_dinh_muc || 0;
+                            await loadNotifications();
+                            document.getElementById('budget-warning-title').innerText = `⚠️ HŨ "${catName.toUpperCase()}" CHƯA ĐỦ HẠN MỨC`;
+                            document.getElementById('budget-warning-text').innerText = 
+                                `✅ Đã ghi nhận giao dịch chi tiêu thành công!\n\n⚠️ Cảnh báo: Hũ "${catName}" hiện đang thiếu ${soThieu.toLocaleString()} đ so với hạn mức định mức tháng trước (${dinhmuc.toLocaleString()} đ).\n\n💡 Bạn có thể tự thêm hạn mức cho hũ từ ví chính bằng cách bấm nút "+ Thêm hạn mức" bên dưới.`;
+                            document.getElementById('budget-warning-icon').innerText = "⚠️";
+                            if (topupBtn) {
+                                topupBtn.classList.remove('hidden');
+                                topupBtn.innerText = "+ Thêm hạn mức";
+                                const editCatId = targetCatFull.id || targetCatFull.ma_dm || category_id;
+                                const safeName = (catName || '').replace(/'/g, "\\'");
+                                topupBtn.onclick = function() {
+                                    closeBudgetWarningModal();
+                                    if (typeof openEditCategoryModal === 'function') {
+                                        openEditCategoryModal(editCatId, safeName, 'chi', dinhmuc);
+                                    }
+                                };
+                            }
+                            if (closeBtn) closeBtn.innerText = "Đã hiểu";
                             document.getElementById('budget-warning-modal').classList.remove('hidden');
                             return;
                         }
                     }
 
+                    // --- Giao dịch THU: hỏi người dùng có muốn bổ sung vào hũ không ---
+                    if (type === 'thu') {
+                        let canConfirm = false;
+                        let shortage_list = [];
+                        let total_shortage = 0;
+                        let available_wallet = 0;
+
+                        if (data.phan_bo_hu && data.phan_bo_hu.can_confirm) {
+                            const kiem_tra = data.phan_bo_hu.kiem_tra || {};
+                            shortage_list = kiem_tra.shortage_list || [];
+                            total_shortage = kiem_tra.total_shortage || 0;
+                            available_wallet = kiem_tra.available_wallet || 0;
+                            canConfirm = shortage_list.length > 0;
+                        } else {
+                            // Fallback kiểm tra trực tiếp
+                            try {
+                                let chkRes = await fetch('/api/ngan-sach/kiem-tra-hu-thieu', {headers: {'Authorization': 'Bearer ' + token}});
+                                if (!chkRes.ok) chkRes = await fetch('/ngan-sach/kiem-tra-hu-thieu', {headers: {'Authorization': 'Bearer ' + token}});
+                                if (chkRes.ok) {
+                                    const chkData = await chkRes.json();
+                                    if (chkData.co_hu_thieu && chkData.shortage_list && chkData.shortage_list.length > 0) {
+                                        shortage_list = chkData.shortage_list;
+                                        total_shortage = chkData.total_shortage || 0;
+                                        available_wallet = chkData.available_wallet || 0;
+                                        canConfirm = true;
+                                    }
+                                }
+                            } catch(e) {}
+                        }
+
+                        if (canConfirm && shortage_list.length > 0) {
+                            let shortageLines = shortage_list.map(h =>
+                                `  • Hũ "${h.name}": đang có ${(h.current_limit||0).toLocaleString()} đ / định mức ${(h.target_limit||0).toLocaleString()} đ (thiếu ${(h.shortage||0).toLocaleString()} đ)`
+                            ).join('\n');
+
+                            let msgText = `💰 Đã nạp +${amount.toLocaleString()} đ vào ví chính thành công.\n\n` +
+                                `📋 Hiện tại có các hũ chi tiêu chưa đủ hạn mức của tháng trước:\n${shortageLines}\n\n` +
+                                `💡 Tổng tiền còn thiếu: ${total_shortage.toLocaleString()} đ | Số dư ví chính khả dụng: ${available_wallet.toLocaleString()} đ\n\n` +
+                                `Bạn có muốn hệ thống tự động trừ từ ví chính để bổ sung cho các danh mục còn thiếu cho đúng theo hạn mức của tháng trước không?\n\n` +
+                                `• Bấm "Có, bổ sung ngay" → tự trừ từ ví chính cấp đủ cho các hũ\n` +
+                                `• Bấm "Không, để sau" → giữ nguyên tiền trong ví chính`;
+
+                            await loadNotifications();
+                            showTopupConfirmModal(msgText, shortage_list, amount);
+                            return;
+                        }
+                    }
+
                     showCustomModal("Thành công", type === 'chi' ? "Đã ghi nhận khoản chi vào hũ thành công!" : "Đã cộng thu nhập vào ví chính thành công!", "✅");
+
                 } else {
                     closeAddTransactionModal();
                     let errData = await res.json().catch(() => ({}));
@@ -247,4 +395,75 @@
                     showCustomModal("Lỗi giao dịch", errText, "❌");
                 }
             }
+
+            // ====== POPUP XÁC NHẬN BỔ SUNG VÀO HŨ ======
+            function showTopupConfirmModal(msgText, shortage_list, thu_amount) {
+                const modal = document.getElementById('topup-confirm-modal');
+                if (!modal) {
+                    if (confirm(msgText.replace(/\n/g, '\n'))) {
+                        doTopupJars();
+                    }
+                    return;
+                }
+                const msgEl = document.getElementById('topup-confirm-msg');
+                if (msgEl) msgEl.innerText = msgText;
+                modal.classList.remove('hidden');
+                window._pendingTopupShortage = shortage_list;
+            }
+
+            function closeTopupConfirmModal() {
+                const modal = document.getElementById('topup-confirm-modal');
+                if (modal) modal.classList.add('hidden');
+                window._pendingTopupShortage = null;
+                showCustomModal("Đã giữ nguyên ví chính", "Số tiền vừa nạp được giữ nguyên trong ví chính. Bạn có thể tự điều chỉnh và bổ sung hạn mức cho từng hũ bất kỳ lúc nào trong tab Ngân Sách Hũ.", "💰");
+            }
+
+            async function doTopupJars() {
+                const modal = document.getElementById('topup-confirm-modal');
+                if (modal) modal.classList.add('hidden');
+                window._pendingTopupShortage = null;
+                try {
+                    let res = await fetch('/api/ngan-sach/bo-sung-hu', {
+                        method: 'POST',
+                        headers: {'Authorization': 'Bearer ' + token}
+                    });
+                    if (!res.ok) {
+                        res = await fetch('/ngan-sach/bo-sung-hu', {
+                            method: 'POST',
+                            headers: {'Authorization': 'Bearer ' + token}
+                        });
+                    }
+                    if (res.ok) {
+                        const data = await res.json();
+                        await loadSummary();
+                        await loadTransactions();
+                        await loadCategories();
+                        await loadNotifications();
+                        const fully = data.fully_topped || [];
+                        const partial = data.partially_topped || [];
+                        let resultMsg = '✅ Đã bổ sung hạn mức từ ví chính vào các hũ!\n\n';
+                        if (fully.length > 0) {
+                            resultMsg += '✅ Hũ đã đủ hạn mức:\n';
+                            fully.forEach(f => {
+                                resultMsg += `  • Hũ "${f.name}": +${(f.topup||0).toLocaleString()} đ → ${(f.current||0).toLocaleString()}/${(f.target||0).toLocaleString()} đ (100%)\n`;
+                            });
+                        }
+                        const stillShort = partial.filter(p => (p.shortage||0) > 0);
+                        if (stillShort.length > 0) {
+                            resultMsg += '\n⚠️ Hũ vẫn còn thiếu (ví chính hết tiền giữa chừng):\n';
+                            stillShort.forEach(p => {
+                                const pct = p.target > 0 ? Math.round((p.current/p.target)*100) : 0;
+                                resultMsg += `  • Hũ "${p.name}": +${(p.topup||0).toLocaleString()} đ → ${(p.current||0).toLocaleString()}/${(p.target||0).toLocaleString()} đ (${pct}%) — còn thiếu ${(p.shortage||0).toLocaleString()} đ\n`;
+                            });
+                        }
+                        showCustomModal('💧 Bổ sung hũ thành công', resultMsg, '✅');
+                    } else {
+                        showCustomModal('Lỗi', 'Không thể bổ sung vào các hũ!', '❌');
+                    }
+                } catch(e) {
+                    showCustomModal('Lỗi', 'Không thể kết nối server!', '❌');
+                }
+            }
+
+
 

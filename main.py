@@ -37,6 +37,8 @@ from app.models import (
     SavingsGoal,
     Notification
 )
+from app.models.ket_chuyen_ngan_sach import KetChuyenNganSach
+
 from app.schemas import UserCreate, Token
 from app.services.ngan_sach_service import NganSachService
 from app.services.ai_service import AIService
@@ -376,17 +378,43 @@ def doi_mat_khau(payload: dict, db: Session = Depends(get_db), current_user: Ngu
 def _format_dm(c: DanhMuc, db: Optional[Session] = None):
     now_ym = datetime.now().strftime("%Y-%m")
     ns = None
+    target_limit = 0.0
     if db:
         ns = db.query(NganSach).filter(
             NganSach.ma_dm == c.ma_dm,
             NganSach.thang_nam == now_ym
         ).first()
 
+        if c.loai_dm == "chi":
+            kc = db.query(KetChuyenNganSach).filter(
+                KetChuyenNganSach.ma_nd == c.ma_nd,
+                KetChuyenNganSach.ma_dm == c.ma_dm,
+                KetChuyenNganSach.thang_dich == now_ym
+            ).first()
+            if kc and kc.han_muc_thang_truoc and kc.han_muc_thang_truoc > 0:
+                target_limit = float(kc.han_muc_thang_truoc)
+            else:
+                now_dt = datetime.strptime(f"{now_ym}-01", "%Y-%m-%d")
+                prev_dt = datetime(now_dt.year - 1, 12, 1) if now_dt.month == 1 else datetime(now_dt.year, now_dt.month - 1, 1)
+                prev_ym = prev_dt.strftime("%Y-%m")
+                ns_prev = db.query(NganSach).filter(
+                    NganSach.ma_nd == c.ma_nd,
+                    NganSach.ma_dm == c.ma_dm,
+                    NganSach.thang_nam == prev_ym
+                ).first()
+                if ns_prev and ns_prev.han_muc and ns_prev.han_muc > 0:
+                    target_limit = float(ns_prev.han_muc)
+                elif c.han_muc and c.han_muc > 0:
+                    target_limit = float(c.han_muc)
+
     current_limit = float(ns.han_muc) if (ns and ns.han_muc and ns.han_muc > 0) else 0.0
     so_du_chuyen = float(ns.so_du_chuyen_sang or 0.0) if ns else 0.0
     cap_moi = float(ns.han_muc_cap_moi or 0.0) if ns else 0.0
     da_cap_moi = (cap_moi > 0)
     da_cap = (ns is not None and ns.han_muc is not None and ns.han_muc > 0)
+
+    so_tien_thieu = max(0.0, target_limit - current_limit) if target_limit > 0 else 0.0
+    chua_du_han_muc = (c.loai_dm == "chi" and target_limit > 0 and current_limit < target_limit)
 
     return {
         "id": c.ma_dm,
@@ -402,6 +430,9 @@ def _format_dm(c: DanhMuc, db: Optional[Session] = None):
         "da_cap_moi": da_cap_moi,
         "da_cap_han_muc": da_cap,
         "han_muc_goc": float(c.han_muc or 0.0),
+        "han_muc_dinh_muc": target_limit,
+        "so_tien_thieu": so_tien_thieu,
+        "chua_du_han_muc": chua_du_han_muc,
         "icon": c.icon or "tag",
         "mau_sac": c.mau_sac or "#0ea5e9",
         "ma_nd": c.ma_nd,
@@ -503,7 +534,7 @@ def sua_danh_muc_legacy(cat_id: int, cat: dict, db: Session = Depends(get_db), c
                 NganSach.ma_dm == cat_id,
                 NganSach.thang_nam == now_ym
             ).first()
-            old_limit = float(ns.han_muc) if (ns and ns.han_muc) else float(c.han_muc or 0.0)
+            old_limit = float(ns.han_muc) if (ns and ns.han_muc is not None) else 0.0
             so_du = float(ns.so_du_chuyen_sang or 0.0) if ns else 0.0
             old_allocated = max(0.0, old_limit - so_du)
             new_allocated = max(0.0, new_limit - so_du)
@@ -534,11 +565,18 @@ def sua_danh_muc_legacy(cat_id: int, cat: dict, db: Session = Depends(get_db), c
 
             # Lưu thông báo biến động số dư ví chính khi điều chỉnh hạn mức
             if diff > 0:
-                save_notification(
-                    db, current_user.ma_nd,
-                    "📤 Tăng Hạn Mức Hũ Chi Tiêu",
-                    f"Đã tăng hạn mức hũ '{c.ten_dm}' thêm {diff:,.0f} đ (hạn mức mới: {new_limit:,.0f} đ). Số tiền {diff:,.0f} đ đã được trích từ ví chính vào hũ."
-                )
+                if old_limit == 0:
+                    save_notification(
+                        db, current_user.ma_nd,
+                        "✨ Cấp Hạn Mức Hũ Chi Tiêu",
+                        f"Đã cấp hạn mức cho hũ '{c.ten_dm}': {new_limit:,.0f} đ. Số tiền {diff:,.0f} đ đã được trích từ ví chính vào hũ."
+                    )
+                else:
+                    save_notification(
+                        db, current_user.ma_nd,
+                        "📤 Tăng Hạn Mức Hũ Chi Tiêu",
+                        f"Đã tăng hạn mức hũ '{c.ten_dm}' thêm {diff:,.0f} đ (hạn mức mới: {new_limit:,.0f} đ). Số tiền {diff:,.0f} đ đã được trích từ ví chính vào hũ."
+                    )
             elif diff < 0:
                 refund_amt = abs(diff)
                 save_notification(
@@ -553,6 +591,8 @@ def sua_danh_muc_legacy(cat_id: int, cat: dict, db: Session = Depends(get_db), c
     db.commit()
     res = _format_dm(c, db)
     res["diff"] = diff
+    res["old_limit"] = old_limit
+    res["is_new_allocation"] = (old_limit == 0)
     res["so_tien_trich"] = diff if diff > 0 else 0.0
     res["so_tien_hoan"] = abs(diff) if diff < 0 else 0.0
     return res
@@ -602,7 +642,7 @@ def xoa_danh_muc_legacy(cat_id: int, db: Session = Depends(get_db), current_user
 @app.get("/danh-muc")
 def lay_danh_sach_danh_muc_legacy(db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
     NganSachService.tu_dong_ket_chuyen_thang_moi(db, current_user.ma_nd)
-    cats = db.query(DanhMuc).filter(DanhMuc.ma_nd == current_user.ma_nd).all()
+    cats = db.query(DanhMuc).filter(DanhMuc.ma_nd == current_user.ma_nd).order_by(DanhMuc.ma_dm.asc()).all()
     return [_format_dm(c, db) for c in cats]
 
 @app.get("/api/ket-chuyen-ngan-sach")
@@ -709,8 +749,27 @@ def tao_giao_dich_legacy(payload: dict, db: Session = Depends(get_db), current_u
             "thong_bao": canh_bao.thong_bao,
             "ten_dm": cat.ten_dm
         }
+    elif ttype == 'thu':
+        try:
+            res["phan_bo_hu"] = NganSachService.cap_tien_waterfall_khi_co_thu_nhap(
+                db=db,
+                ma_nd=current_user.ma_nd,
+                so_tien_thu_moi=amount
+            )
+        except Exception as e:
+            print(f"[WARN] Waterfall phân bổ hũ thất bại: {e}")
 
     return res
+
+@app.get("/ngan-sach/kiem-tra-hu-thieu")
+@app.get("/api/ngan-sach/kiem-tra-hu-thieu")
+def kiem_tra_hu_con_thieu_legacy(db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
+    return NganSachService.kiem_tra_hu_con_thieu(db, current_user.ma_nd)
+
+@app.post("/ngan-sach/bo-sung-hu")
+@app.post("/api/ngan-sach/bo-sung-hu")
+def bo_sung_hu_legacy(db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
+    return NganSachService.thuc_hien_bo_sung_hu(db, current_user.ma_nd)
 
 @app.get("/giao-dich")
 def lay_danh_sach_giao_dich_legacy(db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):

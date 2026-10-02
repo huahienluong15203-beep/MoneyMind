@@ -34,6 +34,9 @@ class DanhMucResponse(BaseModel):
     han_muc_cap_moi: Optional[float] = 0.0
     da_cap_han_muc: Optional[bool] = False
     han_muc_goc: Optional[float] = 0.0
+    han_muc_dinh_muc: Optional[float] = 0.0
+    so_tien_thieu: Optional[float] = 0.0
+    chua_du_han_muc: Optional[bool] = False
 
     class Config:
         from_attributes = True

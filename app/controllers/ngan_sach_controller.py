@@ -245,3 +245,20 @@ def lay_danh_sach_canh_bao(
 ):
     """UC007: Trạng thái cảnh báo vượt ngân sách hiện tại"""
     return NganSachService.lay_danh_sach_canh_bao(db, current_user.ma_nd, thang_nam)
+
+@router.get("/kiem-tra-hu-thieu", summary="Kiểm tra các hũ còn thiếu hạn mức so với định mức tháng này")
+def kiem_tra_hu_con_thieu(
+    db: Session = Depends(get_db),
+    current_user: NguoiDung = Depends(get_current_user)
+):
+    """Kiểm tra các hũ còn thiếu hạn mức, không tự động cấp. Trả về danh sách để frontend hỏi người dùng."""
+    return NganSachService.kiem_tra_hu_con_thieu(db, current_user.ma_nd)
+
+@router.post("/bo-sung-hu", summary="Bổ sung tiền từ ví chính vào các hũ còn thiếu (sau khi người dùng xác nhận)")
+def bo_sung_hu(
+    db: Session = Depends(get_db),
+    current_user: NguoiDung = Depends(get_current_user)
+):
+    """Thực hiện bổ sung tiền từ ví chính vào các hũ còn thiếu theo thứ tự ưu tiên (waterfall)."""
+    return NganSachService.thuc_hien_bo_sung_hu(db, current_user.ma_nd)
+

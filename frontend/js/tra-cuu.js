@@ -6,18 +6,55 @@
                 const bAll = document.getElementById('lookup-btn-all');
                 const bThu = document.getElementById('lookup-btn-thu');
                 const bChi = document.getElementById('lookup-btn-chi');
+                const bRefund = document.getElementById('lookup-btn-refund');
 
-                bAll.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition";
-                bThu.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition";
-                bChi.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition";
+                const baseClass = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition";
+                if (bAll) bAll.className = baseClass;
+                if (bThu) bThu.className = baseClass;
+                if (bChi) bChi.className = baseClass;
+                if (bRefund) bRefund.className = baseClass + " whitespace-nowrap";
 
-                if(type === 'all') bAll.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-teal-600 shadow-sm transition";
-                else if(type === 'thu') bThu.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-emerald-600 shadow-sm transition";
-                else bChi.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-rose-600 shadow-sm transition";
+                if (type === 'all' && bAll) bAll.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-teal-600 shadow-sm transition";
+                else if (type === 'thu' && bThu) bThu.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-emerald-600 shadow-sm transition";
+                else if (type === 'chi' && bChi) bChi.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-rose-600 shadow-sm transition";
+                else if (type === 'refund' && bRefund) bRefund.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-emerald-700 shadow-sm transition whitespace-nowrap";
 
                 applyLookupFilter();
             }
 
+
+            function toggleLookupAdvancedFilters(forceOpen = null) {
+                const filterPanel = document.getElementById('lookup-advanced-filters');
+                const toggleBtn = document.getElementById('lookup-toggle-filter-btn');
+                if (!filterPanel) return;
+
+                const isCurrentlyHidden = filterPanel.classList.contains('hidden');
+                const shouldOpen = forceOpen !== null ? forceOpen : isCurrentlyHidden;
+
+                if (shouldOpen) {
+                    filterPanel.classList.remove('hidden');
+                    if (toggleBtn) {
+                        toggleBtn.classList.remove('bg-slate-100', 'text-slate-600', 'hover:bg-slate-200');
+                        toggleBtn.classList.add('bg-teal-600', 'text-white', 'hover:bg-teal-700', 'border-teal-600');
+                        const icon = toggleBtn.querySelector('svg');
+                        if (icon) {
+                            icon.classList.remove('text-slate-600');
+                            icon.classList.add('text-white');
+                        }
+                    }
+                } else {
+                    filterPanel.classList.add('hidden');
+                    if (toggleBtn) {
+                        toggleBtn.classList.remove('bg-teal-600', 'text-white', 'hover:bg-teal-700', 'border-teal-600');
+                        toggleBtn.classList.add('bg-slate-100', 'text-slate-600', 'hover:bg-slate-200');
+                        const icon = toggleBtn.querySelector('svg');
+                        if (icon) {
+                            icon.classList.remove('text-white');
+                            icon.classList.add('text-slate-600');
+                        }
+                    }
+                }
+            }
 
             function removeVietnameseTones(str) {
                 if (!str) return '';
@@ -40,14 +77,22 @@
             }
 
             function initLookupDateInput() {
+                // Luôn luôn xóa ngày lọc khi mở trang Tra cứu - hiển thị TẤT CẢ giao dịch
                 const dateEl = document.getElementById('lookup-date');
-                if (dateEl && !dateEl.value) {
-                    const todayStr = typeof getLocalDateString === 'function' ? getLocalDateString() : new Date().toISOString().split('T')[0];
-                    dateEl.value = todayStr;
-                    const clearBtn = document.getElementById('lookup-clear-date-btn');
-                    if (clearBtn) clearBtn.classList.remove('hidden');
-                    updateMonthPresetButtons();
-                }
+                const monthEl = document.getElementById('lookup-month');
+                if (dateEl) dateEl.value = '';
+                if (monthEl) monthEl.value = '';
+                const clearDateBtn = document.getElementById('lookup-clear-date-btn');
+                if (clearDateBtn) clearDateBtn.classList.add('hidden');
+                // Reset type filter về "Tất cả"
+                setLookupType('all');
+                // Reset keyword
+                const kwEl = document.getElementById('lookup-keyword');
+                if (kwEl) kwEl.value = '';
+                updateMonthPresetButtons();
+                toggleLookupAdvancedFilters(false);
+                if (typeof loadRefundHistory === 'function') loadRefundHistory();
+                applyLookupFilter();
             }
 
             function updateMonthPresetButtons() {
@@ -146,6 +191,17 @@
                     else clearDateBtn.classList.add('hidden');
                 }
 
+                // Cập nhật chấm chỉ báo bộ lọc nâng cao (ngày / từ khóa) đang hoạt động
+                const hasActiveAdvancedFilter = Boolean(date || month || rawKeyword);
+                const activeDot = document.getElementById('lookup-filter-active-dot');
+                if (activeDot) {
+                    if (hasActiveAdvancedFilter) {
+                        activeDot.classList.remove('hidden');
+                    } else {
+                        activeDot.classList.add('hidden');
+                    }
+                }
+
                 let catMap = {}; 
                 allCategories.forEach(c => { 
                     catMap[c.id] = c.name; 
@@ -154,6 +210,7 @@
 
                 let totalThu = 0;
                 let totalChi = 0;
+                let totalRefund = 0;
 
                 let filtered = allTransactions.filter(t => {
                     const tDate = t.date || t.ngay_gd || '';
@@ -161,16 +218,20 @@
                     const cName = (catMap[tCatId] || t.category_name || '').toLowerCase();
                     const note = (t.note || t.ghi_chu || '').toLowerCase();
                     const isSavings = (note.includes('tiết kiệm') || note.includes('trích quỹ') || note.includes('mục tiêu') || cName.includes('tiết kiệm'));
+                    const isRefund = (note.includes('hoàn') || note.includes('hoàn trả') || note.includes('hoàn tiền'));
 
                     // Tiết kiệm luôn luôn là khoản CHI, tuyệt đối KHÔNG ĐƯỢC coi là khoản THU
-                    const effectiveType = isSavings ? 'chi' : (t.type || t.loai_gd);
+                    const effectiveType = isSavings ? 'chi' : (isRefund ? 'refund' : (t.type || t.loai_gd));
 
                     // Khi người dùng bấm lọc "Thu", loại trừ hoàn toàn các giao dịch tiết kiệm
                     if (type === 'thu' && isSavings) {
                         return false;
                     }
+                    if (type === 'refund' && !isRefund) {
+                        return false;
+                    }
 
-                    let matchType = (type === 'all' || effectiveType === type);
+                    let matchType = (type === 'all' || effectiveType === type || (type === 'thu' && isRefund));
                     let matchMonth = (!month || tDate.startsWith(month));
                     let matchDate = (!date || tDate.startsWith(date));
 
@@ -206,6 +267,9 @@
                             if (!isDeletedGoal) {
                                 totalChi += amt;
                             }
+                        } else if (isRefund) {
+                            totalRefund += amt;
+                            totalThu += amt;
                         } else {
                             if (!note.includes('hoàn tiền từ hũ tiết kiệm')) {
                                 totalThu += amt;
@@ -246,11 +310,14 @@
 
                 if (summaryTotalsEl) {
                     // Chỉ hiển thị tổng tiền khi lọc theo ngày/tháng cụ thể VÀ có giao dịch (> 0)
-                    // Nếu là "Tất cả" hoặc không có giao dịch nào (0 giao dịch) thì ẩn đi
-                    if (hasSpecificDateOrMonth && filtered.length > 0) {
+                    // Hoặc khi người dùng chọn lọc 'Hoàn về ví'
+                    const shouldShowTotals = (hasSpecificDateOrMonth || type === 'refund') && filtered.length > 0;
+                    if (shouldShowTotals) {
                         let totalsHtml = '';
                         if (type === 'chi') {
                             totalsHtml = totalChi > 0 ? `<span class="text-rose-600 font-bold whitespace-nowrap">-${totalChi.toLocaleString('vi-VN')} đ</span>` : '';
+                        } else if (type === 'refund') {
+                            totalsHtml = totalRefund > 0 ? `<span class="text-emerald-600 font-bold whitespace-nowrap">+${totalRefund.toLocaleString('vi-VN')} đ</span>` : '';
                         } else if (type === 'thu') {
                             totalsHtml = totalThu > 0 ? `<span class="text-emerald-600 font-bold whitespace-nowrap">+${totalThu.toLocaleString('vi-VN')} đ</span>` : '';
                         } else {
@@ -328,11 +395,14 @@
                 sortedTxs.forEach((t, index) => {
                     const txId = t.id || t.ma_gd;
                     const rawNote = t.note || t.ghi_chu || '';
+                    const rawNoteLower = rawNote.toLowerCase();
                     let cName = catMap[t.category_id || t.ma_dm] || t.category_name || '';
-                    const isSavings = (rawNote.toLowerCase().includes('tiết kiệm') || rawNote.toLowerCase().includes('trích quỹ') || rawNote.toLowerCase().includes('mục tiêu') || cName.toLowerCase().includes('tiết kiệm'));
+                    const isSavings = (rawNoteLower.includes('tiết kiệm') || rawNoteLower.includes('trích quỹ') || rawNoteLower.includes('mục tiêu') || cName.toLowerCase().includes('tiết kiệm'));
+                    const isRefund = (rawNoteLower.includes('hoàn trả') || rawNoteLower.includes('hoàn tiền'));
                     
                     // Tiết kiệm luôn là khoản chi (không phải thu)
-                    const isChi = isSavings ? true : (t.type === 'chi' || t.loai_gd === 'chi');
+                    // Hoàn tiền luôn là khoản thu/cộng vào ví (không phải chi)
+                    const isChi = isSavings ? true : (isRefund ? false : (t.type === 'chi' || t.loai_gd === 'chi'));
                     const amt = t.amount !== undefined ? t.amount : (t.so_tien || 0);
                     const rawDate = t.date || t.ngay_gd || '';
                     const dateStr = formatCompactTxDate(rawDate);
@@ -352,6 +422,11 @@
                             goalName = clean;
                         }
                         displayNote = `Mục tiêu: ${goalName}${isDeletedGoal ? ' (đã xoá)' : ''}`;
+                    } else if (isRefund) {
+                        let jarMatch = rawNote.match(/từ hũ\s*["“]([^"”]+)["”]/i);
+                        let jarName = jarMatch ? jarMatch[1] : '';
+                        cName = jarName ? `🏺 ${jarName}` : (cName || 'Hoàn tiền hũ');
+                        displayNote = rawNote;
                     } else if (!cName) {
                         cName = isChi ? 'Khoản chi' : 'Khoản thu';
                         displayNote = rawNote || 'Không có mô tả chi tiết';
@@ -362,7 +437,6 @@
                     // Tự động mở sẵn phần mô tả chi tiết nếu từ khóa tìm kiếm khớp với mô tả chi tiết (Ảnh 2)
                     let isNoteMatch = false;
                     if (keyword) {
-                        const rawNoteLower = rawNote.toLowerCase();
                         const noteNoTone = removeVietnameseTones(rawNote);
                         const goalNameLower = goalName ? goalName.toLowerCase() : '';
                         const goalNameNoTone = removeVietnameseTones(goalName);
@@ -387,6 +461,7 @@
                                 <div class="flex items-center gap-1.5 min-w-0 flex-1">
                                     <span class="font-bold text-slate-800 text-[13px] truncate">${cName}</span>
                                     ${isDeletedGoal ? '<span class="shrink-0 text-[9px] bg-rose-100 text-rose-600 px-1.5 py-0.2 rounded font-bold whitespace-nowrap">Đã xoá</span>' : ''}
+                                    ${isRefund ? '<span class="shrink-0 text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">💰 Hoàn về ví</span>' : ''}
                                 </div>
                                 <div class="flex items-center gap-1.5 shrink-0">
                                     <div class="font-extrabold text-sm whitespace-nowrap text-right ${isDeletedGoal ? 'text-slate-400 line-through' : (isChi ? 'text-rose-600' : 'text-emerald-600')}">
@@ -733,224 +808,76 @@
             }
 
             /* ==========================================================================
-               TRA CỨU LỊCH SỬ KẾT CHUYỂN HẠN MỨC GIỮA CÁC THÁNG
+               TRA CỨU THÔNG TIN HOÀN TIỀN VỀ VÍ CHÍNH TỰ ĐỘNG
                ========================================================================== */
-            var currentLookupMainTab = 'txs';
-            var allRollovers = [];
+            var allRefunds = [];
 
-            function setLookupMainTab(tab) {
-                currentLookupMainTab = tab;
-                const btnTxs = document.getElementById('lookup-main-tab-txs');
-                const btnRollover = document.getElementById('lookup-main-tab-rollover');
-                const viewTxs = document.getElementById('lookup-view-txs');
-                const viewRollover = document.getElementById('lookup-view-rollover');
-
-                const activeClass = "flex-1 py-1.5 rounded-xl bg-white text-teal-700 shadow-sm transition flex items-center justify-center gap-1.5 font-bold text-xs";
-                const inactiveClass = "flex-1 py-1.5 rounded-xl text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5 font-medium text-xs";
-
-                if (tab === 'txs') {
-                    if (btnTxs) btnTxs.className = activeClass;
-                    if (btnRollover) btnRollover.className = inactiveClass;
-                    if (viewTxs) viewTxs.classList.remove('hidden');
-                    if (viewRollover) viewRollover.classList.add('hidden');
-                    applyLookupFilter();
-                } else {
-                    if (btnTxs) btnTxs.className = inactiveClass;
-                    if (btnRollover) btnRollover.className = activeClass;
-                    if (viewTxs) viewTxs.classList.add('hidden');
-                    if (viewRollover) viewRollover.classList.remove('hidden');
-                    loadRolloverData();
-                }
-            }
-
-            async function loadRolloverData() {
+            async function loadRefundHistory() {
                 if (!token) return;
                 try {
                     const res = await fetch('/api/ngan-sach/ket-chuyen', {
                         headers: {'Authorization': 'Bearer ' + token}
                     });
                     if (res.ok) {
-                        allRollovers = await res.json();
-                        populateRolloverCatDropdown();
-                        applyRolloverFilter();
+                        allRefunds = await res.json();
+                        renderRefundHistory(allRefunds);
                     }
                 } catch (e) {
-                    console.error("Lỗi tải lịch sử kết chuyển:", e);
+                    console.error("Lỗi tải lịch sử hoàn tiền:", e);
                 }
             }
 
-            function populateRolloverCatDropdown() {
-                const selectEl = document.getElementById('rollover-cat-filter');
-                if (!selectEl) return;
-                const curVal = selectEl.value;
-                selectEl.innerHTML = `<option value="all">Tất cả hũ chi tiêu</option>`;
-                const chiCats = allCategories.filter(c => (c.type === 'chi' || c.loai_dm === 'chi') && c.name !== 'Tiết kiệm');
-                chiCats.forEach(c => {
-                    const cId = c.id || c.ma_dm;
-                    selectEl.innerHTML += `<option value="${cId}">🏺 ${c.name || c.ten_dm}</option>`;
-                });
-                if (curVal) selectEl.value = curVal;
-            }
+            function renderRefundHistory(items) {
+                const list = document.getElementById('refund-history-list');
+                const badge = document.getElementById('refund-history-badge');
+                if (!list) return;
 
-            function setRolloverMonthPreset(preset) {
-                const monthEl = document.getElementById('rollover-month');
-                const now = new Date();
-                const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                
-                let prevM = now.getMonth();
-                let prevY = now.getFullYear();
-                if (prevM === 0) {
-                    prevM = 12;
-                    prevY -= 1;
-                }
-                const prevYM = `${prevY}-${String(prevM).padStart(2, '0')}`;
-
-                if (preset === 'all') {
-                    if (monthEl) monthEl.value = '';
-                } else if (preset === 'current') {
-                    if (monthEl) monthEl.value = curYM;
-                } else if (preset === 'prev') {
-                    if (monthEl) monthEl.value = prevYM;
-                }
-
-                updateRolloverMonthPresets();
-                applyRolloverFilter();
-            }
-
-            function updateRolloverMonthPresets() {
-                const monthEl = document.getElementById('rollover-month');
-                const curVal = monthEl ? monthEl.value : '';
-                const now = new Date();
-                const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                
-                let prevM = now.getMonth();
-                let prevY = now.getFullYear();
-                if (prevM === 0) {
-                    prevM = 12;
-                    prevY -= 1;
-                }
-                const prevYM = `${prevY}-${String(prevM).padStart(2, '0')}`;
-
-                const bAll = document.getElementById('ro-preset-all');
-                const bCur = document.getElementById('ro-preset-current');
-                const bPrev = document.getElementById('ro-preset-prev');
-
-                const active = "px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200/70 transition shadow-2xs";
-                const inactive = "px-2 py-0.5 rounded-md text-[10px] font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition";
-
-                if (bAll) bAll.className = (!curVal ? active : inactive);
-                if (bCur) bCur.className = (curVal === curYM ? active : inactive);
-                if (bPrev) bPrev.className = (curVal === prevYM ? active : inactive);
-            }
-
-            function formatMonthYearLabel(ym) {
-                if (!ym) return '';
-                const parts = ym.split('-');
-                if (parts.length === 2) return `Tháng ${parseInt(parts[1], 10)}/${parts[0]}`;
-                return ym;
-            }
-
-            function applyRolloverFilter() {
-                updateRolloverMonthPresets();
-                const monthEl = document.getElementById('rollover-month');
-                const catEl = document.getElementById('rollover-cat-filter');
-                const filterMonth = monthEl ? monthEl.value : '';
-                const filterCat = catEl ? catEl.value : 'all';
-
-                let list = [...allRollovers];
-                if (filterMonth) {
-                    list = list.filter(r => (r.thang_nguon === filterMonth || r.thang_dich === filterMonth));
-                }
-                if (filterCat !== 'all') {
-                    list = list.filter(r => String(r.ma_dm) === String(filterCat));
-                }
-
-                const countEl = document.getElementById('rollover-count-label');
-                const totalEl = document.getElementById('rollover-total-transferred');
-                const container = document.getElementById('rollover-list');
-
-                const totalTransferred = list.reduce((sum, r) => sum + (parseFloat(r.so_tien_chuyen) || 0), 0);
-                if (countEl) countEl.innerText = `${list.length} lượt kết chuyển hạn mức`;
-                if (totalEl) totalEl.innerText = `Tổng số dư chuyển: +${totalTransferred.toLocaleString()} đ`;
-
-                if (!container) return;
-                if (list.length === 0) {
-                    container.innerHTML = `
-                        <div class="bg-white p-6 rounded-2xl border text-center space-y-2 text-slate-400">
-                            <span class="text-3xl block">📭</span>
-                            <p class="text-xs font-medium">Chưa có lịch sử kết chuyển hạn mức nào${filterMonth ? ` trong ${formatMonthYearLabel(filterMonth)}` : ''}.</p>
-                            <p class="text-[10px] text-slate-400">Khi kết thúc tháng, các khoản hạn mức chưa dùng hết sẽ được tự động cộng sang tháng sau.</p>
-                        </div>
-                    `;
+                if (!items || items.length === 0) {
+                    list.innerHTML = `<p class="text-[10px] text-slate-400 py-1 text-center">Chưa có khoản tiền nào từ hũ cần hoàn trả về ví chính.</p>`;
+                    if (badge) badge.innerText = '0';
                     return;
                 }
 
-                container.innerHTML = list.map(r => {
-                    const srcLabel = formatMonthYearLabel(r.thang_nguon);
-                    const destLabel = formatMonthYearLabel(r.thang_dich);
-                    const prevLimit = parseFloat(r.han_muc_thang_truoc || 0);
-                    const prevSpent = parseFloat(r.da_chi_thang_truoc || 0);
-                    const transferred = parseFloat(r.so_tien_chuyen || 0);
-                    const spentPct = prevLimit > 0 ? Math.round((prevSpent / prevLimit) * 100) : 0;
+                if (badge) badge.innerText = items.length;
 
-                    let dStr = '';
-                    if (r.ngay_tao) {
-                        try {
-                            const d = new Date(String(r.ngay_tao).replace(' ', 'T'));
-                            if (!isNaN(d.getTime())) {
-                                dStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                            }
-                        } catch(e) {}
-                    }
+                list.innerHTML = items.map(item => {
+                    const hName = item.ten_dm || "Hũ chi tiêu";
+                    const amt = Number(item.so_tien_chuyen || 0);
+                    const spent = Number(item.da_chi_thang_truoc || 0);
+                    const limit = Number(item.han_muc_thang_truoc || 0);
+                    const fromMonth = item.thang_nguon ? item.thang_nguon.split('-')[1] + '/' + item.thang_nguon.split('-')[0] : '';
+                    const dateFormatted = formatCompactTxDate(item.ngay_tao);
 
                     return `
-                        <div class="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2.5 hover:border-teal-500 hover:shadow-md transition">
-                            <!-- Hàng 1: Danh mục & Huy hiệu kết chuyển -->
-                            <div class="flex justify-between items-center gap-2">
-                                <span class="font-bold text-slate-800 text-[13px] truncate">🏺 ${r.ten_dm || 'Hũ chi tiêu'}</span>
-                                <span class="bg-teal-50 text-teal-700 border border-teal-200/80 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
-                                    🔄 Tự động kết chuyển
-                                </span>
+                        <div class="flex items-center justify-between bg-white p-2.5 rounded-xl border border-teal-100 shadow-2xs gap-2">
+                            <div class="min-w-0">
+                                <div class="font-bold text-slate-800 truncate text-[11px]">🏺 ${hName} <span class="text-teal-600 font-semibold">(Tháng ${fromMonth})</span></div>
+                                <div class="text-[10px] text-slate-400">Đã dùng: <strong>${spent.toLocaleString()} / ${limit.toLocaleString()} đ</strong> • ${dateFormatted}</div>
                             </div>
-
-                            <!-- Tuyến chuyển giao tháng -->
-                            <div class="flex items-center gap-1.5 text-xs bg-slate-50 p-2 rounded-xl border border-slate-100 font-semibold text-slate-700">
-                                <span class="text-slate-500 text-[11px]">Từ:</span>
-                                <span class="bg-white px-2 py-0.5 rounded-md border text-slate-800 text-[11px] font-bold shadow-2xs">${srcLabel}</span>
-                                <span class="text-teal-600 font-extrabold text-sm">➔</span>
-                                <span class="text-slate-500 text-[11px]">Sang:</span>
-                                <span class="bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200 text-teal-700 text-[11px] font-bold shadow-2xs">${destLabel}</span>
-                            </div>
-
-                            <!-- Lưới 3 thông số chi tiết -->
-                            <div class="grid grid-cols-3 gap-1.5 text-center text-[10px] bg-slate-50/60 p-2 rounded-xl border border-slate-100">
-                                <div>
-                                    <div class="text-slate-400 font-medium">${srcLabel}</div>
-                                    <div class="font-semibold text-slate-700 mt-0.5 truncate" title="${prevLimit.toLocaleString()} đ">${prevLimit.toLocaleString()} đ</div>
-                                </div>
-                                <div class="border-x border-slate-200/60">
-                                    <div class="text-slate-400 font-medium">Đã dùng (${spentPct}%)</div>
-                                    <div class="font-semibold text-rose-600 mt-0.5 truncate" title="${prevSpent.toLocaleString()} đ">${prevSpent.toLocaleString()} đ</div>
-                                </div>
-                                <div>
-                                    <div class="text-slate-400 font-medium">Chuyển sang tiếp tục tiêu</div>
-                                    <div class="font-bold text-teal-600 mt-0.5 truncate text-[11px]" title="+${transferred.toLocaleString()} đ">+${transferred.toLocaleString()} đ</div>
-                                </div>
-                            </div>
-
-                            <!-- Hàng chân: Ngày giờ & Ghi chú -->
-                            <div class="flex justify-between items-center text-[10px] text-slate-400 pt-0.5 border-t border-slate-100">
-                                <span>🗓️ ${dStr || 'Ngày đầu tháng'}</span>
-                                <span class="text-slate-500 italic max-w-[60%] truncate" title="${r.ghi_chu || ''}">
-                                    ${r.ghi_chu || 'Số dư chưa dùng hết chuyển sang tiếp tục sử dụng'}
-                                </span>
+                            <div class="text-right shrink-0">
+                                <span class="font-extrabold text-emerald-600 text-xs">+${amt.toLocaleString()} đ</span>
+                                <div class="text-[9px] text-teal-600 font-semibold">Đã hoàn về ví</div>
                             </div>
                         </div>
                     `;
                 }).join('');
             }
 
-            // Tự động khởi tạo ô ngày lọc theo ngày thực tế hôm nay
+            function toggleRefundHistoryDetails() {
+                const content = document.getElementById('refund-history-content');
+                const arrow = document.getElementById('refund-history-arrow');
+                if (!content) return;
+                const isHidden = content.classList.contains('hidden');
+                if (isHidden) {
+                    content.classList.remove('hidden');
+                    if (arrow) arrow.innerText = '▴ Thu gọn';
+                } else {
+                    content.classList.add('hidden');
+                    if (arrow) arrow.innerText = '▾ Xem chi tiết';
+                }
+            }
+
+            // Tự động khởi tạo ô ngày lọc khi mở trang tra cứu (mặc định hiển thị TẤT CẢ)
             if (typeof document !== 'undefined') {
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', initLookupDateInput);

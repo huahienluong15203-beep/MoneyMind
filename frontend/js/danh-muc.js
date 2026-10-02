@@ -45,6 +45,45 @@
             }
 
 
+            function handleEditLimitChange(val) {
+                const type = document.getElementById('modal-edit-type')?.value;
+                const diffBox = document.getElementById('modal-edit-diff-box');
+                const submitBtn = document.getElementById('btn-submit-edit-cat');
+                if (!diffBox || type !== 'chi') {
+                    if (diffBox) diffBox.classList.add('hidden');
+                    return;
+                }
+                const oldLimit = parseFloat(document.getElementById('modal-edit-old-limit')?.value) || 0;
+                const rawVal = String(val || '').replace(/[^0-9]/g, '');
+                const newLimit = parseFloat(rawVal) || 0;
+                const curBalance = parseFloat((document.getElementById('so-du')?.innerText || '0').replace(/[^\d]/g, '')) || 0;
+                const diff = newLimit - oldLimit;
+
+                diffBox.classList.remove('hidden');
+                if (diff > 0) {
+                    if (diff > curBalance) {
+                        diffBox.className = "mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-rose-50 border border-rose-200 text-rose-700 leading-snug";
+                        diffBox.innerHTML = `⚠️ <strong>Cần trích thêm: +${diff.toLocaleString()} đ</strong> từ ví chính.<br><span class="text-rose-600 font-bold">Số dư ví (${curBalance.toLocaleString()} đ) không đủ để trích!</span>`;
+                        if (submitBtn) submitBtn.disabled = true;
+                    } else {
+                        const remBal = curBalance - diff;
+                        diffBox.className = "mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-teal-50 border border-teal-200 text-teal-800 leading-snug";
+                        diffBox.innerHTML = `📤 <strong>Trích thêm từ ví chính: +${diff.toLocaleString()} đ</strong><br><span class="text-slate-500">Số dư ví sau khi trích: <strong class="text-teal-700">${remBal.toLocaleString()} đ</strong></span>`;
+                        if (submitBtn) submitBtn.disabled = false;
+                    }
+                } else if (diff < 0) {
+                    const refund = Math.abs(diff);
+                    const newBal = curBalance + refund;
+                    diffBox.className = "mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-800 leading-snug";
+                    diffBox.innerHTML = `💰 <strong>Hoàn trả về ví chính: +${refund.toLocaleString()} đ</strong><br><span class="text-slate-500">Số dư ví sau khi hoàn: <strong class="text-emerald-700">${newBal.toLocaleString()} đ</strong></span>`;
+                    if (submitBtn) submitBtn.disabled = false;
+                } else {
+                    diffBox.className = "mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-slate-100 border border-slate-200 text-slate-600 leading-snug";
+                    diffBox.innerHTML = `ℹ️ <strong>Giữ nguyên hạn mức (${oldLimit.toLocaleString()} đ)</strong>. Số dư ví chính không đổi.`;
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+            }
+
             function openEditCategoryModal(id, name, type, limit) {
                 // Tính toán chính xác tổng số tiền đã chi tiêu trong tháng hiện tại của danh mục này
                 const now = new Date();
@@ -61,7 +100,17 @@
                 document.getElementById('modal-edit-cat-id').value = id;
                 document.getElementById('modal-edit-name').value = name;
                 document.getElementById('modal-edit-type').value = type;
-                document.getElementById('modal-edit-limit').value = limit;
+                const oldLimitVal = (limit && limit > 0) ? limit : 0;
+                const oldLimitInput = document.getElementById('modal-edit-old-limit');
+                if (oldLimitInput) oldLimitInput.value = oldLimitVal;
+
+                const curLimitValEl = document.getElementById('modal-edit-current-limit-val');
+                if (curLimitValEl) curLimitValEl.innerText = oldLimitVal > 0 ? `${oldLimitVal.toLocaleString()} đ` : 'Chưa đặt';
+
+                const limitInput = document.getElementById('modal-edit-limit');
+                if (limitInput) {
+                    limitInput.value = (limit && limit > 0) ? limit : '';
+                }
                 document.getElementById('modal-edit-spent').value = spent;
 
                 const hintEl = document.getElementById('modal-edit-spent-hint');
@@ -74,19 +123,15 @@
                     }
                 }
 
-                const noteEl = document.getElementById('modal-edit-wallet-note');
-                if (noteEl) {
-                    if (type === 'chi') {
-                        const curBalance = parseFloat((document.getElementById('so-du')?.innerText || '0').replace(/[^\d]/g, '')) || 0;
-                        noteEl.innerHTML = `💡 <em>Nâng hạn mức sẽ trích thêm từ ví chính; giảm hạn mức sẽ hoàn lại vào ví chính (Số dư ví hiện tại: <strong>${curBalance.toLocaleString()} đ</strong>).</em>`;
-                        noteEl.classList.remove('hidden');
-                    } else {
-                        noteEl.classList.add('hidden');
-                    }
-                }
-
                 toggleModalEditLimit();
+                handleEditLimitChange(limitInput ? limitInput.value : '');
                 document.getElementById('edit-category-modal').classList.remove('hidden');
+                setTimeout(() => {
+                    if (limitInput && type === 'chi') {
+                        limitInput.focus();
+                        limitInput.select();
+                    }
+                }, 100);
             }
 
             function closeEditCategoryModal() {
@@ -130,10 +175,24 @@
                         loadNotifications();
                     }
                     if (data && data.diff > 0) {
-                        showCustomModal("Tăng hạn mức thành công", `Đã tăng hạn mức hũ "${name}" lên ${limit.toLocaleString()} đ (đã trích thêm ${data.diff.toLocaleString()} đ từ ví chính vào hũ)!`, "📤");
+                        const oldLimit = data.old_limit || 0;
+                        if (data.is_new_allocation || oldLimit === 0) {
+                            showCustomModal("Cấp hạn mức thành công", `Đã cấp hạn mức cho hũ "${name}": ${limit.toLocaleString()} đ (đã trích ${data.diff.toLocaleString()} đ từ ví chính vào hũ)!`, "✨");
+                        } else {
+                            showCustomModal(
+                                "Tăng hạn mức thành công",
+                                `Hũ "${name}":\n• Hạn mức cũ: ${oldLimit.toLocaleString()} đ\n• Hạn mức mới: ${limit.toLocaleString()} đ\n➔ Đã trích thêm ${data.diff.toLocaleString()} đ từ ví chính vào hũ!`,
+                                "📤"
+                            );
+                        }
                     } else if (data && data.diff < 0) {
                         const refund = Math.abs(data.diff);
-                        showCustomModal("Hoàn tiền thành công", `Đã giảm hạn mức hũ "${name}" còn ${limit.toLocaleString()} đ (đã hoàn trả ${refund.toLocaleString()} đ về ví chính)!`, "💰");
+                        const oldLimit = data.old_limit || 0;
+                        showCustomModal(
+                            "Hoàn tiền thành công",
+                            `Hũ "${name}":\n• Hạn mức cũ: ${oldLimit.toLocaleString()} đ\n• Hạn mức mới: ${limit.toLocaleString()} đ\n➔ Đã hoàn trả ${refund.toLocaleString()} đ về ví chính!`,
+                            "💰"
+                        );
                     } else {
                         showCustomModal("Thành công", `Đã cập nhật danh mục "${name}"!`, "✅");
                     }
@@ -145,17 +204,50 @@
 
 
             async function loadCategories() {
-                const res = await fetch('/danh-muc', {headers: {'Authorization': 'Bearer ' + token}});
+                if (!token) return;
+                let res = await fetch('/api/danh-muc', {headers: {'Authorization': 'Bearer ' + token}});
+                if(!res.ok) {
+                    res = await fetch('/danh-muc', {headers: {'Authorization': 'Bearer ' + token}});
+                }
                 if(res.ok) {
-                    allCategories = await res.json();
-                    if(allCategories.length === 0) {
-                        await fetch('/danh-muc', {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token}, body: JSON.stringify({name: "Ăn uống", type: "chi", budget_limit: 0})});
-                        await fetch('/danh-muc', {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token}, body: JSON.stringify({name: "Tiền lương", type: "thu", budget_limit: 0})});
-                        await loadCategories();
-                        return;
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        allCategories = data.map(c => ({
+                            ...c,
+                            id: c.id || c.ma_dm,
+                            ma_dm: c.ma_dm || c.id,
+                            name: c.name || c.ten_dm,
+                            ten_dm: c.ten_dm || c.name,
+                            type: c.type || c.loai_dm,
+                            loai_dm: c.loai_dm || c.type,
+                            budget_limit: (c.budget_limit !== undefined) ? Number(c.budget_limit) : Number(c.han_muc || 0),
+                            han_muc: (c.han_muc !== undefined) ? Number(c.han_muc) : Number(c.budget_limit || 0)
+                        }));
+
+                        if(allCategories.length === 0) {
+                            const defaultCats = [
+                                {name: "Ăn uống", type: "chi", budget_limit: 0},
+                                {name: "Đi lại", type: "chi", budget_limit: 0},
+                                {name: "Mua sắm", type: "chi", budget_limit: 0},
+                                {name: "Sinh hoạt", type: "chi", budget_limit: 0},
+                                {name: "Học tập & Phát triển", type: "chi", budget_limit: 0},
+                                {name: "Tiền lương", type: "thu", budget_limit: 0}
+                            ];
+                            for (const dc of defaultCats) {
+                                await fetch('/danh-muc', {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+                                    body: JSON.stringify(dc)
+                                }).catch(() => {});
+                            }
+                            await loadCategories();
+                            return;
+                        }
+
+                        renderJarsProgressList();
+                        renderCategoriesCrudList();
+                        if (typeof updateTongTrongHu === 'function') updateTongTrongHu();
                     }
-                    renderJarsProgressList();
-                    renderCategoriesCrudList();
                 }
             }
 
@@ -181,6 +273,43 @@
             }
 
 
+            function toggleAddCategoryForm(show) {
+                const box = document.getElementById('box-add-category-form');
+                const btnText = document.getElementById('btn-toggle-add-cat-text');
+                if (!box) return;
+                const isCurrentlyHidden = box.classList.contains('hidden');
+                const shouldOpen = typeof show === 'boolean' ? show : isCurrentlyHidden;
+
+                if (shouldOpen) {
+                    box.classList.remove('hidden');
+                    if (btnText) btnText.innerText = "✕ Đóng";
+                    const nameInput = document.getElementById('cat-name-input');
+                    if (nameInput) {
+                        nameInput.value = '';
+                        setTimeout(() => nameInput.focus(), 100);
+                    }
+                    const limitInput = document.getElementById('cat-limit-input');
+                    if (limitInput) limitInput.value = '';
+                    setCategoryTabType('chi');
+                } else {
+                    box.classList.add('hidden');
+                    if (btnText) btnText.innerText = "+ Thêm danh mục";
+                }
+            }
+            window.toggleAddCategoryForm = toggleAddCategoryForm;
+            window.openAddCategoryModal = openAddCategoryModal;
+
+            function openAddCategoryModal() {
+                toggleAddCategoryForm(true);
+            }
+
+            function closeAddCategoryModal() {
+                toggleAddCategoryForm(false);
+                const modal = document.getElementById('add-category-modal');
+                if (modal) modal.classList.add('hidden');
+            }
+
+
             async function saveCategoryCrud() {
                 const name = document.getElementById('cat-name-input').value.trim();
                 const type = document.getElementById('cat-type-input').value;
@@ -199,6 +328,7 @@
                 });
 
                 if(res.ok) {
+                    closeAddCategoryModal();
                     document.getElementById('cat-name-input').value = "";
                     document.getElementById('cat-limit-input').value = "";
                     setCategoryTabType(type);

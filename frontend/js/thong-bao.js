@@ -71,7 +71,10 @@
                     if(loadMoreWrapper) loadMoreWrapper.classList.add('hidden');
                     if(countBadge) countBadge.innerText = "0 thông báo";
                     const topBadge = document.getElementById('top-notif-badge');
-                    if(topBadge) topBadge.classList.add('hidden');
+                    if(topBadge) {
+                        topBadge.classList.add('hidden');
+                        topBadge.style.display = 'none';
+                    }
                     return;
                 }
 
@@ -88,8 +91,10 @@
                     if(unreadCount > 0) {
                         topBadge.innerText = unreadCount > 99 ? '99+' : unreadCount;
                         topBadge.classList.remove('hidden');
+                        topBadge.style.display = 'flex';
                     } else {
                         topBadge.classList.add('hidden');
+                        topBadge.style.display = 'none';
                     }
                 }
 
