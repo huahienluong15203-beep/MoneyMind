@@ -456,6 +456,19 @@
                         <button onclick="toggleAiModal()" class="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-600 transition">✕</button>
                     </div>
 
+                    <!-- TAB ĐIỀU HƯỚNG: TRÒ CHUYỆN vs NHẬT KÝ THEO NGÀY -->
+                    <div class="flex items-center gap-2 my-2.5 p-1 bg-slate-100 rounded-2xl shrink-0">
+                        <button id="ai-tab-btn-chat" onclick="switchAiTab('chat')" class="flex-1 py-1.5 px-3 rounded-xl text-xs font-bold text-teal-700 bg-white shadow-xs transition flex items-center justify-center gap-1.5">
+                            <span>💬</span>
+                            <span>Trò chuyện</span>
+                        </button>
+                        <button id="ai-tab-btn-logs" onclick="switchAiTab('logs')" class="flex-1 py-1.5 px-3 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 transition flex items-center justify-center gap-1.5">
+                            <span>📜</span>
+                            <span>Nhật ký theo ngày</span>
+                            <span id="ai-logs-badge" class="hidden min-w-[16px] h-4 bg-teal-500 text-white text-[9px] font-bold rounded-full px-1 flex items-center justify-center"></span>
+                        </button>
+                    </div>
+
                     <!-- NFR-04: BADGE CAM KẾT ẨN DANH HÓA DỮ LIỆU (ẨN THEO YÊU CẦU) -->
                     <div class="hidden my-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 shadow-sm">
                         <span class="text-xs">🔒</span>
@@ -498,6 +511,33 @@
                         <div class="flex gap-2 pt-1">
                             <input type="text" id="ai-input" placeholder="Nhập: 'Ăn bánh mì 20k', 'Đổ xăng 50k' hoặc hỏi AI..." class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:border-teal-500 transition" onkeypress="if(event.key==='Enter') sendAiMessage()">
                             <button id="ai-send-btn" onclick="sendAiMessage()" class="px-5 py-2.5 bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold rounded-xl shadow-md transition">Gửi</button>
+                        </div>
+                    </div>
+
+                    <!-- VIEW 2: NHẬT KÝ TƯƠNG TÁC AI THEO NGÀY -->
+                    <div id="ai-view-logs" class="hidden flex-1 flex flex-col overflow-hidden">
+                        <!-- BỘ LỌC TÌM KIẾM & NGÀY -->
+                        <div class="space-y-2 pb-2 shrink-0 border-b border-slate-100">
+                            <div class="flex gap-2 items-center">
+                                <div class="relative flex-1">
+                                    <span class="absolute left-3 top-2.5 text-xs text-slate-400">🔍</span>
+                                    <input type="text" id="ai-logs-search" placeholder="Tìm kiếm câu hỏi, câu trả lời, món ăn..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500 transition" oninput="debounceAiLogSearch()">
+                                </div>
+                                <input type="date" id="ai-logs-date-filter" class="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 focus:outline-none focus:border-teal-500" onchange="filterAiLogsByDate()">
+                                <button onclick="clearAllAiLogs()" title="Xóa toàn bộ nhật ký" class="p-2 text-rose-500 hover:bg-rose-50 rounded-xl border border-rose-200 transition shrink-0 text-xs font-bold">🗑️</button>
+                            </div>
+                            <!-- QUICK PILLS -->
+                            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[11px]">
+                                <button onclick="setAiLogQuickFilter('all')" id="pill-filter-all" class="px-2.5 py-1 bg-teal-50 text-teal-700 font-bold rounded-lg border border-teal-200 transition">Tất cả</button>
+                                <button onclick="setAiLogQuickFilter('today')" id="pill-filter-today" class="px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition">Hôm nay</button>
+                                <button onclick="setAiLogQuickFilter('yesterday')" id="pill-filter-yesterday" class="px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition">Hôm qua</button>
+                                <button onclick="refreshAiLogs()" class="ml-auto px-2 py-1 text-slate-400 hover:text-teal-600 transition flex items-center gap-1 font-medium">🔄 Làm mới</button>
+                            </div>
+                        </div>
+
+                        <!-- DANH SÁCH NHẬT KÝ GOM THEO TỪNG NGÀY -->
+                        <div id="ai-logs-container" class="flex-1 overflow-y-auto space-y-3.5 pr-1 text-xs no-scrollbar pt-2">
+                            <!-- Render dynamically -->
                         </div>
                     </div>
                 </div>

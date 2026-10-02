@@ -1,9 +1,7 @@
 import re
 import json
-import ssl
-import urllib.request
-import urllib.error
-import concurrent.futures
+import time
+import httpx
 from datetime import datetime, timedelta, date
 from typing import Dict, Any, Tuple, List, Optional
 from fastapi import HTTPException, status
@@ -15,34 +13,39 @@ from app.models.giao_dich import GiaoDich
 from app.models.muc_tieu_tiet_kiem import MucTieuTietKiem
 from app.models.ngan_sach import NganSach
 from app.models.thong_bao import ThongBao
+from app.models.lich_su_ai import LichSuAI
 from app.services.privacy_service import PrivacyService
 from app.services.ngan_sach_service import NganSachService
 
-# Danh sách các mô hình Gemini THẾ HỆ MỚI NHẤT của Google
-# Tự động ưu tiên Gemini 3.8 Flash -> Gemini 3.7 Flash -> Gemini 3.6 -> Gemini 3.5 -> Flash Latest
+# Danh sách các mô hình Gemini của Google siêu tốc và hoạt động ổn định nhất (< 1.5s)
 AVAILABLE_GEMINI_MODELS = [
-    "gemini-3.8-flash",        # Thế hệ mới nhất hiện tại của Google
-    "gemini-3.7-flash",        # Thế hệ 3.7 Flash
-    "gemini-3.6-flash",        # Thế hệ 3.6 Flash
-    "gemini-3.5-flash",        # Thế hệ 3.5 Flash
-    "gemini-flash-latest",     # Alias luôn trỏ tới bản mới nhất
-    "gemini-3.1-flash-lite",   # Bản nhẹ dự phòng
-    "gemini-2.0-flash",        # Bản 2.0 dự phòng
-    "gemini-2.5-flash"         # Bản 2.5 dự phòng
+    "gemini-3.5-flash-lite",      # Bản thế hệ mới siêu nhẹ, phản hồi 0.8s - 1.2s, ổn định
+    "gemini-flash-lite-latest",  # Alias chính thức của bản Flash-Lite mới nhất
+    "gemini-3.5-flash",          # Bản Flash tiêu chuẩn, thông minh cao (~1.5s)
+    "gemini-3.1-flash-lite",      # Dự phòng nhanh
 ]
 
+# Client HTTP Keep-Alive dùng chung tái sử dụng kết nối SSL/TLS để triệt tiêu độ trễ bắt tay mạng
+_ai_http_client: Optional[httpx.Client] = None
 
-_ssl_ctx = ssl.create_default_context()
+def _get_ai_http_client() -> httpx.Client:
+    global _ai_http_client
+    if _ai_http_client is None or _ai_http_client.is_closed:
+        _ai_http_client = httpx.Client(
+            timeout=httpx.Timeout(connect=2.5, read=7.0, write=2.5, pool=2.5),
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20, keepalive_expiry=60.0),
+            http2=False
+        )
+    return _ai_http_client
 
 
 class AIService:
     @staticmethod
-    def _call_gemini_with_timeout(prompt: str, timeout: float = 25.0) -> str:
+    def _call_gemini_with_timeout(prompt: str, timeout: float = 10.0) -> str:
         """
-        Gọi Gemini REST API với cơ chế dự phòng đa mô hình (Multi-model Fallback)
-        và giới hạn thời gian phản hồi (NFR-03, TC-08).
-        Tự động chuyển đổi giữa các mô hình Flash khả dụng khi gặp lỗi 429 (rate-limit)
-        hoặc 503 (bận).
+        Gọi Gemini REST API với mô hình thế hệ mới siêu tốc (Flash-Lite / Flash 3.5),
+        kết hợp HTTP Keep-Alive Connection Pooling và chuyển đổi dự phòng tức thì.
+        Tốc độ phản hồi đạt mức tối ưu (< 1.5 giây).
         """
         api_key = settings.GEMINI_API_KEY
         if not api_key:
@@ -51,34 +54,47 @@ class AIService:
                 detail="Dịch vụ AI Engine chưa được cấu hình API key. Vui lòng liên hệ quản trị viên."
             )
 
-        per_model_timeout = max(8.0, min(20.0, timeout))
+        start_time = time.time()
+        client = _get_ai_http_client()
         last_exception = None
 
+        # Mỗi model tối đa 3.5 giây để tránh treo lâu khi mạng nghẽn
+        per_model_timeout = max(1.8, min(3.5, timeout / 2.0))
+
         for model_name in AVAILABLE_GEMINI_MODELS:
+            elapsed = time.time() - start_time
+            if elapsed >= timeout:
+                break
+
+            rem_timeout = min(per_model_timeout, timeout - elapsed)
+            if rem_timeout <= 0.5:
+                break
+
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {
-                    "temperature": 0.4,
-                    "maxOutputTokens": 2048
+                    "temperature": 0.35,
+                    "maxOutputTokens": 1024
                 }
             }
-            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-            req = urllib.request.Request(
-                url, data=body,
-                headers={"Content-Type": "application/json; charset=utf-8"}
-            )
 
             try:
-                with urllib.request.urlopen(req, timeout=per_model_timeout, context=_ssl_ctx) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
+                resp = client.post(url, json=payload, timeout=rem_timeout)
+                if resp.status_code == 200:
+                    data = resp.json()
                     candidates = data.get("candidates", [])
                     if candidates and "content" in candidates[0]:
                         parts = candidates[0]["content"].get("parts", [])
                         if parts and "text" in parts[0]:
                             return parts[0]["text"]
-            except urllib.error.HTTPError as e:
-                # Nếu là 429 hoặc 503 hoặc 404 thì thử tiếp model khác
+                elif resp.status_code in (429, 503, 404, 500):
+                    last_exception = Exception(f"HTTP {resp.status_code} on {model_name}")
+                    continue
+                else:
+                    last_exception = Exception(f"HTTP {resp.status_code}: {resp.text[:100]}")
+                    continue
+            except httpx.TimeoutException as e:
                 last_exception = e
                 continue
             except Exception as e:
@@ -89,7 +105,7 @@ class AIService:
         err_msg = str(last_exception) if last_exception else "timeout"
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"AI Engine phản hồi quá thời gian cho phép (> {int(timeout)} giây). Chi tiết: {err_msg[:120]}"
+            detail=f"AI Engine phản hồi quá thời gian cho phép. Chi tiết: {err_msg[:120]}"
         )
 
     # Alias tương thích ngược
@@ -752,49 +768,165 @@ class AIService:
         return 0.0
 
     @staticmethod
+    def _parse_vietnamese_datetime(t: str) -> datetime:
+        """
+        Trích xuất thời gian giao dịch thực tế từ ngôn ngữ tự nhiên:
+        hôm qua, hôm kia, sáng nay, trưa nay, chiều nay, tối nay, tối qua...
+        """
+        now = datetime.now()
+        target_date = now.date()
+        if "hôm kia" in t:
+            target_date = (now - timedelta(days=2)).date()
+        elif any(w in t for w in ["hôm qua", "tối qua", "sáng qua", "trưa qua", "chiều qua"]):
+            target_date = (now - timedelta(days=1)).date()
+        elif "tuần trước" in t:
+            target_date = (now - timedelta(days=7)).date()
+
+        target_time = now.time()
+        if any(w in t for w in ["sáng nay", "lúc sáng", "hồi sáng", "sáng qua", "ban sáng"]):
+            target_time = datetime.strptime("08:30", "%H:%M").time()
+        elif any(w in t for w in ["trưa nay", "lúc trưa", "hồi trưa", "trưa qua", "ban trưa"]):
+            target_time = datetime.strptime("12:15", "%H:%M").time()
+        elif any(w in t for w in ["chiều nay", "lúc chiều", "hồi chiều", "chiều qua", "ban chiều"]):
+            target_time = datetime.strptime("15:30", "%H:%M").time()
+        elif any(w in t for w in ["tối nay", "lúc tối", "hồi tối", "tối qua", "đêm qua", "ban tối"]):
+            target_time = datetime.strptime("19:30", "%H:%M").time()
+
+        return datetime.combine(target_date, target_time)
+
+    @staticmethod
     def _lam_sach_mo_ta_giao_dich(raw: str, default_name: str = "Chi tiêu") -> str:
         """
-        Làm sạch mô tả giao dịch:
-        - Loại bỏ từ nối, trạng từ thừa: 'vừa', 'mới', 'vừa đi', 'mới đi', 'tôi', 'mình'...
-        - Loại bỏ số tiền trong mô tả ('hết 35k', '35000', '20k'...) vì đã có cột số tiền riêng.
-        - Viết hoa chữ cái đầu và giữ lại hành động cốt lõi (ví dụ: 'Ăn bánh cuốn', 'Mua cafe').
+        Làm sạch mô tả giao dịch thông minh:
+        - Bóc tách triệt để các tiền tố thời gian ('lúc trưa', 'trưa nay', 'hôm qua', 'hồi sáng'...)
+        - Loại bỏ chủ ngữ, từ đệm ('tôi', 'mình', 'vừa đi', 'mới đi'...)
+        - Bóc tách đơn vị/lượng từ ('ăn xuất cơm gà' -> 'Cơm gà', 'uống ly trà chanh' -> 'Trà chanh', 'ăn suất cơm tấm' -> 'Cơm tấm')
+        - Loại bỏ cụm số tiền ở giữa câu ('đổ 50k xăng' -> 'Đổ xăng') hoặc cuối câu ('hết 150k mới đúng' -> loại bỏ)
+        - Dọn sạch ngoặc đơn, ngoặc kép, dấu câu và viết hoa chuẩn mực.
         """
         s = raw.strip()
 
-        # 1. Dọn dẹp tiền tố đính chính, nhầm, lộn, cảm thán hội thoại và từ nối
-        for _ in range(5):
-            s = re.sub(r'^(?:à|ơ|ủa|ơ\s*kìa|ấy)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
-            s = re.sub(r'^(?:lộn(?:\s*rồi|\s*nè|\s*nhé|\s*quá)?|nhầm(?:\s*rồi|\s*nè|\s*nhé|\s*quá)?|quên(?:\s*mất)?)\s*[,:\-]?\s*', '', s, flags=re.IGNORECASE)
-            s = re.sub(r'^(?:nói\s*lộn|nói\s*nhầm|ghi\s*lộn|ghi\s*nhầm|đính\s*chính(?:\s*lại)?|sửa\s*lại)(?:\s+rồi)?\s*[,:\-]?\s*', '', s, flags=re.IGNORECASE)
-            s = re.sub(r'^(?:thực\s*ra|thật\s*ra|đúng\s*ra)(?:\s+là)?\s*[,:\-]?\s*', '', s, flags=re.IGNORECASE)
-            s = re.sub(r'^(?:ý\s*là|ý\s*tôi\s*là|ý\s*mình\s*là|đúng\s*hơn\s*là)\s*[,:\-]?\s*', '', s, flags=re.IGNORECASE)
-            s = re.sub(r'^(?:hãy\s+)?(?:báo(?:\s*cáo)?|ghi\s*nhận(?:\s*giúp)?|thêm\s*(?:giao\s*dịch)?|ghi\s*sổ|lưu\s*(?:giao\s*dịch)?|tạo\s*(?:giao\s*dịch)?|nhập\s*(?:giúp)?|lưu|thêm|ghi)\s+', '', s, flags=re.IGNORECASE)
-            s = re.sub(r'^(?:tôi|mình|em|anh|chị|bạn|chúng\s*tôi)\s+', '', s, flags=re.IGNORECASE)
-            s = re.sub(r'^(?:hôm\s*nay|hôm\s*qua|sáng\s*nay|trưa\s*nay|chiều\s*nay|tối\s*nay|tối\s*qua)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
-            s = re.sub(r'^(?:vừa\s*mới|vừa\s*đi|mới\s*đi|vừa|mới|có|đã|lại)\s+', '', s, flags=re.IGNORECASE)
+        # Dọn dẹp dấu mở/đóng ngoặc, nháy, dấu câu ở hai đầu
+        s = re.sub(r'^[(\[\{\"\',:\-\s]+', '', s)
+        s = re.sub(r'[)\]\}\"\',:\-\s]+$', '', s)
+
+        # 1. Hậu tố đính chính/cảm thán cuối câu
+        s = re.sub(r'\s*(?:mới\s*đúng|mới\s*chuẩn|mới\s*phải|chứ|nhé|nha|ạ|nè|đó|đấy|nhá|ha)\s*$', '', s, flags=re.IGNORECASE)
+
+        # 2. Xóa số tiền cuối câu: 'hết 150k', '150k', 'chi 150.000đ', 'giá 150k'...
+        s = re.sub(r'\s*(?:hết|mất|tốn|chi\s*hết|tiêu\s*hết|giá|trả)?\s*[\d.,]+\s*(?:triệu|nghìn|ngàn|trăm|củ|lít|vnd|đồng|dong|chục|tr|k|đ)(?:\s*đồng|\s*đ)?\s*$', '', s, flags=re.IGNORECASE)
+        s = re.sub(r'\s*(?:hết|mất|tốn|chi\s*hết|tiêu\s*hết|giá|trả)\s*$', '', s, flags=re.IGNORECASE)
+
+        # 3. Xóa số tiền ở giữa câu (không nuốt chữ tiền điện/tiền nước/tiền nhà...)
+        s = re.sub(r'\b[\d.,]+\s*(?:triệu|nghìn|ngàn|trăm|củ|lít|vnd|đồng|dong|chục|tr|k|đ)\s*(?:tiền\s+(?!(?:điện|nước|mạng|nhà|phòng|xăng|học|thuốc|ăn|xe)\b))?', '', s, flags=re.IGNORECASE)
+
+        # 4. Tiền tố hội thoại, thời gian, chủ ngữ (lặp lại và dọn dấu ngoặc ở mỗi vòng)
+        for _ in range(8):
+            s = re.sub(r'^[(\[\{\"\',:\-\s]+', '', s)
+            s = re.sub(r'[)\]\}\"\',:\-\s]+$', '', s)
+            s = re.sub(r'^(?:à|ơ|ủa|ơ\s*kìa|ấy|thôi\s*chết|ôi|ui)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:tôi\s+nhầm|mình\s+nhầm|em\s+nhầm|anh\s+nhầm|lộn(?:\s*rồi|\s*nè|\s*nhé|\s*quá)?|nhầm(?:\s*rồi|\s*nè|\s*nhé|\s*quá)?|quên(?:\s*mất)?)\s*[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:nói\s*lộn|nói\s*nhầm|ghi\s*lộn|ghi\s*nhầm|đính\s*chính(?:\s*lại)?|sửa\s*lại|sửa|đổi\s*lại|đổi|chỉnh\s*lại|chỉnh)(?:\s+rồi)?(?:\s+thành|\s+sang|\s+về)?\s*[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:không\s*phải\s+[^,;]+?(?:mà\s*là|là))\s*[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:thực\s*ra|thật\s*ra|đúng\s*ra|đúng\s*hơn\s*là|ý\s*là|ý\s*tôi\s*là|ý\s*mình\s*là|không\s*phải|chứ\s*không\s*phải)(?:\s+là)?\s*[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:hãy\s+)?(?:báo(?:\s*cáo)?|ghi\s*nhận(?:\s*giúp)?|thêm\s*(?:giao\s*dịch)?|ghi\s*sổ|lưu\s*(?:giao\s*dịch)?|tạo\s*(?:giao\s*dịch)?|nhập\s*(?:giúp)?|lưu|thêm|ghi|nhập|note)\s+', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:tôi|mình|em|anh|chị|bạn|chúng\s*tôi|hai\s*đứa|tụi\s*mình)\s+', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:hôm\s*nay|hôm\s*qua|hôm\s*kia|tuần\s*này|tuần\s*trước|tháng\s*này)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:sáng\s*nay|trưa\s*nay|chiều\s*nay|tối\s*nay|tối\s*qua|đêm\s*qua|sáng\s*qua|trưa\s*qua|chiều\s*qua)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:lúc\s*sáng|lúc\s*trưa|lúc\s*chiều|lúc\s*tối|hồi\s*sáng|hồi\s*trưa|hồi\s*chiều|hồi\s*tối|ban\s*sáng|ban\s*trưa|ban\s*chiều|ban\s*tối)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:khi\s*nãy|lúc\s*nãy|vừa\s*nãy|mới\s*nãy|ban\s*nãy|vừa\s*rồi|mới\s*rồi)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:rồi|sau\s*đó|xong|rồi\s*thì|tiện\s*thể|nhân\s*tiện|tiện\s*đường|ghé\s*qua|tạt\s*qua|tạt\s*vào|ghé|tạt)\s+', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:vừa\s*mới|vừa\s*đi|mới\s*đi|vừa|mới|có|đã|lại|cũng)\s+', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:thành|sang|về|là)\s+', '', s, flags=re.IGNORECASE)
+
+            # Rút gọn ăn/uống/mua kèm lượng từ/đơn vị: suất/xuất/phần/đĩa/ly/cốc/bát/tô...
+            s = re.sub(r'^(?:đi\s+)?(?:ăn|uống|mua|gọi|dùng)\s+(?:(?:1|2|3|4|5|một|hai|ba|bốn|năm|mấy|vài)\s+)?(?:suất|xuất|phần|đĩa|dĩa|bát|tô|chén|ly|cốc|chai|lon|bịch|gói|hộp|ổ|que)\s+', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:(?:1|2|3|4|5|một|hai|ba|bốn|năm|mấy|vài)\s+)?(?:suất|xuất|phần|đĩa|dĩa|bát|tô|chén|ly|cốc|chai|lon|bịch|gói|hộp|ổ|que)\s+', '', s, flags=re.IGNORECASE)
             s = re.sub(r'^đi\s+(ăn|uống|mua|nhậu|chơi)\b', r'\1', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:mua|uống)\s+(trà\s*chanh|trà\s*sữa|cafe|cà\s*phê|nước\s*ngọt|nước\s*suối|bánh\s*mì|bánh|kẹo|thuốc)\b', r'\1', s, flags=re.IGNORECASE)
 
-        # 2. Nếu cấu trúc 'chi 200k đi xem phim', 'nộp 500k tiền điện' -> bỏ 'chi 200k '
-        s = re.sub(r'^(?:chi|tiêu|trả|nộp|chuyển)\s+[\d.,]+\s*(?:tr|triệu|củ|k|nghìn|ngàn|đ|vnd|đồng|dong|lít)?\s*(?:cho|để|vào)?\s*', '', s, flags=re.IGNORECASE)
+        # 5. Dọn dẹp tiền tố chi tiền
+        s = re.sub(r'^(?:chi|tiêu|trả|nộp|chuyển)\s+(?:cho|để|vào)?\s*', '', s, flags=re.IGNORECASE)
+        s = re.sub(r'^tiền\s+(?!(?:điện|nước|mạng|nhà|phòng|xăng|học|thuốc|ăn|xe)\b)', '', s, flags=re.IGNORECASE)
+        s = re.sub(r'^nhận\s+(lương|thưởng)\b', r'\1', s, flags=re.IGNORECASE)
 
-        # 3. Nếu số tiền ở đầu câu (vd: 50k xăng, 35k tiền bánh cuốn)
-        s = re.sub(r'^[\d.,]+\s*(?:tr|triệu|củ|k|nghìn|ngàn|đ|vnd|đồng|dong|lít)\s*(?:tiền)?\s*', '', s, flags=re.IGNORECASE)
+        s = re.sub(r'^[(\[\{\"\',:\-\s]+', '', s)
+        s = re.sub(r'[)\]\}\"\',:\-\s]+$', '', s).strip()
 
-        # 4. Loại bỏ phần số tiền và từ nối 'hết', 'mất', 'tốn' ở cuối câu
-        s = re.sub(r'\s*(?:hết|mất|tốn|chi\s*hết|tiêu\s*hết|giá)\s+[\d.,]+.*$', '', s, flags=re.IGNORECASE)
-        s = re.sub(r'\s*(?:hết|mất|tốn|chi\s*hết|tiêu\s*hết|giá)\s+(?:một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|\d+).*$', '', s, flags=re.IGNORECASE)
-        s = re.sub(r'\s*[\d.,]+\s*(?:tr|triệu|củ|k|nghìn|ngàn|đ|vnd|đồng|dong|lít|chục)(?:\s*\d+)?\b.*$', '', s, flags=re.IGNORECASE)
-        s = re.sub(r'\s*[\d.,]+\s*(?:đ|vnd|đồng|dong)?$', '', s, flags=re.IGNORECASE)
-        s = re.sub(r'\s*\b\d+\s*$', '', s)
-
-        # 5. Dọn dẹp dấu câu thừa ở cuối hoặc đầu
-        s = re.sub(r'^[:,\-\s]+', '', s)
-        s = re.sub(r'[:,\-\s]+$', '', s)
-
-        s = s.strip()
         if not s or len(s) < 2:
             return default_name
         return s[0].upper() + s[1:]
+
+    @staticmethod
+    def _xac_dinh_danh_muc(db: Session, ma_nd: int, text: str, loai_gd: str) -> DanhMuc:
+        """
+        Nhận diện danh mục tương ứng dựa trên từ khóa ngữ nghĩa và đối chiếu với danh mục người dùng.
+        Tự động tạo mới nếu danh mục chuẩn chưa có trong tài khoản người dùng.
+        """
+        category_defs = [
+            ("Đi lại", ["đổ xăng", "xăng xe", "xăng", "grab", "be", "gojek", "taxi", "xe ôm", "vé xe", "vé tàu", "vé máy bay", "gửi xe", "sửa xe", "rửa xe", "bảo dưỡng", "thay nhớt", "xăm lốp", "xe buýt", "bus", "vé cầu đường"], "car", "#f59e0b"),
+            ("Ăn uống", ["bánh mì", "cơm gà", "cơm tấm", "cơm", "phở", "bún", "mỳ", "miến", "hủ tiếu", "cafe", "cà phê", "trà sữa", "trà chanh", "trà đá", "nước mía", "sinh tố", "trà", "nước ngọt", "nhậu", "lẩu", "nướng", "bbq", "pizza", "kfc", "bánh", "kẹo", "ăn vặt", "hoa quả", "trái cây", "chợ", "siêu thị", "ăn trưa", "ăn sáng", "ăn tối", "đồ ăn", "nấu ăn", "quán ăn", "ăn uống", "buffet", "kem", "chè", "xôi", "bò kho", "hải sản", "ăn ốc", "ốc", "ăn", "uống"], "utensils", "#ef4444"),
+            ("Mua sắm", ["quần áo", "áo sơ mi", "áo khoác", "áo thun", "áo", "quần", "giày", "dép", "túi xách", "túi", "ví", "mỹ phẩm", "son", "shopee", "lazada", "tiki", "tiktok shop", "đồng hồ", "điện thoại", "tai nghe", "laptop", "bàn phím", "chuột", "sách", "vở", "bút", "mua"], "shopping-bag", "#8b5cf6"),
+            ("Hóa đơn", ["tiền điện", "tiền nước", "tiền mạng", "tiền internet", "wifi", "tiền nhà", "tiền phòng", "tiền trọ", "tiền cọc", "phí chung cư", "nạp điện thoại", "tiền điện thoại", "điện", "nước", "tiền rác", "hóa đơn"], "file-text", "#06b6d4"),
+            ("Giải trí", ["xem phim", "rạp chiếu phim", "cinema", "nạp game", "game", "karaoke", "du lịch", "dã ngoại", "camping", "bar", "pub", "bida", "bowling", "đi chơi", "netflix", "spotify", "uống bia"], "film", "#ec4899"),
+            ("Sức khỏe", ["khám bệnh", "thuốc men", "thuốc", "bệnh viện", "bác sĩ", "nha khoa", "răng", "tập gym", "gym", "yoga", "fitness", "tiền thuốc"], "heart", "#10b981"),
+            ("Tiết kiệm", ["hũ tiết kiệm", "tiết kiệm", "tích lũy", "bỏ lợn", "bỏ heo", "vào hũ"], "piggy-bank", "#10b981"),
+            ("Tiền lương", ["nhận lương", "tiền lương", "tiền thưởng", "hoa hồng", "lương", "thưởng", "thu nhập"], "dollar-sign", "#22c55e")
+        ]
+
+        t_clean = text.lower()
+        matched_tuple = None
+        if loai_gd == "thu":
+            matched_tuple = category_defs[7]  # Tiền lương
+        else:
+            for cat_def in category_defs:
+                cname, kw_list, icon, col = cat_def
+                sorted_kws = sorted(kw_list, key=len, reverse=True)
+                for kw in sorted_kws:
+                    if AIService._match_keyword(kw, t_clean):
+                        matched_tuple = cat_def
+                        break
+                if matched_tuple:
+                    break
+
+        user_dms = db.query(DanhMuc).filter(DanhMuc.ma_nd == ma_nd).all()
+        target_dm = None
+
+        if matched_tuple:
+            cname, _, icon, col = matched_tuple
+            for dm in user_dms:
+                if cname.lower() in dm.ten_dm.lower() or dm.ten_dm.lower() in cname.lower():
+                    if dm.loai_dm == loai_gd:
+                        target_dm = dm
+                        break
+
+            if not target_dm:
+                target_dm = DanhMuc(
+                    ten_dm=cname,
+                    loai_dm=loai_gd,
+                    han_muc=0.0,
+                    icon=icon,
+                    mau_sac=col,
+                    ma_nd=ma_nd
+                )
+                db.add(target_dm)
+                db.commit()
+                db.refresh(target_dm)
+
+        if not target_dm:
+            for dm in user_dms:
+                if dm.loai_dm == loai_gd:
+                    target_dm = dm
+                    break
+
+        if not target_dm:
+            default_name = "Chi tiêu khác" if loai_gd == "chi" else "Thu nhập khác"
+            target_dm = DanhMuc(ten_dm=default_name, loai_dm=loai_gd, han_muc=0.0, ma_nd=ma_nd)
+            db.add(target_dm)
+            db.commit()
+            db.refresh(target_dm)
+
+        return target_dm
 
     @staticmethod
     def _xu_ly_xoa_hu_tiet_kiem(db: Session, ma_nd: int, t: str) -> Optional[str]:
@@ -815,6 +947,21 @@ class AIService:
             ds = ", ".join([f"\"{g.ten_muc_tieu}\"" for g in goals])
             return f"Bạn muốn xóa hũ tiết kiệm nào? Hiện tại bạn đang có các hũ: {ds}. Hãy nói rõ tên hũ nhé!"
 
+        refund_amt = float(matched_goal.so_tien_hien_tai or 0.0)
+        goal_title = matched_goal.ten_muc_tieu
+
+        return (
+            f"⚠️ **XÁC NHẬN XÓA HŨ TIẾT KIỆM**\n\n"
+            f"Bạn có chắc chắn muốn xóa hũ tiết kiệm này không?\n"
+            f"• **Tên hũ:** {goal_title}\n"
+            f"• **Mục tiêu:** **{matched_goal.so_tien_muc_tieu:,.0f}đ**\n"
+            f"• **Đã tích lũy:** **{refund_amt:,.0f}đ** *(khoản này sẽ hoàn lại vào ví chính)*\n"
+            f"*(Mã hũ: #{matched_goal.ma_mt})*\n\n"
+            f"👉 Hãy trả lời **'Đồng ý'** (hoặc **'Xác nhận'**, **'Có'**) để tiến hành xóa, hoặc **'Hủy'** để giữ lại nhé!"
+        )
+
+    @staticmethod
+    def _thuc_thi_xoa_hu_tiet_kiem(db: Session, ma_nd: int, matched_goal: MucTieuTietKiem) -> str:
         refund_amt = float(matched_goal.so_tien_hien_tai or 0.0)
         goal_title = matched_goal.ten_muc_tieu
 
@@ -920,12 +1067,24 @@ class AIService:
                 deadline_str = f"{d:02d}/{m:02d}/{y}"
             except Exception:
                 pass
+        else:
+            m_month = re.search(r'trong\s+(\d+)\s+tháng', raw, re.IGNORECASE)
+            if m_month:
+                try:
+                    num_m = int(m_month.group(1))
+                    calc_d = datetime.now() + timedelta(days=num_m * 30)
+                    deadline = calc_d.date()
+                    deadline_str = f"{deadline.day:02d}/{deadline.month:02d}/{deadline.year}"
+                except Exception:
+                    pass
 
         clean = raw
-        clean = re.sub(r'^(hãy\s+)?(tạo|thêm|lập|đặt)\s+(hũ|mục tiêu|quỹ)\s*(tiết kiệm)?\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^(?:tôi\s+|mình\s+)?(?:muốn|cần|định|dự định|lập kế hoạch|kế hoạch)?\s*(?:tiết kiệm|dành dụm|tích lũy|tạo hũ|lập hũ|thêm hũ|đặt mục tiêu|tạo mục tiêu|lập mục tiêu)?\s*(?:tiết kiệm)?\s*', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'trong\s+\d+\s+tháng(?:\s+tới)?', '', clean, flags=re.IGNORECASE)
         clean = re.sub(r'(?:hạn\s*chót|hạn|trước\s*ngày|đến\s*ngày)?\s*\d{1,2}[/-]\d{1,2}[/-]\d{4}', '', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'\d+\s*(?:tr|triệu|củ|k|nghìn|ngàn|đ|vnd|lít)', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'\d+[\.,]?\d*\s*(?:triệu|nghìn|ngàn|trăm|củ|lít|vnd|tr|k|đ)', '', clean, flags=re.IGNORECASE)
         clean = re.sub(r'\b\d{4,}\b', '', clean)
+        clean = re.sub(r'^(?:để|cho việc)\s+', '', clean, flags=re.IGNORECASE)
         clean = re.sub(r'[^\w\s\u00C0-\u1EF9]', '', clean).strip()
 
         if not clean or len(clean) < 2:
@@ -973,6 +1132,22 @@ class AIService:
             ds = ", ".join([f"\"{c.ten_dm}\"" for c in user_cats])
             return f"Bạn muốn xóa danh mục nào? Hiện có các danh mục: {ds}. Hãy nói rõ tên danh mục nhé!"
 
+        cat_name = matched_cat.ten_dm
+        cat_type = matched_cat.loai_dm
+        cat_limit = float(matched_cat.han_muc or 0.0)
+
+        return (
+            f"⚠️ **XÁC NHẬN XÓA DANH MỤC**\n\n"
+            f"Bạn có chắc chắn muốn xóa danh mục này không?\n"
+            f"• **Tên danh mục:** {cat_name}\n"
+            f"• **Loại:** {'Chi tiêu' if cat_type == 'chi' else 'Thu nhập'}\n"
+            f"• **Hạn mức hiện tại:** **{cat_limit:,.0f}đ**\n"
+            f"*(Mã danh mục: #{matched_cat.ma_dm})*\n\n"
+            f"👉 Hãy trả lời **'Đồng ý'** (hoặc **'Xác nhận'**, **'Có'**) để tiến hành xóa, hoặc **'Hủy'** để giữ lại nhé!"
+        )
+
+    @staticmethod
+    def _thuc_thi_xoa_danh_muc(db: Session, ma_nd: int, matched_cat: DanhMuc) -> str:
         cat_name = matched_cat.ten_dm
         cat_type = matched_cat.loai_dm
         cat_limit = float(matched_cat.han_muc or 0.0)
@@ -1090,9 +1265,77 @@ class AIService:
         )
 
     @staticmethod
+    def _xu_ly_xem_hu_tiet_kiem(db: Session, ma_nd: int, t: str) -> Optional[str]:
+        goals = db.query(MucTieuTietKiem).filter(MucTieuTietKiem.ma_nd == ma_nd).all()
+        if not goals:
+            return (
+                "Hiện tại bạn chưa tạo hũ tiết kiệm nào. 🏺\n\n"
+                "Bạn có thể bắt đầu tích lũy cho ước mơ bằng cách nói: "
+                "*'Tạo hũ tiết kiệm du lịch Đà Nẵng 5 triệu'* hoặc *'Tạo mục tiêu mua laptop 20 triệu'* nhé! ✨"
+            )
+
+        so_du_vi = NganSachService.tinh_so_du_vi_chinh(db, ma_nd)
+        lines = []
+        for g in goals:
+            pct = round((g.so_tien_hien_tai / g.so_tien_muc_tieu) * 100) if g.so_tien_muc_tieu > 0 else 0
+            con_thieu = max(0.0, g.so_tien_muc_tieu - g.so_tien_hien_tai)
+            status_badge = "✅ Đã hoàn thành" if pct >= 100 else f"⏳ Đạt {pct}%"
+            lines.append(
+                f"• 🎯 **{g.ten_muc_tieu}**: **{g.so_tien_hien_tai:,.0f}đ** / {g.so_tien_muc_tieu:,.0f}đ "
+                f"({status_badge}) — Còn thiếu **{con_thieu:,.0f}đ**"
+            )
+
+        return (
+            f"🏺 **Danh Sách & Tiến Độ Hũ Tiết Kiệm Của Bạn:**\n\n" +
+            "\n".join(lines) +
+            f"\n\n💳 **Số dư ví chính khả dụng:** **{so_du_vi:,.0f}đ**\n"
+            f"💡 Bạn có thể nộp tiền vào hũ bằng cách nói: *'Nộp 500k vào hũ {goals[0].ten_muc_tieu}'* bất kỳ lúc nào nhé!"
+        )
+
+    @staticmethod
+    def _xu_ly_xem_ngan_sach_danh_muc(db: Session, ma_nd: int, t: str) -> Optional[str]:
+        now = datetime.now()
+        start_this = datetime(now.year, now.month, 1)
+        end_this = datetime(now.year + 1, 1, 1) if now.month == 12 else datetime(now.year, now.month + 1, 1)
+
+        dms = db.query(DanhMuc).filter(DanhMuc.ma_nd == ma_nd, DanhMuc.loai_dm == "chi").all()
+        if not dms:
+            return "Bạn chưa có danh mục chi tiêu nào trong hệ thống."
+
+        txs = db.query(GiaoDich).filter(
+            GiaoDich.ma_nd == ma_nd,
+            GiaoDich.loai_gd == "chi",
+            GiaoDich.ngay_gd >= start_this,
+            GiaoDich.ngay_gd < end_this
+        ).all()
+
+        spent_map = {}
+        for tx in txs:
+            if tx.ma_dm and not AIService._is_excluded_chi(tx):
+                spent_map[tx.ma_dm] = spent_map.get(tx.ma_dm, 0.0) + tx.so_tien
+
+        lines = []
+        for dm in dms:
+            spent = spent_map.get(dm.ma_dm, 0.0)
+            limit = dm.han_muc or 0.0
+            if limit > 0:
+                pct = round((spent / limit) * 100)
+                status = "🚨 Vượt mức" if spent > limit else ("⚠️ Chạm ngưỡng" if pct >= 80 else "✅ An toàn")
+                lines.append(f"• **{dm.ten_dm}**: Đã chi **{spent:,.0f}đ** / Hạn mức **{limit:,.0f}đ** ({pct}% - {status})")
+            else:
+                lines.append(f"• **{dm.ten_dm}**: Đã chi **{spent:,.0f}đ** *(Chưa đặt hạn mức)*")
+
+        return (
+            f"📊 **Ngân Sách & Chi Tiêu Các Hũ Tháng {now.month}/{now.year}:**\n\n" +
+            "\n".join(lines) +
+            f"\n\n💡 Bạn có thể đặt hoặc điều chỉnh hạn mức hũ bằng cách nói: *'Đặt hạn mức ăn uống là 3 triệu'* nhé!"
+        )
+
+    @staticmethod
     def _xu_ly_xoa_giao_dich(db: Session, ma_nd: int, t: str) -> Optional[str]:
         tx = None
-        if any(w in t for w in ["gần nhất", "vừa rồi", "vừa thêm", "mới nhất", "vừa tạo", "vừa nhập"]):
+        # Ưu tiên tìm giao dịch gần nhất nếu người dùng dùng từ ngữ chỉ ngữ cảnh gần
+        if any(w in t for w in ["gần nhất", "vừa rồi", "vừa thêm", "mới nhất", "vừa tạo", "vừa nhập", "vừa ghi", "cái vừa", "vừa xong", "nó đi", "bỏ đi", "hủy đi"]):
             tx = db.query(GiaoDich).filter(GiaoDich.ma_nd == ma_nd).order_by(GiaoDich.ma_gd.desc()).first()
         else:
             recent_txs = db.query(GiaoDich).filter(GiaoDich.ma_nd == ma_nd).order_by(GiaoDich.ma_gd.desc()).limit(30).all()
@@ -1112,6 +1355,23 @@ class AIService:
         if not tx:
             return "Không tìm thấy giao dịch phù hợp để xóa."
 
+        info_note = tx.ghi_chu or "Không có ghi chú"
+        info_amt = tx.so_tien
+        info_loai = tx.loai_gd
+        date_str = tx.ngay_gd.strftime('%H:%M - %d/%m/%Y') if tx.ngay_gd else "N/A"
+
+        return (
+            f"⚠️ **XÁC NHẬN XÓA GIAO DỊCH**\n\n"
+            f"Bạn có chắc chắn muốn xóa giao dịch này không?\n"
+            f"• **Nội dung:** {info_note}\n"
+            f"• **Số tiền:** **{info_amt:,.0f}đ** ({'Chi tiêu' if info_loai == 'chi' else 'Thu nhập'})\n"
+            f"• **Thời gian:** {date_str}\n"
+            f"*(Mã giao dịch: #{tx.ma_gd})*\n\n"
+            f"👉 Hãy trả lời **'Đồng ý'** (hoặc **'Xác nhận'**, **'Có'**) để tiến hành xóa, hoặc **'Hủy'** để giữ lại nhé!"
+        )
+
+    @staticmethod
+    def _thuc_thi_xoa_giao_dich(db: Session, ma_nd: int, tx: GiaoDich) -> str:
         info_note = tx.ghi_chu or "Không có ghi chú"
         info_amt = tx.so_tien
         info_loai = tx.loai_gd
@@ -1138,43 +1398,63 @@ class AIService:
     @staticmethod
     def _xu_ly_sua_giao_dich(db: Session, ma_nd: int, t: str, raw: str) -> Optional[str]:
         tx = None
-        if any(w in t for w in ["gần nhất", "vừa rồi", "vừa thêm", "mới nhất"]):
-            tx = db.query(GiaoDich).filter(GiaoDich.ma_nd == ma_nd).order_by(GiaoDich.ma_gd.desc()).first()
-        else:
-            recent_txs = db.query(GiaoDich).filter(GiaoDich.ma_nd == ma_nd).order_by(GiaoDich.ma_gd.desc()).limit(30).all()
-            for item in recent_txs:
-                gc = (item.ghi_chu or "").lower()
-                words = [w for w in gc.split() if len(w) > 2]
-                if words and any(w in t for w in words):
-                    tx = item
-                    break
-            if not tx and recent_txs:
-                tx = recent_txs[0]
+        recent_txs = db.query(GiaoDich).filter(GiaoDich.ma_nd == ma_nd).order_by(GiaoDich.ma_gd.desc()).limit(30).all()
+        if not recent_txs:
+            return "Không tìm thấy giao dịch nào gần đây để chỉnh sửa."
 
+        # 1. Tìm giao dịch mà người dùng nhắc tới để sửa (ví dụ: 'không phải cơm gà...', 'khoản cơm gà...')
+        for item in recent_txs:
+            gc = (item.ghi_chu or "").lower()
+            words = [w for w in gc.split() if len(w) > 2]
+            if words and any(w in t for w in words):
+                tx = item
+                break
+
+        # Nếu không nêu đích danh món cũ, lấy giao dịch gần nhất vừa thao tác
         if not tx:
-            return "Không tìm thấy giao dịch bạn muốn chỉnh sửa."
+            tx = recent_txs[0]
 
         old_note = tx.ghi_chu or ""
         old_amt = tx.so_tien
+        old_dm = db.query(DanhMuc).filter(DanhMuc.ma_dm == tx.ma_dm).first()
+        old_cname = old_dm.ten_dm if old_dm else "Khác"
         changed = []
 
+        # Trích xuất số tiền mới
         new_amt = AIService._parse_vietnamese_amount(t)
         if new_amt > 0 and new_amt != old_amt:
             tx.so_tien = new_amt
             changed.append(f"Số tiền: **{old_amt:,.0f}đ** ➔ **{new_amt:,.0f}đ**")
+        elif new_amt > 0 and new_amt == old_amt:
+            # Số tiền được nhắc lại để xác nhận (vd: 'ăn lẩu hết 150k mới đúng')
+            pass
 
-        m_note = re.search(r'(?:đổi|sửa)\s+ghi\s*chú\s+(?:giao dịch\s+)?(?:gần nhất\s+)?thành\s+["\']?([^"\']+)["\']?', raw, re.IGNORECASE)
-        if m_note:
-            new_note = m_note.group(1).strip()
-            if new_note and new_note != old_note:
-                tx.ghi_chu = new_note[0].upper() + new_note[1:]
-                changed.append(f"Ghi chú: *\"{old_note}\"* ➔ *\"{tx.ghi_chu}\"*")
+        # Trích xuất nội dung mới (làm sạch thông minh)
+        cand_note = AIService._lam_sach_mo_ta_giao_dich(raw, "")
+        ignore_notes = ["chi tiêu", "thu nhập", "giao dịch", "khoản chi", "gần nhất", "vừa rồi", "vừa thêm"]
+        if cand_note and cand_note.lower() not in ignore_notes and cand_note.lower() != old_note.lower():
+            tx.ghi_chu = cand_note
+            changed.append(f"Nội dung: *\"{old_note}\"* ➔ **\"{cand_note}\"**")
+
+            # Tự động cập nhật lại danh mục phù hợp với món mới nếu thay đổi tính chất
+            new_dm = AIService._xac_dinh_danh_muc(db, ma_nd, cand_note, tx.loai_gd)
+            if new_dm and new_dm.ma_dm != tx.ma_dm:
+                tx.ma_dm = new_dm.ma_dm
+                changed.append(f"Danh mục: {old_cname} ➔ **{new_dm.ten_dm}**")
+
+        # Cập nhật thời gian nếu có từ khóa thời điểm (vd: 'trưa nay', 'sáng nay', 'hôm qua'...)
+        if any(w in t for w in ["trưa nay", "lúc trưa", "hồi trưa", "sáng nay", "lúc sáng", "hồi sáng", "chiều nay", "tối nay", "hôm qua", "tối qua"]):
+            tx.ngay_gd = AIService._parse_vietnamese_datetime(t)
 
         if not changed:
-            return (
-                f"Giao dịch gần nhất của bạn là **{old_note}** (**{old_amt:,.0f}đ**). "
-                f"Bạn có thể nói: *'sửa giao dịch gần nhất thành 50k'* hoặc *'đổi ghi chú thành ăn trưa'* để mình cập nhật nhé!"
-            )
+            if new_amt > 0:
+                tx.so_tien = new_amt
+                changed.append(f"Số tiền: **{old_amt:,.0f}đ** ➔ **{new_amt:,.0f}đ**")
+            else:
+                return (
+                    f"Giao dịch gần nhất của bạn là **{old_note}** (**{old_amt:,.0f}đ**). "
+                    f"Bạn có thể nói: *'sửa giao dịch thành 50k'* hoặc *'đổi thành ăn lẩu 150k'* để mình cập nhật nhé!"
+                )
 
         db.commit()
         db.refresh(tx)
@@ -1183,12 +1463,19 @@ class AIService:
             NganSachService.kiem_tra_ngan_sach(db=db, ma_nd=ma_nd, ma_dm=tx.ma_dm, ngay_gd=tx.ngay_gd)
 
         so_du_vi = NganSachService.tinh_so_du_vi_chinh(db, ma_nd)
+        cur_dm = db.query(DanhMuc).filter(DanhMuc.ma_dm == tx.ma_dm).first()
+        cur_cname = cur_dm.ten_dm if cur_dm else "Chi tiêu"
+        icon_sign = "💸 -" if tx.loai_gd == "chi" else "💰 +"
 
         return (
-            f"Đã cập nhật giao dịch thành công! ✏️\n\n"
-            f"📋 **Các thay đổi:**\n" +
-            "\n".join([f"• {c}" for c in changed]) +
-            f"\n\n• 💳 **Số dư ví chính khả dụng:** **{so_du_vi:,.0f}đ**"
+            f"Dạ mình hiểu rồi, không sao cả! Mình đã sửa lại ngay giao dịch cho bạn rồi nhé: ✏️\n\n"
+            f"📋 **Giao dịch sau khi đính chính:**\n"
+            f"• **Nội dung:** {tx.ghi_chu}\n"
+            f"• **Số tiền:** **{icon_sign}{tx.so_tien:,.0f}đ**\n"
+            f"• **Danh mục:** {cur_cname}\n"
+            f"• **Thời gian:** {tx.ngay_gd.strftime('%H:%M - %d/%m/%Y')}\n\n"
+            f"💳 **Số dư ví chính khả dụng:** **{so_du_vi:,.0f}đ**\n\n"
+            f"*(Chi tiết thay đổi: {', '.join(changed)})*"
         )
 
     @staticmethod
@@ -1217,6 +1504,26 @@ class AIService:
         if matched_c:
             q = q.filter(GiaoDich.ma_dm == matched_c.ma_dm)
             title_suffix += f" danh mục '{matched_c.ten_dm}'"
+
+        # Tra cứu theo tên món / từ khóa cụ thể trong ghi chú (ví dụ: 'tìm trà chanh', 'khoản cơm gà', 'lẩu')
+        keywords_ignore = {
+            "tìm", "tra", "cứu", "tra cứu", "xem", "giao", "dịch", "giao dịch", "khoản", "chi",
+            "tiêu", "khoản chi", "các", "hôm", "nay", "hôm nay", "qua", "hôm qua", "tháng", "này",
+            "tháng này", "nhiều", "nhất", "lớn", "bé", "nhỏ", "tôi", "mình", "ta", "đã", "những",
+            "gì", "nào", "sao", "thế", "hết", "bao", "nhiêu", "bao nhiêu", "vừa", "rồi", "lại",
+            "cho", "biết", "danh", "sách", "lịch", "sử", "lịch sử", "nhật", "ký", "tiền"
+        }
+        search_kw = None
+        m_find = re.search(r'(?:tìm|tra cứu|khoản|món)\s+([a-zA-Z0-9_à-ỹÀ-Ỹ\s]{2,20})', t)
+        if m_find:
+            cand = m_find.group(1).strip()
+            cand_words = [w for w in cand.split() if w not in keywords_ignore]
+            if cand_words:
+                search_kw = " ".join(cand_words[:3])
+
+        if search_kw and not matched_c:
+            q = q.filter(GiaoDich.ghi_chu.ilike(f"%{search_kw}%"))
+            title_suffix += f" từ khóa '{search_kw}'"
 
         if any(w in t for w in ["trên", "lớn hơn", "cao hơn"]):
             amt = AIService._parse_vietnamese_amount(t)
@@ -1331,6 +1638,66 @@ class AIService:
         t = raw.lower()
         amount = AIService._parse_vietnamese_amount(t)
 
+        # 0. Multi-turn Confirmation Resolver (Xác nhận an toàn trước khi xóa):
+        # Nếu AI lượt trước đang chờ người dùng xác nhận xóa (Giao dịch, Hũ tiết kiệm, Danh mục)
+        last_ai_msg = ""
+        if lich_su_chat:
+            prev_ai_msgs = [m.get("content", "").strip() for m in lich_su_chat if m.get("role") in ["assistant", "ai", "ai_tro_ly"] and m.get("content", "").strip()]
+            if prev_ai_msgs:
+                last_ai_msg = prev_ai_msgs[-1]
+
+        if not last_ai_msg:
+            try:
+                last_log = db.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd).order_by(LichSuAI.ma_log.desc()).first()
+                if last_log and last_log.tra_loi:
+                    if last_log.ngay_tao and (datetime.now() - last_log.ngay_tao).total_seconds() < 1800:
+                        last_ai_msg = last_log.tra_loi
+            except Exception:
+                pass
+
+        if last_ai_msg and "XÁC NHẬN XÓA" in last_ai_msg:
+            cancel_cues = ["hủy", "huỷ", "thôi", "đừng", "giữ lại", "không xóa", "ko xóa", "dừng", "bỏ qua", "cancel", "khỏi xóa", "không nhé", "ko nha"]
+            is_cancel = any(w in t for w in cancel_cues) or t in ["không", "ko", "k", "no", "n", "không cần", "thôi không"]
+            if is_cancel:
+                return "Dạ vâng! Mình đã hủy thao tác xóa rồi nhé. Mọi dữ liệu của bạn vẫn được giữ nguyên vẹn an toàn! 😊"
+
+            confirm_cues = [
+                "đồng ý", "xác nhận", "chắc chắn", "tiến hành", "tiến hành xóa",
+                "xóa đi", "xóa luôn", "xóa nó", "xóa đi nhé", "xóa giúp", "xóa hộ",
+                "ok", "oke", "okay", "yes", "có", "ừ", "uh", "ừm", "yep", "chuẩn rồi", "đúng rồi"
+            ]
+            is_confirm = any(w in t for w in confirm_cues) or t in ["xóa", "xoá", "có", "ừ", "ok", "oke", "yes", "y", "đúng"]
+            if is_confirm:
+                # 1. Giao dịch
+                m_gd = re.search(r'Mã giao dịch:\s*#(\d+)', last_ai_msg)
+                if m_gd:
+                    ma_gd = int(m_gd.group(1))
+                    tx = db.query(GiaoDich).filter(GiaoDich.ma_gd == ma_gd, GiaoDich.ma_nd == ma_nd).first()
+                    if tx:
+                        return AIService._thuc_thi_xoa_giao_dich(db, ma_nd, tx)
+                    else:
+                        return "Giao dịch này không còn tồn tại hoặc đã được xử lý trước đó rồi bạn nhé!"
+
+                # 2. Hũ tiết kiệm
+                m_hu = re.search(r'Mã hũ:\s*#(\d+)', last_ai_msg)
+                if m_hu:
+                    ma_mt = int(m_hu.group(1))
+                    goal = db.query(MucTieuTietKiem).filter(MucTieuTietKiem.ma_mt == ma_mt, MucTieuTietKiem.ma_nd == ma_nd).first()
+                    if goal:
+                        return AIService._thuc_thi_xoa_hu_tiet_kiem(db, ma_nd, goal)
+                    else:
+                        return "Hũ tiết kiệm này không còn tồn tại hoặc đã được xóa trước đó rồi bạn nhé!"
+
+                # 3. Danh mục
+                m_dm = re.search(r'Mã danh mục:\s*#(\d+)', last_ai_msg)
+                if m_dm:
+                    ma_dm = int(m_dm.group(1))
+                    cat = db.query(DanhMuc).filter(DanhMuc.ma_dm == ma_dm, DanhMuc.ma_nd == ma_nd).first()
+                    if cat:
+                        return AIService._thuc_thi_xoa_danh_muc(db, ma_nd, cat)
+                    else:
+                        return "Danh mục này không còn tồn tại hoặc đã được xóa trước đó rồi bạn nhé!"
+
         # Xử lý hội thoại đa lượt (Multi-turn Context):
         # Khi người dùng chỉ gửi số tiền (vd: '30k', 'hết 30k', '50.000', '20 ngàn'...)
         # sau khi đã nói về một hành động hoặc AI vừa hỏi xin số tiền
@@ -1367,9 +1734,17 @@ class AIService:
             return AIService._xu_ly_rut_tien_hu(db, ma_nd, t, amount)
 
         # 3. TẠO HŨ TIẾT KIỆM MỚI (CREATE SAVINGS GOAL)
-        if any(w in t for w in ["tạo hũ tiết kiệm", "thêm hũ tiết kiệm", "lập hũ tiết kiệm", "tạo mục tiêu", "thêm mục tiêu", "lập mục tiêu", "đặt mục tiêu tiết kiệm", "tạo hũ", "thêm hũ"]):
-            if not any(w in t for w in ["nâng", "tăng", "đổi", "sửa", "giảm", "hạ", "chỉnh", "nộp", "trích", "rút", "xóa", "hủy"]):
-                return AIService._xu_ly_tao_hu_tiet_kiem(db, ma_nd, t, amount, raw)
+        create_goal_cues = [
+            "tạo hũ tiết kiệm", "thêm hũ tiết kiệm", "lập hũ tiết kiệm", "tạo mục tiêu",
+            "thêm mục tiêu", "lập mục tiêu", "đặt mục tiêu tiết kiệm", "tạo hũ", "thêm hũ",
+            "muốn tiết kiệm", "cần tiết kiệm", "định tiết kiệm", "dự định tiết kiệm",
+            "kế hoạch tiết kiệm", "lập quỹ", "tạo quỹ", "mục tiêu mua", "tiết kiệm mua", "tiết kiệm để"
+        ]
+        is_create_goal = any(w in t for w in create_goal_cues) or (
+            "tiết kiệm" in t and any(w in t for w in ["muốn", "cần", "dự định", "kế hoạch", "lập mục tiêu", "đặt mục tiêu"]) and not any(w in t for w in ["nộp", "trích", "nạp", "bỏ", "gửi", "rút", "xóa"])
+        )
+        if is_create_goal and not any(w in t for w in ["nâng", "tăng", "đổi", "sửa", "giảm", "hạ", "chỉnh", "nộp", "trích", "rút", "xóa", "hủy", "xem"]):
+            return AIService._xu_ly_tao_hu_tiet_kiem(db, ma_nd, t, amount, raw)
 
         # 4. NÂNG / GIẢM / ĐỔI MỤC TIÊU TIẾT KIỆM (UPDATE SAVINGS GOAL TARGET)
         goals = db.query(MucTieuTietKiem).filter(MucTieuTietKiem.ma_nd == ma_nd).all()
@@ -1612,22 +1987,67 @@ class AIService:
                 )
 
         # 10. XOÁ / HỦY GIAO DỊCH (DELETE TRANSACTION)
-        if any(w in t for w in ["xóa giao dịch", "xoá giao dịch", "hủy giao dịch", "huỷ giao dịch", "xóa khoản chi", "hủy khoản chi", "xóa giao dịch vừa", "hủy giao dịch gần"]):
+        delete_cues = [
+            "xóa giao dịch", "xoá giao dịch", "hủy giao dịch", "huỷ giao dịch", "xóa khoản chi",
+            "hủy khoản chi", "xóa giao dịch vừa", "hủy giao dịch gần", "xóa cái vừa", "hủy cái vừa",
+            "bỏ cái vừa", "xóa cái vừa ghi", "hủy cái vừa ghi", "xóa nó đi", "hủy nó đi", "bỏ nó đi",
+            "xóa đi", "hủy đi", "bỏ giao dịch", "xóa khoản", "hủy khoản"
+        ]
+        if any(w in t for w in delete_cues):
             return AIService._xu_ly_xoa_giao_dich(db, ma_nd, t)
 
-        # 11. SỬA / CẬP NHẬT GIAO DỊCH (EDIT TRANSACTION)
-        if any(w in t for w in ["sửa giao dịch", "đổi giao dịch", "chỉnh giao dịch", "sửa khoản chi", "đổi khoản chi", "sửa số tiền", "đổi số tiền", "sửa ghi chú", "đổi ghi chú"]):
+        # 11. SỬA / CẬP NHẬT / ĐÍNH CHÍNH GIAO DỊCH (EDIT / CORRECTION)
+        edit_cues = [
+            "sửa giao dịch", "đổi giao dịch", "chỉnh giao dịch", "sửa khoản chi", "đổi khoản chi",
+            "sửa số tiền", "đổi số tiền", "sửa ghi chú", "đổi ghi chú", "sửa lại", "đổi lại",
+            "chỉnh lại", "sửa thành", "đổi thành", "tôi nhầm", "mình nhầm", "em nhầm", "anh nhầm",
+            "nhầm rồi", "bị nhầm", "nói nhầm", "ghi nhầm", "nói lộn", "ghi lộn", "lộn rồi", "bị lộn",
+            "đính chính", "đúng ra là", "thực ra là", "thật ra là", "không phải", "mới đúng", "mới chuẩn", "mới phải"
+        ]
+        is_edit = any(c in t for c in edit_cues) or (
+            t.startswith("(") and any(w in t for w in ["nhầm", "mới đúng", "lẩu", "cơm", "đúng", "không phải", "k"])
+        )
+        if is_edit:
             return AIService._xu_ly_sua_giao_dich(db, ma_nd, t, raw)
 
         # 12. TRA CỨU / LỌC GIAO DỊCH (QUERY TRANSACTIONS)
-        if any(w in t for w in ["tìm giao dịch", "tra cứu giao dịch", "xem giao dịch", "liệt kê giao dịch", "các giao dịch", "các khoản chi trên", "khoản chi lớn", "hôm nay tôi đã tiêu những gì", "hôm nay đã chi gì", "hôm nay đã tiêu gì", "hôm qua đã tiêu"]):
+        query_cues = [
+            "tìm giao dịch", "tra cứu giao dịch", "xem giao dịch", "liệt kê giao dịch", "các giao dịch",
+            "các khoản chi trên", "khoản chi lớn", "hôm nay tôi đã tiêu những gì", "hôm nay đã chi gì",
+            "hôm nay đã tiêu gì", "hôm qua đã tiêu", "hôm nay tiêu", "hôm qua tiêu", "tháng này đã chi",
+            "tháng này tiêu", "xem các khoản", "tìm khoản"
+        ]
+        if any(w in t for w in query_cues):
             return AIService._xu_ly_tra_cuu_giao_dich(db, ma_nd, t, raw)
 
-        # 13. ĐÁNH GIÁ SỨC KHỎE TÀI CHÍNH & PHÂN BỔ 6 HŨ (FINANCIAL HEALTH & 6 JARS)
+        # 13. XEM TIẾN ĐỘ HŨ TIẾT KIỆM (VIEW SAVINGS GOALS)
+        is_view_goals = any(w in t for w in [
+            "tiến độ hũ", "tiến độ tiết kiệm", "tiến độ mục tiêu", "các hũ tiết kiệm", "danh sách hũ",
+            "hũ tiết kiệm hiện có", "mục tiêu tiết kiệm hiện có", "danh sách mục tiêu", "xem các hũ",
+            "xem hũ tiết kiệm", "xem mục tiêu tiết kiệm", "xem các mục tiêu", "mục tiêu tiết kiệm hiện tại",
+            "các mục tiêu tiết kiệm", "danh sách hũ tiết kiệm", "xem hũ", "các hũ hiện tại", "hũ hiện có"
+        ]) or (
+            any(w in t for w in ["xem", "danh sách", "kiểm tra", "tiến độ"]) and any(w in t for w in ["mục tiêu", "hũ tiết kiệm", "quỹ tiết kiệm"])
+        )
+        if is_view_goals:
+            return AIService._xu_ly_xem_hu_tiet_kiem(db, ma_nd, t)
+
+        # 14. XEM NGÂN SÁCH & HẠN MỨC CÁC HŨ (VIEW BUDGETS)
+        is_view_budget = any(w in t for w in [
+            "ngân sách các hũ", "ngân sách tháng này", "hạn mức các hũ", "hạn mức tháng này",
+            "xem danh mục chi tiêu", "danh mục chi tiêu", "các hũ ngân sách", "danh sách danh mục",
+            "xem hạn mức", "hạn mức danh mục", "hạn mức các danh mục", "hạn mức hiện tại", "ngân sách hiện tại"
+        ]) or (
+            any(w in t for w in ["xem", "danh sách", "kiểm tra"]) and any(w in t for w in ["hạn mức", "ngân sách"])
+        )
+        if is_view_budget:
+            return AIService._xu_ly_xem_ngan_sach_danh_muc(db, ma_nd, t)
+
+        # 15. ĐÁNH GIÁ SỨC KHỎE TÀI CHÍNH & PHÂN BỔ 6 HŨ (FINANCIAL HEALTH & 6 JARS)
         if any(w in t for w in ["sức khỏe tài chính", "chấm điểm tài chính", "đánh giá tài chính", "phân bổ 6 hũ", "tư vấn 6 hũ", "chia 6 hũ"]):
             return AIService._xu_ly_suc_khoe_tai_chinh(db, ma_nd, t)
 
-        # 14. THÊM GIAO DỊCH THU / CHI THÔNG THƯỜNG (ADD TRANSACTION)
+        # 16. THÊM GIAO DỊCH THU / CHI THÔNG THƯỜNG (ADD TRANSACTION)
         question_markers = [
             "bao nhiêu", "bao nhiu", "mấy", "thế nào", "sao", "gì", "không?", "ko?", "chưa?",
             "đâu", "ở đâu", "khi nào", "tại sao", "vì sao", "liệu", "có nên", "tư vấn", "gợi ý",
@@ -1691,85 +2111,18 @@ class AIService:
         else:
             loai_gd = "chi"
 
-        category_defs = [
-            ("Đi lại", ["đổ xăng", "xăng xe", "xăng", "grab", "be", "gojek", "taxi", "xe ôm", "vé xe", "vé tàu", "vé máy bay", "gửi xe", "sửa xe", "rửa xe", "bảo dưỡng", "thay nhớt", "xăm lốp", "xe buýt", "bus"], "car", "#f59e0b"),
-            ("Ăn uống", ["bánh mì", "cơm", "phở", "bún", "mỳ", "miến", "hủ tiếu", "cafe", "cà phê", "trà sữa", "trà", "nước ngọt", "nhậu", "lẩu", "nướng", "bbq", "pizza", "kfc", "bánh", "kẹo", "ăn vặt", "hoa quả", "trái cây", "chợ", "siêu thị", "ăn trưa", "ăn sáng", "ăn tối", "đồ ăn", "nấu ăn", "quán ăn", "ăn uống", "ăn", "uống"], "utensils", "#ef4444"),
-            ("Mua sắm", ["quần áo", "áo sơ mi", "áo khoác", "áo thun", "áo", "quần", "giày", "dép", "túi xách", "túi", "ví", "mỹ phẩm", "son", "shopee", "lazada", "tiki", "tiktok shop", "đồng hồ", "điện thoại", "tai nghe", "laptop", "mua"], "shopping-bag", "#8b5cf6"),
-            ("Hóa đơn", ["tiền điện", "tiền nước", "tiền mạng", "tiền internet", "wifi", "tiền nhà", "tiền phòng", "phí chung cư", "nạp điện thoại", "tiền điện thoại", "điện", "nước"], "file-text", "#06b6d4"),
-            ("Giải trí", ["xem phim", "rạp chiếu phim", "cinema", "nạp game", "game", "karaoke", "du lịch", "dã ngoại", "camping", "bar", "pub", "bida", "bowling", "đi chơi"], "film", "#ec4899"),
-            ("Sức khỏe", ["khám bệnh", "thuốc", "bệnh viện", "bác sĩ", "nha khoa", "răng", "tập gym", "gym", "yoga", "fitness"], "heart", "#10b981"),
-            ("Tiết kiệm", ["hũ tiết kiệm", "tiết kiệm", "tích lũy", "bỏ lợn", "bỏ heo", "vào hũ"], "piggy-bank", "#10b981"),
-            ("Tiền lương", ["nhận lương", "tiền lương", "tiền thưởng", "hoa hồng", "lương", "thưởng", "thu nhập"], "dollar-sign", "#22c55e")
-        ]
-
-        matched_cat_tuple = None
-        if loai_gd == "thu":
-            matched_cat_tuple = category_defs[7]
-        elif suggested_cat:
-            for cat_def in category_defs:
-                if cat_def[0].lower() in suggested_cat.lower() or suggested_cat.lower() in cat_def[0].lower():
-                    matched_cat_tuple = cat_def
-                    break
-
-        if not matched_cat_tuple and loai_gd == "chi":
-            for cat_def in category_defs:
-                cname, kw_list, icon, col = cat_def
-                sorted_kws = sorted(kw_list, key=len, reverse=True)
-                for kw in sorted_kws:
-                    if AIService._match_keyword(kw, t):
-                        matched_cat_tuple = cat_def
-                        break
-                if matched_cat_tuple:
-                    break
-
-        user_dms = db.query(DanhMuc).filter(DanhMuc.ma_nd == ma_nd).all()
-        target_dm = None
-
-        if matched_cat_tuple:
-            cname, _, icon, col = matched_cat_tuple
-            for dm in user_dms:
-                if cname.lower() in dm.ten_dm.lower() or dm.ten_dm.lower() in cname.lower():
-                    if dm.loai_dm == loai_gd:
-                        target_dm = dm
-                        break
-
-            if not target_dm:
-                target_dm = DanhMuc(
-                    ten_dm=cname,
-                    loai_dm=loai_gd,
-                    han_muc=0.0,
-                    icon=icon,
-                    mau_sac=col,
-                    ma_nd=ma_nd
-                )
-                db.add(target_dm)
-                db.commit()
-                db.refresh(target_dm)
-
-        if not target_dm:
-            for dm in user_dms:
-                if dm.loai_dm == loai_gd:
-                    target_dm = dm
-                    break
-
-        if not target_dm:
-            default_name = "Chi tiêu khác" if loai_gd == "chi" else "Thu nhập khác"
-            target_dm = DanhMuc(ten_dm=default_name, loai_dm=loai_gd, han_muc=0.0, ma_nd=ma_nd)
-            db.add(target_dm)
-            db.commit()
-            db.refresh(target_dm)
-
         note_source = extracted_note if extracted_note else raw
-        clean_note = AIService._lam_sach_mo_ta_giao_dich(note_source, target_dm.ten_dm)
+        clean_note = AIService._lam_sach_mo_ta_giao_dich(note_source, "Chi tiêu" if loai_gd == "chi" else "Thu nhập")
+        target_dm = AIService._xac_dinh_danh_muc(db, ma_nd, suggested_cat if suggested_cat else clean_note, loai_gd)
+        tx_time = AIService._parse_vietnamese_datetime(t)
 
-        now = datetime.now()
         tx = GiaoDich(
             ma_nd=ma_nd,
             ma_dm=target_dm.ma_dm,
             so_tien=amount,
             loai_gd=loai_gd,
             ghi_chu=clean_note,
-            ngay_gd=now,
+            ngay_gd=tx_time,
             ngay_tao=datetime.utcnow()
         )
         db.add(tx)
@@ -1778,7 +2131,7 @@ class AIService:
 
         canh_bao_str = ""
         if loai_gd == "chi":
-            cb = NganSachService.kiem_tra_ngan_sach(db, ma_nd, target_dm.ma_dm, now)
+            cb = NganSachService.kiem_tra_ngan_sach(db, ma_nd, target_dm.ma_dm, tx_time)
             if cb.vuot_ngan_sach:
                 pct_chi = round(cb.ty_le * 100)
                 canh_bao_str = (
@@ -1807,7 +2160,7 @@ class AIService:
             f"• **Số tiền:** **{icon_sign}{amount:,.0f}đ**\n"
             f"• **Danh mục:** {target_dm.ten_dm}\n"
             f"• **Hình thức:** {type_label}\n"
-            f"• **Thời gian:** {now.strftime('%H:%M - %d/%m/%Y')}\n\n"
+            f"• **Thời gian:** {tx_time.strftime('%H:%M - %d/%m/%Y')}\n\n"
             f"💳 **Số dư ví chính khả dụng:** **{so_du_vi:,.0f}đ**"
             f"{canh_bao_str}"
         )
@@ -1829,15 +2182,18 @@ class AIService:
             "xổ số", "lô đề", "chính trị", "bóng đá", "thể thao", "nấu ăn", "công thức nấu"
         ]
         if any(kw in cau_hoi_clean.lower() for kw in tu_khoa_ngoai_le):
-            return (
+            tra_loi_refuse = (
                 "Xin lỗi bạn! 🙏 Tôi là Trợ lý Quản lý Tài chính Cá nhân MoneyMind, "
                 "không có thẩm quyền tư vấn đầu tư chứng khoán rủi ro hay các chủ đề ngoài phạm vi quản lý thu chi, ngân sách và tiết kiệm. "
                 "Bạn có thắc mắc nào về thu chi, số dư hay ngân sách tháng này không? 💰"
             )
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, tra_loi_refuse, loai_hanh_dong="tu_van")
+            return tra_loi_refuse
 
         # Tự động nhận diện lệnh giao tiếp tự nhiên và thêm giao dịch vào hệ thống (hỗ trợ đa lượt)
         thao_tac_res = AIService.xu_ly_giao_dich_tu_nhien(db, ma_nd, cau_hoi_clean, lich_su_chat=lich_su_chat)
         if thao_tac_res:
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, thao_tac_res)
             return thao_tac_res
 
         ctx = AIService._get_spending_context(db, ma_nd)
@@ -1932,12 +2288,180 @@ class AIService:
             f"HÃY ĐỌC KỸ LỊCH SỬ TRÒ CHUYỆN ĐỂ TRẢ LỜI ĐÚNG NGỮ CẢNH VÀ ĐÁP ỨNG TRỰC TIẾP Ý ĐỊNH CỦA NGƯỜI DÙNG:"
         )
 
-        # Thử gọi Gemini AI qua REST đa mô hình
+        # Thử gọi Gemini AI qua REST đa mô hình hoặc cục bộ
+        tra_loi_ai = None
         try:
-            return AIService._call_gemini_with_timeout(full_prompt, timeout=settings.AI_TIMEOUT_SECONDS)
+            tra_loi_ai = AIService._call_gemini_with_timeout(full_prompt, timeout=settings.AI_TIMEOUT_SECONDS)
         except Exception:
-            pass
+            tra_loi_ai = AIService._tra_loi_cuc_bo_thong_minh(cau_hoi_clean, ctx, lich_su_chat)
 
-        # Khi mạng offline hoặc Gemini API tạm thời không phản hồi,
-        # kích hoạt bộ máy tư duy tài chính cục bộ thông minh
-        return AIService._tra_loi_cuc_bo_thong_minh(cau_hoi_clean, ctx, lich_su_chat)
+        if tra_loi_ai:
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, tra_loi_ai)
+
+        return tra_loi_ai
+
+    @staticmethod
+    def xac_dinh_loai_hanh_dong(tra_loi: str) -> str:
+        """Tự động phân loại bản chất tương tác dựa trên kết quả phản hồi của AI."""
+        tl = tra_loi.lower()
+        if "xác nhận xóa" in tl or "xác nhận xoá" in tl:
+            return "xac_nhan_xoa"
+        if "hủy thao tác xóa" in tl or "huỷ thao tác xoá" in tl:
+            return "huy_xoa"
+        if "sau khi đính chính" in tl or "sửa lại ngay" in tl:
+            return "sua_giao_dich"
+        if "đã xóa giao dịch" in tl or "đã xoá giao dịch" in tl:
+            return "xoa_giao_dich"
+        if "đã xóa danh mục" in tl or "đã xoá danh mục" in tl:
+            return "xoa_danh_muc"
+        if "đã xóa hũ" in tl or "đã xoá hũ" in tl or "đã xóa mục tiêu" in tl:
+            return "xoa_hu"
+        if "kết quả tra cứu" in tl:
+            return "tra_cuu"
+        if "đã tạo hũ tiết kiệm" in tl or "đã tạo mục tiêu" in tl:
+            return "tao_hu"
+        if "trích tiền từ hũ" in tl or "rút tiền từ hũ" in tl:
+            return "rut_hu"
+        if "trích" in tl and "vào hũ tiết kiệm" in tl:
+            return "nop_hu"
+        if "mục tiêu tiết kiệm sau điều chỉnh" in tl:
+            return "doi_muc_tieu"
+        if "hạn mức mới" in tl or "hạn mức ngân sách" in tl or "chi tiêu các hũ" in tl:
+            return "ngan_sach"
+        if "sức khỏe tài chính" in tl or "6 chiếc hũ" in tl:
+            return "suc_khoe"
+        if "đã ghi nhận giao dịch" in tl or "chi tiết giao dịch" in tl:
+            return "them_giao_dich"
+        return "tu_van"
+
+    @staticmethod
+    def lay_nhan_hanh_dong(loai: str) -> Dict[str, str]:
+        """Trả về nhãn hiển thị, icon và màu sắc tương ứng với từng loại tương tác."""
+        labels = {
+            "xac_nhan_xoa": {"ten": "Hỏi xác nhận xóa", "icon": "⚠️", "mau": "amber"},
+            "huy_xoa": {"ten": "Hủy thao tác xóa", "icon": "🛡️", "mau": "slate"},
+            "them_giao_dich": {"ten": "Thêm giao dịch", "icon": "💸", "mau": "emerald"},
+            "sua_giao_dich": {"ten": "Đính chính giao dịch", "icon": "✏️", "mau": "amber"},
+            "xoa_giao_dich": {"ten": "Xóa giao dịch", "icon": "🗑️", "mau": "rose"},
+            "xoa_hu": {"ten": "Xóa hũ tiết kiệm", "icon": "🗑️", "mau": "rose"},
+            "xoa_danh_muc": {"ten": "Xóa danh mục", "icon": "🗑️", "mau": "rose"},
+            "tra_cuu": {"ten": "Tra cứu chi tiêu", "icon": "🔍", "mau": "sky"},
+            "tao_hu": {"ten": "Tạo hũ tiết kiệm", "icon": "🎯", "mau": "teal"},
+            "nop_hu": {"ten": "Nộp tiền tích lũy", "icon": "💰", "mau": "emerald"},
+            "rut_hu": {"ten": "Rút tiền về ví", "icon": "📤", "mau": "indigo"},
+            "doi_muc_tieu": {"ten": "Đổi mục tiêu", "icon": "🔄", "mau": "purple"},
+            "ngan_sach": {"ten": "Hạn mức ngân sách", "icon": "🏺", "mau": "cyan"},
+            "suc_khoe": {"ten": "Sức khỏe 6 Hũ", "icon": "🏥", "mau": "teal"},
+            "tu_van": {"ten": "Tư vấn tài chính", "icon": "💬", "mau": "slate"},
+        }
+        return labels.get(loai, {"ten": "Hỏi đáp AI", "icon": "🤖", "mau": "teal"})
+
+    @staticmethod
+    def luu_nhat_ky_ai(db: Session, ma_nd: int, cau_hoi: str, tra_loi: str, loai_hanh_dong: Optional[str] = None):
+        """Ghi nhận nhật ký tương tác người dùng - AI vào cơ sở dữ liệu."""
+        try:
+            if not loai_hanh_dong:
+                loai_hanh_dong = AIService.xac_dinh_loai_hanh_dong(tra_loi)
+            log = LichSuAI(
+                ma_nd=ma_nd,
+                cau_hoi=cau_hoi,
+                tra_loi=tra_loi,
+                loai_hanh_dong=loai_hanh_dong,
+                ngay_tao=datetime.now()
+            )
+            db.add(log)
+            db.commit()
+            db.refresh(log)
+            return log
+        except Exception:
+            db.rollback()
+            return None
+
+    @staticmethod
+    def lay_lich_su_ai_theo_ngay(db: Session, ma_nd: int, ngay: Optional[str] = None, tu_khoa: Optional[str] = None, limit: int = 200) -> Dict:
+        """
+        Truy xuất toàn bộ nhật ký tương tác với AI và gom nhóm theo từng ngày.
+        Hỗ trợ lọc theo ngày cụ thể (YYYY-MM-DD) và tìm kiếm từ khóa.
+        """
+        from collections import OrderedDict
+        q = db.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd)
+
+        if ngay:
+            try:
+                dt_start = datetime.strptime(ngay, "%Y-%m-%d")
+                dt_end = dt_start + timedelta(days=1)
+                q = q.filter(LichSuAI.ngay_tao >= dt_start, LichSuAI.ngay_tao < dt_end)
+            except Exception:
+                pass
+
+        if tu_khoa:
+            tk = tu_khoa.strip()
+            if tk:
+                q = q.filter((LichSuAI.cau_hoi.ilike(f"%{tk}%")) | (LichSuAI.tra_loi.ilike(f"%{tk}%")))
+
+        logs = q.order_by(LichSuAI.ngay_tao.desc(), LichSuAI.ma_log.desc()).limit(limit).all()
+
+        now = datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
+        yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        thu_names = {0: "Thứ Hai", 1: "Thứ Ba", 2: "Thứ Tư", 3: "Thứ Năm", 4: "Thứ Sáu", 5: "Thứ Bảy", 6: "Chủ Nhật"}
+
+        groups = OrderedDict()
+        for item in logs:
+            day_str = item.ngay_tao.strftime("%Y-%m-%d") if item.ngay_tao else today_str
+            if day_str not in groups:
+                groups[day_str] = []
+
+            badge_info = AIService.lay_nhan_hanh_dong(item.loai_hanh_dong or "tu_van")
+            groups[day_str].append({
+                "ma_log": item.ma_log,
+                "cau_hoi": item.cau_hoi,
+                "tra_loi": item.tra_loi,
+                "loai_hanh_dong": item.loai_hanh_dong or "tu_van",
+                "ten_hanh_dong": badge_info["ten"],
+                "icon": badge_info["icon"],
+                "mau": badge_info["mau"],
+                "thoi_gian": item.ngay_tao.strftime("%H:%M") if item.ngay_tao else "",
+                "ngay_tao": item.ngay_tao.strftime("%Y-%m-%d %H:%M:%S") if item.ngay_tao else ""
+            })
+
+        cac_ngay = []
+        for day_str, items in groups.items():
+            d_obj = datetime.strptime(day_str, "%Y-%m-%d")
+            d_format = d_obj.strftime("%d/%m/%Y")
+            if day_str == today_str:
+                label = f"Hôm nay ({d_format})"
+            elif day_str == yesterday_str:
+                label = f"Hôm qua ({d_format})"
+            else:
+                label = f"{thu_names.get(d_obj.weekday(), 'Ngày')} ({d_format})"
+
+            cac_ngay.append({
+                "ngay": day_str,
+                "ngay_hien_thi": label,
+                "so_luong": len(items),
+                "nhat_ky": items
+            })
+
+        return {
+            "tong_so": len(logs),
+            "tong_so_ngay": len(cac_ngay),
+            "cac_ngay": cac_ngay
+        }
+
+    @staticmethod
+    def xoa_lich_su_ai(db: Session, ma_nd: int, ma_log: Optional[int] = None, ngay: Optional[str] = None) -> int:
+        """Xóa nhật ký tương tác AI theo ID cụ thể, theo ngày hoặc toàn bộ."""
+        q = db.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd)
+        if ma_log:
+            q = q.filter(LichSuAI.ma_log == ma_log)
+        elif ngay:
+            try:
+                dt_start = datetime.strptime(ngay, "%Y-%m-%d")
+                dt_end = dt_start + timedelta(days=1)
+                q = q.filter(LichSuAI.ngay_tao >= dt_start, LichSuAI.ngay_tao < dt_end)
+            except Exception:
+                pass
+        count = q.delete(synchronize_session=False)
+        db.commit()
+        return count

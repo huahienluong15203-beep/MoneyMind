@@ -20,7 +20,7 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 ngày
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    AI_TIMEOUT_SECONDS: float = 30.0  # NFR-03 (tăng lên 30s để Gemini phản hồi đủ)
+    AI_TIMEOUT_SECONDS: float = 10.0  # Tối ưu phản hồi nhanh (< 1.5s tiêu chuẩn, tối đa 10s dự phòng)
     MAX_FAILED_LOGINS: int = 5
     LOCKOUT_MINUTES: int = 15
 

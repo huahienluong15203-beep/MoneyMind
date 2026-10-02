@@ -95,3 +95,45 @@ def hoi_dap_ai(
         lich_su_chat=payload.lich_su_chat
     )
     return HoiDapAIResponse(tra_loi=tra_loi)
+
+@router.get("/lich-su", summary="Xem nhật ký lịch sử tương tác AI theo ngày")
+def lay_lich_su_ai(
+    ngay: Optional[str] = Query(None, description="Lọc theo ngày cụ thể (YYYY-MM-DD)"),
+    tu_khoa: Optional[str] = Query(None, description="Tìm kiếm từ khóa câu hỏi hoặc câu trả lời"),
+    limit: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: NguoiDung = Depends(get_current_user)
+):
+    """
+    Truy xuất toàn bộ nhật ký tương tác AI được gom nhóm theo từng ngày (Hôm nay, Hôm qua, Ngày...).
+    Hỗ trợ lọc theo ngày và tìm kiếm từ khóa.
+    """
+    return AIService.lay_lich_su_ai_theo_ngay(
+        db=db,
+        ma_nd=current_user.ma_nd,
+        ngay=ngay,
+        tu_khoa=tu_khoa,
+        limit=limit
+    )
+
+@router.delete("/lich-su/{ma_log}", summary="Xóa một bản ghi nhật ký tương tác AI")
+def xoa_mot_ban_ghi_ai(
+    ma_log: int,
+    db: Session = Depends(get_db),
+    current_user: NguoiDung = Depends(get_current_user)
+):
+    """Xóa một bản ghi tương tác AI cụ thể của người dùng."""
+    count = AIService.xoa_lich_su_ai(db=db, ma_nd=current_user.ma_nd, ma_log=ma_log)
+    if count == 0:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bản ghi nhật ký tương tác AI.")
+    return {"status": "ok", "message": "Đã xóa bản ghi nhật ký tương tác AI thành công."}
+
+@router.delete("/lich-su", summary="Xóa toàn bộ hoặc xóa nhật ký tương tác AI theo ngày")
+def xoa_toan_bo_lich_su_ai(
+    ngay: Optional[str] = Query(None, description="Xóa theo ngày (YYYY-MM-DD) hoặc xóa tất cả"),
+    db: Session = Depends(get_db),
+    current_user: NguoiDung = Depends(get_current_user)
+):
+    """Xóa toàn bộ lịch sử tương tác AI hoặc theo một ngày cụ thể."""
+    count = AIService.xoa_lich_su_ai(db=db, ma_nd=current_user.ma_nd, ngay=ngay)
+    return {"status": "ok", "message": f"Đã xóa {count} bản ghi nhật ký tương tác AI.", "deleted_count": count}

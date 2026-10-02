@@ -1036,6 +1036,15 @@ def ai_tro_ly_legacy(payload: dict, db: Session = Depends(get_db), current_user:
     )
     return {"tra_loi": tra_loi, "giao_dich_moi": co_giao_dich}
 
+@app.get("/api/ai-logs")
+def get_ai_logs_legacy(
+    ngay: Optional[str] = None,
+    tu_khoa: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: NguoiDung = Depends(get_current_active_user)
+):
+    return AIService.lay_lich_su_ai_theo_ngay(db=db, ma_nd=current_user.ma_nd, ngay=ngay, tu_khoa=tu_khoa)
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))

@@ -24,6 +24,7 @@ class NguoiDung(Base):
     ngan_sachs = relationship("NganSach", back_populates="nguoi_dung", cascade="all, delete-orphan")
     muc_tieus = relationship("MucTieuTietKiem", back_populates="nguoi_dung", cascade="all, delete-orphan")
     bao_caos = relationship("BaoCaoAI", back_populates="nguoi_dung", cascade="all, delete-orphan")
+    lich_su_ai = relationship("LichSuAI", back_populates="nguoi_dung", cascade="all, delete-orphan")
 
     # Compatibility properties for legacy code
     @property

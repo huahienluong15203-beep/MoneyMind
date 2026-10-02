@@ -8,6 +8,7 @@ from app.models.dat_lai_mat_khau import DatLaiMatKhau
 from app.models.thong_bao import ThongBao
 from app.models.xac_nhan_otp import XacNhanOTP
 from app.models.ket_chuyen_ngan_sach import KetChuyenNganSach
+from app.models.lich_su_ai import LichSuAI
 
 # Compatibility aliases
 User = NguoiDung
@@ -15,6 +16,7 @@ Category = DanhMuc
 Transaction = GiaoDich
 SavingsGoal = MucTieuTietKiem
 Notification = ThongBao
+AILog = LichSuAI
 
 __all__ = [
     "NguoiDung",
@@ -27,9 +29,11 @@ __all__ = [
     "ThongBao",
     "XacNhanOTP",
     "KetChuyenNganSach",
+    "LichSuAI",
     "User",
     "Category",
     "Transaction",
     "SavingsGoal",
-    "Notification"
+    "Notification",
+    "AILog"
 ]
