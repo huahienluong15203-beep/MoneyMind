@@ -8,7 +8,8 @@
 
 
             function setCategoryTabType(type) {
-                document.getElementById('cat-type-input').value = type;
+                const typeInput = document.getElementById('cat-type-input');
+                if (typeInput) typeInput.value = type;
                 const bChi = document.getElementById('cat-btn-chi');
                 const bThu = document.getElementById('cat-btn-thu');
                 const wrapper = document.getElementById('cat-limit-wrapper');
@@ -16,15 +17,15 @@
                 const input = document.getElementById('cat-limit-input');
 
                 if(type === 'chi') {
-                    bChi.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition";
-                    bThu.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 transition";
-                    wrapper.style.display = 'block';
+                    if (bChi) bChi.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition cursor-pointer";
+                    if (bThu) bThu.className = "flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer";
+                    if (wrapper) wrapper.style.display = 'block';
                     if(label) label.innerText = "Số tiền cấp cho hũ (đ):";
                     if(input) input.placeholder = "Ví dụ: 2000000";
                 } else {
-                    bThu.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-emerald-600 shadow-sm transition";
-                    bChi.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 transition";
-                    wrapper.style.display = 'block';
+                    if (bThu) bThu.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-white text-emerald-600 shadow-sm transition cursor-pointer";
+                    if (bChi) bChi.className = "flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer";
+                    if (wrapper) wrapper.style.display = 'block';
                     if(label) label.innerText = "Số tiền thu nhập cộng vào ví chính (đ):";
                     if(input) input.placeholder = "Ví dụ: 10000000";
                 }

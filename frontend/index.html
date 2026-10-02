@@ -281,42 +281,6 @@
                 </div>
             </div>
 
-            <!-- MODAL THÊM DANH MỤC -->
-            <div id="add-category-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
-                    <div class="text-center">
-                        <span class="text-2xl">📁</span>
-                        <h3 class="text-sm font-bold text-slate-800 mt-1">Thêm Danh Mục Mới</h3>
-                        <p class="text-[11px] text-slate-400">Tạo hũ chi tiêu hoặc danh mục thu nhập</p>
-                    </div>
-                    
-                    <div class="space-y-3 text-xs">
-                        <div>
-                            <label class="font-semibold text-slate-500 block mb-1">Tên danh mục:</label>
-                            <input type="text" id="cat-name-input" placeholder="Ví dụ: Tiền lương, Mua sắm..." class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
-                        </div>
-
-                        <div>
-                            <label class="font-semibold text-slate-500 block mb-1.5">Loại danh mục:</label>
-                            <div class="flex bg-slate-200/70 p-1 rounded-xl">
-                                <button type="button" id="cat-btn-chi" onclick="setCategoryTabType('chi')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition">Danh mục Chi</button>
-                                <button type="button" id="cat-btn-thu" onclick="setCategoryTabType('thu')" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 transition">Danh mục Thu</button>
-                            </div>
-                            <input type="hidden" id="cat-type-input" value="chi">
-                        </div>
-
-                        <div id="cat-limit-wrapper">
-                            <label id="cat-limit-label" class="font-semibold text-slate-500 block mb-1">Số tiền cấp cho hũ (đ):</label>
-                            <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="cat-limit-input" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')" placeholder="Ví dụ: 2000000" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
-                        </div>
-                    </div>
-
-                    <div class="flex gap-2 pt-1">
-                        <button onclick="saveCategoryCrud()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer">Lưu Danh Mục</button>
-                        <button onclick="closeAddCategoryModal()" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer">Hủy</button>
-                    </div>
-                </div>
-            </div>
 
             <!-- MODAL SỬA DANH MỤC -->
             <div id="edit-category-modal" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1265,7 +1229,7 @@
         <script src="js/api.js?v=9.0"></script>
         <script src="js/auth.js?v=9.0"></script>
         <script src="js/ngan-sach.js?v=9.0"></script>
-        <script src="js/danh-muc.js?v=9.1"></script>
+        <script src="js/danh-muc.js?v=9.2"></script>
         <script src="js/tiet-kiem.js?v=9.0"></script>
         <script src="js/giao-dich.js?v=9.0"></script>
         <script src="js/tra-cuu.js?v=9.0"></script>
