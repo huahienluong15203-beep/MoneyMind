@@ -15,19 +15,41 @@
                 const wrapper = document.getElementById('cat-limit-wrapper');
                 const label = document.getElementById('cat-limit-label');
                 const input = document.getElementById('cat-limit-input');
+                const hintEl = document.getElementById('cat-limit-hint');
+                const errEl = document.getElementById('cat-limit-error');
+
+                if (errEl) errEl.classList.add('hidden');
+                if (input) input.classList.remove('border-rose-400');
 
                 if(type === 'chi') {
                     if (bChi) bChi.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition cursor-pointer";
                     if (bThu) bThu.className = "flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer";
                     if (wrapper) wrapper.style.display = 'block';
-                    if(label) label.innerText = "Số tiền cấp cho hũ (đ):";
-                    if(input) input.placeholder = "Ví dụ: 2000000";
+                    if(label) label.innerHTML = `Số tiền cấp cho hũ (đ) <span class="text-rose-500 font-bold">* (Tối thiểu 1.000 đ)</span>:`;
+                    if(input) {
+                        input.placeholder = "Tối thiểu 1.000 đ (Ví dụ: 2000000)";
+                        input.setAttribute('min', '1000');
+                    }
+                    if(hintEl) {
+                        hintEl.classList.remove('hidden');
+                        hintEl.innerText = "💡 Hũ chi tiêu bắt buộc phải được cấp tối thiểu 1.000 đ từ ví chính";
+                    }
                 } else {
                     if (bThu) bThu.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-white text-emerald-600 shadow-sm transition cursor-pointer";
                     if (bChi) bChi.className = "flex-1 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer";
                     if (wrapper) wrapper.style.display = 'block';
-                    if(label) label.innerText = "Số tiền thu nhập cộng vào ví chính (đ):";
-                    if(input) input.placeholder = "Ví dụ: 10000000";
+                    if(label) label.innerHTML = `Số tiền thu nhập cộng vào ví (đ) <span class="text-slate-400 font-normal text-[11px]">(Tùy chọn)</span>:`;
+                    if(input) {
+                        input.placeholder = "Ví dụ: 10000000 (để trống nếu chưa có)";
+                        input.removeAttribute('min');
+                    }
+                    if(hintEl) {
+                        hintEl.classList.remove('hidden');
+                        hintEl.innerText = "💡 Để trống nếu chỉ tạo danh mục mà chưa nạp tiền ngay vào ví chính";
+                    }
+                }
+                if (typeof handleCatLimitInput === 'function' && input) {
+                    handleCatLimitInput(input);
                 }
             }
 
@@ -332,22 +354,75 @@
 
             function handleCatLimitInput(input) {
                 if (!input) return;
+                const type = document.getElementById('cat-type-input')?.value || 'chi';
                 const raw = input.value.replace(/[^0-9]/g, '').replace(/^0+/, '');
-                input.value = raw ? Number(raw).toLocaleString('vi-VN') : '';
+                input.value = raw;
                 const num = parseFloat(raw) || 0;
                 const errEl = document.getElementById('cat-limit-error');
                 const hintEl = document.getElementById('cat-limit-hint');
-                if (num > 0 && num < 1000) {
-                    if (errEl) errEl.classList.remove('hidden');
-                    if (hintEl) hintEl.classList.add('hidden');
-                    input.classList.add('border-rose-400');
+
+                if (type === 'chi') {
+                    if (raw && num < 1000) {
+                        if (errEl) {
+                            errEl.innerText = "⚠️ Số tiền cấp cho hũ bắt buộc tối thiểu là 1.000 đ!";
+                            errEl.classList.remove('hidden');
+                        }
+                        if (hintEl) hintEl.classList.add('hidden');
+                        input.classList.add('border-rose-400');
+                    } else {
+                        if (errEl) errEl.classList.add('hidden');
+                        if (hintEl) {
+                            hintEl.classList.remove('hidden');
+                            if (num >= 1000) {
+                                hintEl.innerHTML = `💡 Sẽ trích <strong class="text-teal-700">${num.toLocaleString('vi-VN')} đ</strong> từ ví chính cấp cho hũ này`;
+                            } else {
+                                hintEl.innerText = "💡 Hũ chi tiêu bắt buộc phải được cấp tối thiểu 1.000 đ từ ví chính";
+                            }
+                        }
+                        input.classList.remove('border-rose-400');
+                    }
                 } else {
-                    if (errEl) errEl.classList.add('hidden');
-                    if (hintEl) hintEl.classList.remove('hidden');
-                    input.classList.remove('border-rose-400');
+                    if (raw && num > 0 && num < 1000) {
+                        if (errEl) {
+                            errEl.innerText = "⚠️ Số tiền thu nhập nạp vào ví tối thiểu là 1.000 đ!";
+                            errEl.classList.remove('hidden');
+                        }
+                        if (hintEl) hintEl.classList.add('hidden');
+                        input.classList.add('border-rose-400');
+                    } else {
+                        if (errEl) errEl.classList.add('hidden');
+                        if (hintEl) {
+                            hintEl.classList.remove('hidden');
+                            if (num >= 1000) {
+                                hintEl.innerHTML = `💰 Sẽ nạp <strong class="text-emerald-700">${num.toLocaleString('vi-VN')} đ</strong> vào ví chính`;
+                            } else {
+                                hintEl.innerText = "💡 Để trống nếu chỉ tạo danh mục mà chưa nạp tiền ngay vào ví chính";
+                            }
+                        }
+                        input.classList.remove('border-rose-400');
+                    }
                 }
             }
             window.handleCatLimitInput = handleCatLimitInput;
+
+            function handleCatLimitBlur(input) {
+                if (!input) return;
+                const type = document.getElementById('cat-type-input')?.value || 'chi';
+                const raw = input.value.replace(/[^0-9]/g, '').replace(/^0+/, '');
+                const num = parseFloat(raw) || 0;
+                const errEl = document.getElementById('cat-limit-error');
+                const hintEl = document.getElementById('cat-limit-hint');
+
+                if (type === 'chi' && (!raw || num < 1000)) {
+                    if (errEl) {
+                        errEl.innerText = "⚠️ Số tiền cấp cho hũ bắt buộc tối thiểu là 1.000 đ!";
+                        errEl.classList.remove('hidden');
+                    }
+                    if (hintEl) hintEl.classList.add('hidden');
+                    input.classList.add('border-rose-400');
+                }
+            }
+            window.handleCatLimitBlur = handleCatLimitBlur;
 
             async function saveCategoryCrud() {
                 const nameInput = document.getElementById('cat-name-input');
@@ -370,18 +445,29 @@
                 // Ràng buộc số tiền cấp cho hũ tối thiểu là 1.000 đ
                 if(type === 'chi' && (!rawAmount || amount < 1000)) {
                     const errEl = document.getElementById('cat-limit-error');
-                    if (errEl) errEl.classList.remove('hidden');
+                    if (errEl) {
+                        errEl.innerText = "⚠️ Số tiền cấp cho hũ bắt buộc tối thiểu là 1.000 đ!";
+                        errEl.classList.remove('hidden');
+                    }
                     const hintEl = document.getElementById('cat-limit-hint');
                     if (hintEl) hintEl.classList.add('hidden');
                     if (limitInput) {
                         limitInput.classList.add('border-rose-400');
                         limitInput.focus();
                     }
-                    return showCustomModal("Số tiền không hợp lệ", "Số tiền cấp cho hũ tối thiểu là 1.000 đ!", "⚠️");
+                    return showCustomModal("Số tiền không hợp lệ", "Số tiền cấp cho hũ bắt buộc tối thiểu là 1.000 đ!", "⚠️");
                 }
 
                 if(type === 'thu' && amount > 0 && amount < 1000) {
-                    if (limitInput) limitInput.focus();
+                    const errEl = document.getElementById('cat-limit-error');
+                    if (errEl) {
+                        errEl.innerText = "⚠️ Số tiền thu nhập nạp vào ví tối thiểu là 1.000 đ!";
+                        errEl.classList.remove('hidden');
+                    }
+                    if (limitInput) {
+                        limitInput.classList.add('border-rose-400');
+                        limitInput.focus();
+                    }
                     return showCustomModal("Số tiền không hợp lệ", "Số tiền thu nhập cộng vào ví tối thiểu là 1.000 đ!", "⚠️");
                 }
 

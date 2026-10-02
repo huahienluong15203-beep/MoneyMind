@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash, create_access_token
 from app.models import NguoiDung, DanhMuc, GiaoDich, NganSach, MucTieuTietKiem, BaoCaoAI
-from app.main import app
+from main import app
 
 # Sử dụng SQLite In-Memory Database cho test suite
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"

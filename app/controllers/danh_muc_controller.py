@@ -93,6 +93,18 @@ def tao_danh_muc(
 ):
     from datetime import datetime
     limit = (payload.han_muc or 0.0) if payload.loai_dm == 'chi' else 0.0
+    if payload.loai_dm == 'chi':
+        if limit < 1000:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Số tiền cấp cho hũ tối thiểu là 1.000 đ!"
+            )
+    elif payload.loai_dm == 'thu':
+        if payload.han_muc and 0 < payload.han_muc < 1000:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Số tiền thu nhập cộng vào ví tối thiểu là 1.000 đ!"
+            )
     new_cat = DanhMuc(
         ma_nd=current_user.ma_nd,
         ten_dm=payload.ten_dm,
@@ -156,6 +168,11 @@ def sua_danh_muc(
         cat.mau_sac = payload.mau_sac
     if payload.han_muc is not None:
         if cat.loai_dm == 'chi':
+            if payload.han_muc < 1000:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Hạn mức ngân sách tối thiểu là 1.000 đ!"
+                )
             now_dt = datetime.now()
             start_this = datetime(now_dt.year, now_dt.month, 1)
             end_this = datetime(now_dt.year + 1, 1, 1) if now_dt.month == 12 else datetime(now_dt.year, now_dt.month + 1, 1)

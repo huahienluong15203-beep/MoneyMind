@@ -123,3 +123,47 @@ def test_xac_nhan_otp_dang_ky_thanh_cong(client, db_session):
     data = ok_res.json()
     assert "access_token" in data
     assert data["user"]["email"] == new_email
+
+def test_tao_danh_muc_chi_bat_buoc_toi_thieu_1000(client, user_a, auth_headers_a):
+    # Thử tạo danh mục chi với số tiền cấp < 1000 đ (ví dụ 500 đ) -> Bị từ chối 400
+    res_fail = client.post("/danh-muc", json={
+        "ten_dm": "Hũ thử nghiệm nhỏ",
+        "loai_dm": "chi",
+        "amount": 500.0
+    }, headers=auth_headers_a)
+    assert res_fail.status_code == status.HTTP_400_BAD_REQUEST
+    assert "tối thiểu là 1.000 đ" in res_fail.json()["detail"]
+
+    # Thử tạo danh mục chi với số tiền cấp = 0 -> Bị từ chối 400
+    res_zero = client.post("/danh-muc", json={
+        "ten_dm": "Hũ thử nghiệm không tiền",
+        "loai_dm": "chi",
+        "amount": 0.0
+    }, headers=auth_headers_a)
+    assert res_zero.status_code == status.HTTP_400_BAD_REQUEST
+    assert "tối thiểu là 1.000 đ" in res_zero.json()["detail"]
+
+    # Nạp thu nhập đủ vào ví trước
+    client.post("/danh-muc", json={
+        "ten_dm": "Thu nhập mẫu",
+        "loai_dm": "thu",
+        "amount": 5000000.0
+    }, headers=auth_headers_a)
+
+    # Thử tạo với số tiền hợp lệ >= 1000 đ (ví dụ 50,000 đ) -> Thành công 201
+    res_ok = client.post("/danh-muc", json={
+        "ten_dm": "Hũ trà chanh",
+        "loai_dm": "chi",
+        "amount": 50000.0
+    }, headers=auth_headers_a)
+    assert res_ok.status_code == status.HTTP_201_CREATED
+
+    # Kiểm tra tương tự trên API chuẩn /api/danh-muc (REST)
+    res_api_fail = client.post("/api/danh-muc", json={
+        "ten_dm": "Hũ API thử nghiệm nhỏ",
+        "loai_dm": "chi",
+        "han_muc": 500.0
+    }, headers=auth_headers_a)
+    assert res_api_fail.status_code == status.HTTP_400_BAD_REQUEST
+    assert "tối thiểu là 1.000 đ" in res_api_fail.json()["detail"]
+

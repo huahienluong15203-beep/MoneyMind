@@ -898,10 +898,10 @@
                                         <input type="hidden" id="cat-type-input" value="chi">
                                     </div>
                                     <div id="cat-limit-wrapper">
-                                        <label id="cat-limit-label" class="font-semibold text-slate-500 block mb-1">Số tiền cấp cho hũ (đ):</label>
-                                        <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="cat-limit-input" oninput="handleCatLimitInput(this)" placeholder="Ví dụ: 2000000" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
-                                        <p id="cat-limit-hint" class="text-[10px] text-slate-400 mt-1">💡 Số tiền cấp cho hũ tối thiểu là 1.000 đ</p>
-                                        <div id="cat-limit-error" class="hidden text-[10px] text-rose-500 font-semibold mt-1">⚠️ Số tiền tối thiểu là 1.000 đ!</div>
+                                        <label id="cat-limit-label" class="font-semibold text-slate-500 block mb-1">Số tiền cấp cho hũ (đ) <span class="text-rose-500 font-bold">* (Tối thiểu 1.000 đ)</span>:</label>
+                                        <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="cat-limit-input" oninput="handleCatLimitInput(this)" onblur="handleCatLimitBlur(this)" placeholder="Tối thiểu 1.000 đ (Ví dụ: 2000000)" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input transition">
+                                        <p id="cat-limit-hint" class="text-[10px] text-slate-400 mt-1">💡 Hũ chi tiêu bắt buộc phải được cấp tối thiểu 1.000 đ từ ví chính</p>
+                                        <div id="cat-limit-error" class="hidden text-[10px] text-rose-500 font-semibold mt-1">⚠️ Số tiền cấp cho hũ bắt buộc tối thiểu là 1.000 đ!</div>
                                     </div>
                                     <div class="flex gap-2 pt-1">
                                         <button type="button" onclick="saveCategoryCrud()" class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer">Lưu Danh Mục</button>
@@ -1231,7 +1231,7 @@
         <script src="js/api.js?v=9.0"></script>
         <script src="js/auth.js?v=9.0"></script>
         <script src="js/ngan-sach.js?v=9.0"></script>
-        <script src="js/danh-muc.js?v=9.3"></script>
+        <script src="js/danh-muc.js?v=9.4"></script>
         <script src="js/tiet-kiem.js?v=9.0"></script>
         <script src="js/giao-dich.js?v=9.0"></script>
         <script src="js/tra-cuu.js?v=9.0"></script>
