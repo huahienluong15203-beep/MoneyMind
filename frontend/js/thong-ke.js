@@ -711,7 +711,7 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
 
                         <div class="text-right shrink-0">
                             <div class="text-xs font-bold text-slate-800">${spentAmount.toLocaleString()} đ</div>
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ${theme.badge}">
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700">
                                 ${pctOfTotal}% tổng chi
                             </span>
                         </div>
