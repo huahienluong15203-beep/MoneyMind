@@ -333,11 +333,12 @@
                             <input type="text" id="modal-edit-name" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
                         </div>
                         <div>
-                            <label class="font-semibold text-slate-500 block mb-1">Loại danh mục:</label>
-                            <select id="modal-edit-type" onchange="toggleModalEditLimit()" class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500">
-                                <option value="chi">Danh mục Chi</option>
-                                <option value="thu">Danh mục Thu</option>
-                            </select>
+                            <label class="font-semibold text-slate-500 block mb-1.5">Loại danh mục:</label>
+                            <div class="flex bg-slate-200/70 p-1 rounded-xl">
+                                <button type="button" id="modal-edit-btn-chi" onclick="setModalEditCategoryType('chi')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition cursor-pointer">Danh mục Chi</button>
+                                <button type="button" id="modal-edit-btn-thu" onclick="setModalEditCategoryType('thu')" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer">Danh mục Thu</button>
+                            </div>
+                            <input type="hidden" id="modal-edit-type" value="chi">
                         </div>
                         <div id="modal-edit-limit-wrapper">
                             <div class="flex justify-between items-center mb-1">
@@ -1264,7 +1265,7 @@
         <script src="js/api.js?v=9.0"></script>
         <script src="js/auth.js?v=9.0"></script>
         <script src="js/ngan-sach.js?v=9.0"></script>
-        <script src="js/danh-muc.js?v=9.0"></script>
+        <script src="js/danh-muc.js?v=9.1"></script>
         <script src="js/tiet-kiem.js?v=9.0"></script>
         <script src="js/giao-dich.js?v=9.0"></script>
         <script src="js/tra-cuu.js?v=9.0"></script>

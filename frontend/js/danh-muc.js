@@ -31,8 +31,27 @@
             }
 
 
+            function setModalEditCategoryType(type) {
+                const input = document.getElementById('modal-edit-type');
+                if (input) input.value = type;
+                const bChi = document.getElementById('modal-edit-btn-chi');
+                const bThu = document.getElementById('modal-edit-btn-thu');
+                if (bChi && bThu) {
+                    if (type === 'chi') {
+                        bChi.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-rose-600 shadow-sm transition cursor-pointer";
+                        bThu.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer";
+                    } else {
+                        bThu.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-emerald-600 shadow-sm transition cursor-pointer";
+                        bChi.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer";
+                    }
+                }
+                toggleModalEditLimit();
+                const limitInput = document.getElementById('modal-edit-limit');
+                handleEditLimitChange(limitInput ? limitInput.value : '');
+            }
+
             function toggleModalEditLimit() {
-                const type = document.getElementById('modal-edit-type').value;
+                const type = document.getElementById('modal-edit-type')?.value;
                 const wrapper = document.getElementById('modal-edit-limit-wrapper');
                 const hintEl = document.getElementById('modal-edit-spent-hint');
                 if(type === 'thu') {
@@ -99,7 +118,7 @@
 
                 document.getElementById('modal-edit-cat-id').value = id;
                 document.getElementById('modal-edit-name').value = name;
-                document.getElementById('modal-edit-type').value = type;
+                setModalEditCategoryType(type || 'chi');
                 const oldLimitVal = (limit && limit > 0) ? limit : 0;
                 const oldLimitInput = document.getElementById('modal-edit-old-limit');
                 if (oldLimitInput) oldLimitInput.value = oldLimitVal;
