@@ -13,6 +13,54 @@ from app.services.ngan_sach_service import NganSachService
 
 router = APIRouter(prefix="/api/auth", tags=["Xác thực tài khoản (UC001)"])
 
+def khoi_tao_tai_khoan_moi(db: Session, user: NguoiDung):
+    """
+    Khởi tạo tài khoản mới sạch sẽ 100%:
+    1. Xoá triệt để mọi dữ liệu mồ côi (nếu ID này vô tình trùng lặp do SQLite auto-increment tái sử dụng ID từ phiên test cũ)
+    2. Khởi tạo 4 danh mục thu/chi mặc định.
+    """
+    from app.models.thong_bao import ThongBao
+    from app.models.giao_dich import GiaoDich
+    from app.models.ngan_sach import NganSach
+    from app.models.muc_tieu_tiet_kiem import MucTieuTietKiem
+    from app.models.lich_su_ai import LichSuAI
+    from app.models.bao_cao_ai import BaoCaoAI
+    from app.models.danh_muc import DanhMuc
+    from app.models.ket_chuyen_ngan_sach import KetChuyenNganSach
+    from sqlalchemy import text
+
+    # 1. Dọn sạch dữ liệu cũ trùng ID nếu có
+    db.query(ThongBao).filter(ThongBao.ma_nd == user.ma_nd).delete(synchronize_session=False)
+    db.query(GiaoDich).filter(GiaoDich.ma_nd == user.ma_nd).delete(synchronize_session=False)
+    db.query(NganSach).filter(NganSach.ma_nd == user.ma_nd).delete(synchronize_session=False)
+    db.query(MucTieuTietKiem).filter(MucTieuTietKiem.ma_nd == user.ma_nd).delete(synchronize_session=False)
+    db.query(LichSuAI).filter(LichSuAI.ma_nd == user.ma_nd).delete(synchronize_session=False)
+    db.query(BaoCaoAI).filter(BaoCaoAI.ma_nd == user.ma_nd).delete(synchronize_session=False)
+    db.query(DanhMuc).filter(DanhMuc.ma_nd == user.ma_nd).delete(synchronize_session=False)
+    db.query(KetChuyenNganSach).filter(KetChuyenNganSach.ma_nd == user.ma_nd).delete(synchronize_session=False)
+
+    # Dọn dẹp cả các bảng tương thích ngược legacy nếu tồn tại
+    try:
+        db.execute(text("DELETE FROM notifications WHERE user_id = :uid"), {"uid": user.ma_nd})
+        db.execute(text("DELETE FROM transactions WHERE user_id = :uid"), {"uid": user.ma_nd})
+        db.execute(text("DELETE FROM categories WHERE user_id = :uid"), {"uid": user.ma_nd})
+        db.execute(text("DELETE FROM savings_goals WHERE user_id = :uid"), {"uid": user.ma_nd})
+    except Exception:
+        pass
+    db.commit()
+
+    # 2. Tạo sẵn các danh mục cơ bản
+    default_cats = [
+        ("Ăn uống", "chi", "utensils", "#f43f5e", 0.0),
+        ("Đi lại", "chi", "car", "#0ea5e9", 0.0),
+        ("Mua sắm", "chi", "shopping-bag", "#f59e0b", 0.0),
+        ("Tiền lương", "thu", "wallet", "#10b981", 0.0)
+    ]
+    for cname, ctype, cicon, ccolor, climit in default_cats:
+        cat = DanhMuc(ma_nd=user.ma_nd, ten_dm=cname, loai_dm=ctype, icon=cicon, mau_sac=ccolor, han_muc=climit)
+        db.add(cat)
+    db.commit()
+
 @router.post("/dang-ky", status_code=status.HTTP_201_CREATED, summary="Đăng ký tài khoản mới (UC001)")
 def dang_ky(payload: DangKyRequest, db: Session = Depends(get_db)):
     """
@@ -38,6 +86,7 @@ def dang_ky(payload: DangKyRequest, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    khoi_tao_tai_khoan_moi(db, new_user)
 
     return {
         "thong_bao": "Đăng ký tài khoản thành công",
@@ -136,16 +185,7 @@ def xac_nhan_dang_ky(payload: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    default_cats = [
-        ("Ăn uống", "chi", "utensils", "#f43f5e", 0.0),
-        ("Đi lại", "chi", "car", "#0ea5e9", 0.0),
-        ("Mua sắm", "chi", "shopping-bag", "#f59e0b", 0.0),
-        ("Tiền lương", "thu", "wallet", "#10b981", 0.0)
-    ]
-    for cname, ctype, cicon, ccolor, climit in default_cats:
-        cat = DanhMuc(ma_nd=new_user.ma_nd, ten_dm=cname, loai_dm=ctype, icon=cicon, mau_sac=ccolor, han_muc=climit)
-        db.add(cat)
-    db.commit()
+    khoi_tao_tai_khoan_moi(db, new_user)
 
     access_token = create_access_token(data={"sub": new_user.email, "user_id": new_user.ma_nd})
     refresh_token = create_refresh_token(data={"sub": new_user.email, "user_id": new_user.ma_nd})

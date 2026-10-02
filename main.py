@@ -261,6 +261,7 @@ def google_login(payload: dict, db: Session = Depends(get_db)):
 
     user = db.query(NguoiDung).filter(NguoiDung.email == email).first()
     if not user:
+        from app.controllers.auth_controller import khoi_tao_tai_khoan_moi
         new_u = NguoiDung(
             email=email,
             ho_ten=data.get("name") or email.split("@")[0],
@@ -269,6 +270,7 @@ def google_login(payload: dict, db: Session = Depends(get_db)):
         db.add(new_u)
         db.commit()
         db.refresh(new_u)
+        khoi_tao_tai_khoan_moi(db, new_u)
         user = new_u
 
     access_token = create_access_token(data={"sub": user.email, "user_id": user.ma_nd})
@@ -297,6 +299,7 @@ def legacy_xac_nhan_dang_ky(payload: dict, db: Session = Depends(get_db)):
 
 @app.post("/dang-ky", status_code=status.HTTP_201_CREATED)
 def legacy_dang_ky(user: dict, db: Session = Depends(get_db)):
+    from app.controllers.auth_controller import khoi_tao_tai_khoan_moi
     username = user.get("username") or user.get("email")
     if not username:
         raise HTTPException(status_code=400, detail="Thiếu tên đăng nhập hoặc email")
@@ -310,6 +313,7 @@ def legacy_dang_ky(user: dict, db: Session = Depends(get_db)):
     db.add(new_u)
     db.commit()
     db.refresh(new_u)
+    khoi_tao_tai_khoan_moi(db, new_u)
     return {"thong_bao": "OK"}
 
 @app.post("/dang-nhap", response_model=Token)

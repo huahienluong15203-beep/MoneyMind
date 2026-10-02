@@ -96,12 +96,60 @@ var currentAuthMode = 'register';
             }
 
 
-            function openLogoutModal() { document.getElementById('logout-confirm-modal').classList.remove('hidden'); }
-            function closeLogoutModal() { document.getElementById('logout-confirm-modal').classList.add('hidden'); }
-            function executeLogout() {
+            function clearClientSessionState() {
                 localStorage.removeItem("moneymind_token");
                 localStorage.removeItem("access_token");
                 token = "";
+                allNotifications = [];
+                allTransactions = [];
+                allCategories = [];
+                allSavingsGoals = [];
+
+                if (typeof renderNotificationsList === 'function') {
+                    renderNotificationsList();
+                }
+
+                const notifList = document.getElementById('notifications-list');
+                if (notifList) {
+                    notifList.innerHTML = `
+                        <div class="text-center py-10 space-y-2">
+                            <span class="text-3xl">📭</span>
+                            <p class="text-xs font-bold text-slate-500">Chưa có thông báo hoặc cảnh báo nào</p>
+                            <p class="text-[11px] text-slate-400">Các cảnh báo chi tiêu, trích ví và biến động tài chính sẽ được ghi nhận tại đây.</p>
+                        </div>
+                    `;
+                }
+
+                const topBadge = document.getElementById('top-notif-badge');
+                if (topBadge) {
+                    topBadge.classList.add('hidden');
+                    topBadge.style.display = 'none';
+                    topBadge.innerText = '';
+                }
+
+                const countBadge = document.getElementById('notif-count-badge');
+                if (countBadge) countBadge.innerText = '0 thông báo';
+
+                const txList = document.getElementById('tx-list');
+                if (txList) txList.innerHTML = '';
+                const jarsList = document.getElementById('jars-progress-list');
+                if (jarsList) jarsList.innerHTML = '';
+                const lookupList = document.getElementById('lookup-tx-list');
+                if (lookupList) lookupList.innerHTML = '';
+                const mainBal = document.getElementById('main-wallet-balance');
+                if (mainBal) mainBal.innerText = '0 đ';
+                const totalSpent = document.getElementById('total-spent');
+                if (totalSpent) totalSpent.innerText = '0 đ';
+                const totalIncome = document.getElementById('total-income');
+                if (totalIncome) totalIncome.innerText = '0 đ';
+                const pfName = document.getElementById('pf-name');
+                if (pfName) pfName.innerText = '---';
+            }
+
+            function openLogoutModal() { document.getElementById('logout-confirm-modal').classList.remove('hidden'); }
+            function closeLogoutModal() { document.getElementById('logout-confirm-modal').classList.add('hidden'); }
+            function executeLogout() {
+                clearClientSessionState();
                 closeLogoutModal();
                 document.getElementById('header-container').classList.add('hidden');
                 document.getElementById('floating-top-controls').classList.add('hidden');
@@ -116,9 +164,7 @@ var currentAuthMode = 'register';
 
 
             function logout() {
-                localStorage.removeItem("moneymind_token");
-                localStorage.removeItem("access_token");
-                token = "";
+                clearClientSessionState();
                 const header = document.getElementById('header-container');
                 if(header) header.classList.add('hidden');
                 const ft = document.getElementById('floating-top-controls');
@@ -279,6 +325,7 @@ var currentAuthMode = 'register';
                     });
                     const data = await res.json();
                     if(res.ok) {
+                        clearClientSessionState();
                         token = data.access_token;
                         setStoredToken(token);
                         closeRegisterOtpModal();

@@ -16,11 +16,18 @@
 
 
             async function loadNotifications() {
-                if(!token) return;
+                if(!token) {
+                    allNotifications = [];
+                    renderNotificationsList();
+                    return;
+                }
                 try {
                     const res = await fetch('/api/notifications', {headers: {'Authorization': 'Bearer ' + token}});
                     if(res.ok) {
                         allNotifications = await res.json();
+                        renderNotificationsList();
+                    } else if(res.status === 401) {
+                        allNotifications = [];
                         renderNotificationsList();
                     }
                 } catch(e) {
