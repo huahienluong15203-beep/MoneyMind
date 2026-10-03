@@ -17,12 +17,15 @@ from sqlalchemy import desc
 
 from app.main import app
 from app.core.database import get_db, SessionLocal
+import uuid
 from app.core.security import (
     get_current_user,
     get_password_hash,
     verify_password,
     create_access_token,
-    create_refresh_token
+    create_refresh_token,
+    set_active_session,
+    get_active_session
 )
 from app.models import (
     NguoiDung,
@@ -273,7 +276,11 @@ def google_login(payload: dict, db: Session = Depends(get_db)):
         khoi_tao_tai_khoan_moi(db, new_u)
         user = new_u
 
-    access_token = create_access_token(data={"sub": user.email, "user_id": user.ma_nd})
+    session_id = str(uuid.uuid4())
+    user.session_id = session_id
+    db.commit()
+    set_active_session(user.ma_nd, session_id, user.email)
+    access_token = create_access_token(data={"sub": user.email, "user_id": user.ma_nd, "session_id": session_id})
     ACTIVE_SESSIONS[user.email] = access_token
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -321,7 +328,11 @@ def legacy_dang_nhap(user: UserCreate, db: Session = Depends(get_db)):
     db_u = db.query(NguoiDung).filter(NguoiDung.email == user.username).first()
     if not db_u or not verify_password(user.password, db_u.mat_khau_hash):
         raise HTTPException(status_code=401, detail="Sai tài khoản hoặc mật khẩu")
-    token = create_access_token(data={"sub": db_u.email, "user_id": db_u.ma_nd})
+    session_id = str(uuid.uuid4())
+    db_u.session_id = session_id
+    db.commit()
+    set_active_session(db_u.ma_nd, session_id, db_u.email)
+    token = create_access_token(data={"sub": db_u.email, "user_id": db_u.ma_nd, "session_id": session_id})
     ACTIVE_SESSIONS[db_u.email] = token
     # Khi đăng nhập vào: kiểm tra cảnh báo hạn mức (>=90%) và đưa 1 thông báo vào phần thông báo
     NganSachService.check_and_generate_login_budget_notifications(db, db_u)
@@ -338,8 +349,7 @@ def cap_nhat_ho_so(data: dict, db: Session = Depends(get_db), current_user: Nguo
 
 @app.get("/check-session")
 def api_check_session(db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
-    NganSachService.check_and_generate_login_budget_notifications(db, current_user)
-    return {"status": "valid", "user": current_user.email}
+    return {"status": "valid", "user": current_user.email, "session_id": current_user.session_id}
 
 @app.get("/tai-khoan")
 def lay_thong_tin_tai_khoan(current_user: NguoiDung = Depends(get_current_active_user)):
@@ -1042,6 +1052,8 @@ def ai_tro_ly_legacy(payload: dict, db: Session = Depends(get_db), current_user:
         "đã phân bổ" in tra_loi.lower() or
         "đã cấp" in tra_loi.lower()
     )
+    if "không tự ý ghi nhận" in tra_loi.lower() or "không tự ý lưu" in tra_loi.lower():
+        co_giao_dich = False
     return {"tra_loi": tra_loi, "giao_dich_moi": co_giao_dich}
 
 @app.get("/api/ai-logs")

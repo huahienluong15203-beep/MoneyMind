@@ -17,8 +17,8 @@ Nội dung bắt buộc:
 
 1. Kiến trúc AI (bảng + link file):
    - ai_service.py (135KB): module lớn nhất, tích hợp Gemini SDK
-     + Sử dụng google-generativeai với mô hình gemini-2.5-flash
-     + Cascade Fallback: gemini-2.5-flash → gemini-1.5-flash → gemini-flash-latest
+     + Sử dụng google-generativeai với mô hình gemini-3.8-flash
+     + Cascade Fallback: gemini-3.8-flash → gemini-3.7-flash → gemini-flash-latest
      + Bắt lỗi: Timeout (>15s), HTTP 429 rate limit, network error
    - privacy_service.py: ẩn danh hóa dữ liệu trước khi gửi Gemini (BR-05)
      + Thay email → "USER_EMAIL_HIDDEN"
@@ -27,7 +27,7 @@ Nội dung bắt buộc:
    - Frontend: ai.js — Drawer chat trượt từ phải, typing effect, Markdown render
 
 2. 4 tính năng AI chính:
-   a. Báo Cáo Tài Chính Tháng: chấm điểm 0-100, nhận xét 6 hũ, 3 hành động cụ thể
+   a. Báo Cáo Tài Chính Tháng: chấm điểm 0-100, nhận xét cơ cấu chi tiêu, 3 hành động cụ thể
    b. Tư Vấn Phân Bổ Ngân Sách: đề xuất mức phân bổ dựa trên thu nhập thực tế
    c. Chat Hỏi Đáp Thông Minh: trả lời về chi tiêu, tiết kiệm, đầu tư
    d. AI Autonomous Agent: điều khiển app qua ngôn ngữ tự nhiên (20+ lệnh)
@@ -129,7 +129,7 @@ Kịch bản: User gõ "Tạo hũ tiết kiệm mua laptop 20 triệu hạn 31/1
 3. AIController → PrivacyService: anonymize({ho_ten, email})
 4. AIController → AIService: process_autonomous(message, anonymized_context)
 5. AIService → Gemini API: Prompt intent detection
-   (Fallback: gemini-2.5-flash → gemini-1.5-flash → gemini-flash-latest)
+   (Fallback: gemini-3.8-flash → gemini-3.7-flash → gemini-flash-latest)
 6. Gemini → AIService: {intent: "CREATE_SAVINGS_GOAL", ten: "Mua laptop", so_tien: 20000000, han_chot: "2026-12-31"}
 7. AIService → Database: INSERT INTO muc_tieu_tiet_kiem
 8. Database → AIService: ma_mt = 42, OK
@@ -148,13 +148,13 @@ Participant: User, ChatUI_AIjs, AIController, PrivacyService, AIService, GeminiA
 Sinh Flowchart (Mermaid.js flowchart TD) cho cơ chế Cascade Fallback Model Gemini:
 
 Start: Nhận request AI
-→ Thử gemini-2.5-flash
+→ Thử gemini-3.8-flash
   → Thành công? → return response
-  → Timeout (>15s)? → Log warning → Thử gemini-1.5-flash
-  → 429 Rate Limit? → Wait 2s → Thử gemini-1.5-flash
-  → Lỗi khác? → Log error → Thử gemini-1.5-flash
+  → Timeout (>15s)? → Log warning → Thử gemini-3.7-flash
+  → 429 Rate Limit? → Wait 2s → Thử gemini-3.7-flash
+  → Lỗi khác? → Log error → Thử gemini-3.7-flash
 
-→ Thử gemini-1.5-flash
+→ Thử gemini-3.7-flash
   → Thành công? → return response
   → Timeout hoặc 429? → Thử gemini-flash-latest
 

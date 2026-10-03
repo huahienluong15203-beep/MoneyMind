@@ -1,10 +1,12 @@
+import uuid
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import (
     get_password_hash, verify_password,
-    create_access_token, create_refresh_token, verify_refresh_token
+    create_access_token, create_refresh_token, verify_refresh_token,
+    set_active_session, get_active_session, get_current_user
 )
 from app.core.config import settings
 from app.models.nguoi_dung import NguoiDung
@@ -183,12 +185,15 @@ def xac_nhan_dang_ky(payload: dict, db: Session = Depends(get_db)):
     )
     db.add(new_user)
     db.commit()
-    db.refresh(new_user)
-
     khoi_tao_tai_khoan_moi(db, new_user)
 
-    access_token = create_access_token(data={"sub": new_user.email, "user_id": new_user.ma_nd})
-    refresh_token = create_refresh_token(data={"sub": new_user.email, "user_id": new_user.ma_nd})
+    session_id = str(uuid.uuid4())
+    new_user.session_id = session_id
+    db.commit()
+    set_active_session(new_user.ma_nd, session_id, new_user.email)
+
+    access_token = create_access_token(data={"sub": new_user.email, "user_id": new_user.ma_nd, "session_id": session_id})
+    refresh_token = create_refresh_token(data={"sub": new_user.email, "user_id": new_user.ma_nd, "session_id": session_id})
 
     return {
         "thong_bao": "Đăng ký tài khoản thành công",
@@ -247,13 +252,16 @@ def dang_nhap(payload: DangNhapRequest, db: Session = Depends(get_db)):
             detail=f"Email hoặc mật khẩu không chính xác (Lần thử {user.so_lan_sai}/{settings.MAX_FAILED_LOGINS})"
         )
 
-    # Đăng nhập thành công -> Reset số lần sai
+    # Đăng nhập thành công -> Reset số lần sai và cấp phát session_id mới
+    session_id = str(uuid.uuid4())
     user.so_lan_sai = 0
     user.khoa_den = None
+    user.session_id = session_id
     db.commit()
+    set_active_session(user.ma_nd, session_id, user.email)
 
-    access_token = create_access_token(data={"sub": user.email, "user_id": user.ma_nd})
-    refresh_token = create_refresh_token(data={"sub": user.email, "user_id": user.ma_nd})
+    access_token = create_access_token(data={"sub": user.email, "user_id": user.ma_nd, "session_id": session_id})
+    refresh_token = create_refresh_token(data={"sub": user.email, "user_id": user.ma_nd, "session_id": session_id})
 
     NganSachService.check_and_generate_login_budget_notifications(db, user)
 
@@ -280,7 +288,8 @@ def refresh_token(payload: RefreshTokenRequest, db: Session = Depends(get_db)):
             detail="Tài khoản không tồn tại hoặc đang bị khóa"
         )
 
-    new_access_token = create_access_token(data={"sub": user.email, "user_id": user.ma_nd})
+    active_sid = get_active_session(user.ma_nd, user.email) or getattr(user, "session_id", None)
+    new_access_token = create_access_token(data={"sub": user.email, "user_id": user.ma_nd, "session_id": active_sid})
     return TokenResponse(
         access_token=new_access_token,
         token_type="bearer",
@@ -389,8 +398,13 @@ def xac_nhan_otp(payload: dict, db: Session = Depends(get_db)):
             db.add(cat)
         db.commit()
 
-    access_token = create_access_token(data={"sub": user.email, "user_id": user.ma_nd})
-    refresh_token = create_refresh_token(data={"sub": user.email, "user_id": user.ma_nd})
+    session_id = str(uuid.uuid4())
+    user.session_id = session_id
+    db.commit()
+    set_active_session(user.ma_nd, session_id, user.email)
+
+    access_token = create_access_token(data={"sub": user.email, "user_id": user.ma_nd, "session_id": session_id})
+    refresh_token = create_refresh_token(data={"sub": user.email, "user_id": user.ma_nd, "session_id": session_id})
 
     return {
         "access_token": access_token,
@@ -519,4 +533,9 @@ def dat_lai_mat_khau(payload: dict, db: Session = Depends(get_db)):
         "thong_bao": "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay bây giờ.",
         "email": email
     }
+
+@router.get("/check-session", summary="Kiểm tra tính hợp lệ của phiên đăng nhập (Đơn thiết bị)")
+def check_session(current_user: NguoiDung = Depends(get_current_user)):
+    return {"status": "valid", "user": current_user.email, "session_id": current_user.session_id}
+
 

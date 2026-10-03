@@ -15,6 +15,31 @@ function clearStoredToken() {
     localStorage.removeItem('access_token');
 }
 
+// Interceptor toàn cục kiểm tra 401 do đăng nhập trên thiết bị khác
+const _origFetch = window.fetch;
+window.fetch = async function(...args) {
+    const res = await _origFetch.apply(this, args);
+    if (res.status === 401 && token) {
+        const reason = res.headers.get('X-Logout-Reason') || '';
+        if (reason === 'concurrent_login') {
+            if (typeof handleConcurrentKickout === 'function') {
+                handleConcurrentKickout();
+            }
+        } else {
+            try {
+                const clone = res.clone();
+                const d = await clone.json().catch(() => ({}));
+                if (d && d.detail && (d.detail.includes('thiết bị khác') || d.detail.includes('đăng nhập trên'))) {
+                    if (typeof handleConcurrentKickout === 'function') {
+                        handleConcurrentKickout();
+                    }
+                }
+            } catch (e) {}
+        }
+    }
+    return res;
+};
+
 var allTransactions = [];
 var allCategories = [];
 var allSavingsGoals = [];

@@ -43,6 +43,15 @@ Chức năng cung cấp toàn bộ quy trình nhận diện, xác thực, cấp 
 3. **Bảo vệ chống Brute-Force & Quy tắc khóa (BR-04)**:
    - Sai mã OTP quá 5 lần -> Vô hiệu hóa mã OTP, khóa tạm thời yêu cầu gửi lại.
 
+4. **Cơ chế Đăng nhập Đơn Thiết bị & Đăng xuất tức thì sau 1s (Single Active Session)**:
+   - Mỗi phiên đăng nhập sinh ra một `session_id` (UUID v4) duy nhất được lưu vào CSDL và nhúng trong JWT access token.
+   - Khi có thiết bị mới đăng nhập, `session_id` của tài khoản trên hệ thống được cập nhật sang mã mới.
+   - Frontend thiết bị cũ chạy heartbeat kiểm tra định kỳ mỗi 1 giây (`1000ms`) qua endpoint `/check-session` (và qua fetch interceptor toàn cục).
+   - Khi phát hiện `session_id` bị lệch (HTTP 401 với header `X-Logout-Reason: concurrent_login`):
+     * Thiết bị cũ lập tức dừng heartbeat, xóa toàn bộ token / state đăng nhập.
+     * Chuyển về màn hình đăng nhập ngầm.
+     * Hiển thị popup modal cảnh báo nổi bật: *"Đã đăng nhập ở nơi khác - Để bảo vệ an toàn tài khoản, bạn đã bị đăng xuất khỏi thiết bị này."*
+
 ---
 
 ## 3. Truy Xuất & Kiểm Tra CSDL Thủ Công

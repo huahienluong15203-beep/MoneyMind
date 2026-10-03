@@ -14,6 +14,7 @@ var currentAuthMode = 'register';
                     const d = await res.json();
                     token = d.access_token;
                     localStorage.setItem("moneymind_token", token);
+                    startSessionHeartbeat();
                     verifyTokenAndInit();
                 } else {
                     showCustomModal("Lỗi", "Đăng nhập Google thất bại!", "❌");
@@ -97,8 +98,12 @@ var currentAuthMode = 'register';
 
 
             function clearClientSessionState() {
+                stopSessionHeartbeat();
                 localStorage.removeItem("moneymind_token");
                 localStorage.removeItem("access_token");
+                sessionStorage.removeItem("current_ai_session_id");
+                if (typeof currentAiSessionId !== 'undefined') currentAiSessionId = null;
+                if (typeof aiChatHistory !== 'undefined') aiChatHistory = [];
                 token = "";
                 allNotifications = [];
                 allTransactions = [];
@@ -252,6 +257,7 @@ var currentAuthMode = 'register';
                         const d = await res.json();
                         token = d.access_token;
                         setStoredToken(token);
+                        startSessionHeartbeat();
                         verifyTokenAndInit();
                     } else {
                         let err = await res.json().catch(() => ({}));
@@ -652,12 +658,109 @@ var currentAuthMode = 'register';
                             document.getElementById('welcome-screen').classList.add('hidden');
                             document.getElementById('auth-container').classList.add('hidden');
                             document.getElementById('onboarding-screen').classList.remove('hidden');
+                            startSessionHeartbeat();
                             return;
                         }
                     }
                     initApp();
+                    startSessionHeartbeat();
                 } else {
-                    logout();
+                    const reason = res.headers.get('X-Logout-Reason') || '';
+                    if (reason === 'concurrent_login') {
+                        handleConcurrentKickout();
+                    } else {
+                        logout();
+                    }
                 }
             }
+
+            // =================================================================
+            // ĐỒNG BỘ PHIÊN ĐĂNG NHẬP ĐƠN THIẾT BỊ (CONCURRENT LOGIN DETECTION)
+            // =================================================================
+            var sessionHeartbeatTimer = null;
+            var isHandlingConcurrentKickout = false;
+
+            function startSessionHeartbeat() {
+                stopSessionHeartbeat();
+                if (!token) return;
+
+                // Kiểm tra định kỳ mỗi 1 giây (1s) đúng theo yêu cầu người dùng
+                sessionHeartbeatTimer = setInterval(async () => {
+                    if (!token) {
+                        stopSessionHeartbeat();
+                        return;
+                    }
+                    try {
+                        const res = await fetch('/check-session', {
+                            headers: { 'Authorization': 'Bearer ' + token },
+                            cache: 'no-store'
+                        });
+                        if (res.status === 401 || res.status === 403) {
+                            const data = await res.json().catch(() => ({}));
+                            const reason = res.headers.get('X-Logout-Reason') || '';
+                            const detail = data.detail || '';
+                            if (reason === 'concurrent_login' || detail.includes('thiết bị khác') || res.status === 401) {
+                                handleConcurrentKickout();
+                            }
+                        }
+                    } catch (e) {
+                        // Bỏ qua lỗi rớt mạng chập chờn
+                    }
+                }, 1000);
+            }
+
+            function stopSessionHeartbeat() {
+                if (sessionHeartbeatTimer) {
+                    clearInterval(sessionHeartbeatTimer);
+                    sessionHeartbeatTimer = null;
+                }
+            }
+
+            function handleConcurrentKickout() {
+                if (isHandlingConcurrentKickout) return;
+                isHandlingConcurrentKickout = true;
+
+                stopSessionHeartbeat();
+                clearClientSessionState();
+
+                // Ẩn tất cả container ứng dụng
+                const header = document.getElementById('header-container');
+                if (header) header.classList.add('hidden');
+                const ft = document.getElementById('floating-top-controls');
+                if (ft) ft.classList.add('hidden');
+                const fb = document.getElementById('floating-bottom-controls');
+                if (fb) fb.classList.add('hidden');
+                const app = document.getElementById('app-container');
+                if (app) app.classList.add('hidden');
+                const bnav = document.getElementById('bottom-nav');
+                if (bnav) bnav.classList.add('hidden');
+                const onb = document.getElementById('onboarding-screen');
+                if (onb) onb.classList.add('hidden');
+
+                // Chuyển ngầm về chế độ đăng nhập
+                goToAuthMode('login');
+
+                // Hiển thị modal thông báo đã đăng nhập ở thiết bị khác
+                const modal = document.getElementById('concurrent-logout-modal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                } else {
+                    showCustomModal(
+                        "Đã đăng nhập ở nơi khác",
+                        "Tài khoản của bạn vừa được đăng nhập trên một thiết bị khác. Thiết bị này đã tự động đăng xuất để bảo vệ an toàn tài khoản.",
+                        "⚠️"
+                    );
+                }
+
+                setTimeout(() => {
+                    isHandlingConcurrentKickout = false;
+                }, 2000);
+            }
+
+            function dismissConcurrentModalAndGoLogin() {
+                const modal = document.getElementById('concurrent-logout-modal');
+                if (modal) modal.classList.add('hidden');
+                goToAuthMode('login');
+            }
+
 

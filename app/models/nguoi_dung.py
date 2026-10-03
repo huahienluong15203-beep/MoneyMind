@@ -16,6 +16,7 @@ class NguoiDung(Base):
     dob = Column(String, nullable=True)
     occupation = Column(String, nullable=True)
     goals = Column(String, nullable=True)
+    session_id = Column(String(100), nullable=True)
     ngay_tao = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

@@ -19,6 +19,7 @@ from app.services.ngan_sach_service import NganSachService
 
 # Danh sách các mô hình Gemini của Google siêu tốc và hoạt động ổn định nhất (< 1.5s)
 AVAILABLE_GEMINI_MODELS = [
+    "gemini-3.8-flash",          # Mô hình Gemini 3.8 Flash thế hệ mới nhất
     "gemini-3.5-flash-lite",      # Bản thế hệ mới siêu nhẹ, phản hồi 0.8s - 1.2s, ổn định
     "gemini-flash-lite-latest",  # Alias chính thức của bản Flash-Lite mới nhất
     "gemini-3.5-flash",          # Bản Flash tiêu chuẩn, thông minh cao (~1.5s)
@@ -1051,9 +1052,47 @@ class AIService:
         )
 
     @staticmethod
-    def _xu_ly_tao_hu_tiet_kiem(db: Session, ma_nd: int, t: str, amount: float, raw: str) -> Optional[str]:
+    def _lam_sach_ten_muc_tieu(raw: str) -> str:
+        clean = raw
+        # 1. Bỏ ngày tháng và thời hạn
+        clean = re.sub(r'(?:hạn\s*chót|hạn|trước\s*ngày|đến\s*ngày|vào\s*ngày|trước|đến)?\s*\d{1,2}[/-]\d{1,2}[/-]\d{4}', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'trong\s+\d+\s+tháng(?:\s+tới|\s+nữa)?', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'đến\s+(?:cuối\s+năm|cuối\s+tháng|năm\s+sau)', '', clean, flags=re.IGNORECASE)
+
+        # 2. Bỏ số tiền
+        clean = re.sub(r'\d+[\.,]?\d*\s*(?:triệu|nghìn|ngàn|trăm|củ|lít|vnd|vnđ|tr|k|đ|dong|đồng)', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'\b\d{4,}\b', '', clean)
+
+        # 3. Bỏ từ khóa câu lệnh tạo mục tiêu
+        clean = re.sub(r'^(?:tôi|mình|em|anh|bạn)?\s*(?:muốn|cần|định|dự định|lập kế hoạch|kế hoạch)?\s*(?:tiết kiệm|dành dụm|tích lũy|để dành|lập hũ|tạo hũ|thêm hũ|lập quỹ|tạo quỹ|đặt mục tiêu|tạo mục tiêu|lập mục tiêu)?\s*(?:tiết kiệm)?\s*', '', clean, flags=re.IGNORECASE)
+
+        # 4. Bỏ các từ nối thừa ở đầu như: 'đến', 'phải', 'để', 'cho', 'sao cho'
+        clean = re.sub(r'^(?:đến|phải|để|cho|việc|sao cho|sau đó|sẽ)\s+', '', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'^(?:đến|phải|để|cho|việc)\s+', '', clean, flags=re.IGNORECASE)
+
+        # 5. Đơn giản hóa: 'phải mua được' -> 'mua', 'mua được' -> 'mua'
+        clean = re.sub(r'\bphải\s+mua\s+được\b', 'mua', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'\bmua\s+được\b', 'mua', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'\bphải\s+có\s+được\b', 'có', clean, flags=re.IGNORECASE)
+        clean = re.sub(r'\bphải\s+đạt\s+được\b', '', clean, flags=re.IGNORECASE)
+
+        # 6. Dọn ký tự đặc biệt & khoảng trắng
+        clean = re.sub(r'[^\w\s\u00C0-\u1EF9]', ' ', clean)
+        clean = re.sub(r'\s+', ' ', clean).strip()
+
+        # Dọn lại lần nữa nếu vẫn còn từ nối ở đầu
+        clean = re.sub(r'^(?:đến|phải|để|cho|việc)\s+', '', clean, flags=re.IGNORECASE).strip()
+
+        if not clean or len(clean) < 2:
+            clean = "Mục tiêu tài chính"
+        else:
+            clean = clean[0].upper() + clean[1:]
+        return clean
+
+    @staticmethod
+    def _trich_xuat_han_chot(raw: str) -> Tuple[Optional[date], Optional[str]]:
         deadline = None
-        deadline_str = "Không giới hạn"
+        deadline_str = None
         m_date = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', raw)
         if m_date:
             try:
@@ -1062,7 +1101,7 @@ class AIService:
                 deadline_str = f"{d:02d}/{m:02d}/{y}"
             except Exception:
                 pass
-        else:
+        elif "trong" in raw.lower() and "tháng" in raw.lower():
             m_month = re.search(r'trong\s+(\d+)\s+tháng', raw, re.IGNORECASE)
             if m_month:
                 try:
@@ -1072,24 +1111,38 @@ class AIService:
                     deadline_str = f"{deadline.day:02d}/{deadline.month:02d}/{deadline.year}"
                 except Exception:
                     pass
+        elif "cuối năm" in raw.lower():
+            deadline = date(datetime.now().year, 12, 31)
+            deadline_str = f"31/12/{deadline.year}"
+        elif "cuối tháng" in raw.lower():
+            now = datetime.now()
+            next_m = now.replace(day=28) + timedelta(days=4)
+            last_day = next_m - timedelta(days=next_m.day)
+            deadline = last_day.date()
+            deadline_str = f"{deadline.day:02d}/{deadline.month:02d}/{deadline.year}"
+        return deadline, deadline_str
 
-        clean = raw
-        clean = re.sub(r'^(?:tôi\s+|mình\s+)?(?:muốn|cần|định|dự định|lập kế hoạch|kế hoạch)?\s*(?:tiết kiệm|dành dụm|tích lũy|tạo hũ|lập hũ|thêm hũ|đặt mục tiêu|tạo mục tiêu|lập mục tiêu)?\s*(?:tiết kiệm)?\s*', '', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'trong\s+\d+\s+tháng(?:\s+tới)?', '', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'(?:hạn\s*chót|hạn|trước\s*ngày|đến\s*ngày)?\s*\d{1,2}[/-]\d{1,2}[/-]\d{4}', '', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'\d+[\.,]?\d*\s*(?:triệu|nghìn|ngàn|trăm|củ|lít|vnd|tr|k|đ)', '', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'\b\d{4,}\b', '', clean)
-        clean = re.sub(r'^(?:để|cho việc)\s+', '', clean, flags=re.IGNORECASE)
-        clean = re.sub(r'[^\w\s\u00C0-\u1EF9]', '', clean).strip()
+    @staticmethod
+    def _xu_ly_tao_hu_tiet_kiem(db: Session, ma_nd: int, t: str, amount: float, raw: str) -> Optional[str]:
+        clean = AIService._lam_sach_ten_muc_tieu(raw)
+        deadline, deadline_str = AIService._trich_xuat_han_chot(raw)
 
-        if not clean or len(clean) < 2:
-            clean = "Mục tiêu tài chính"
-        else:
-            clean = clean[0].upper() + clean[1:]
-
+        # 1. Kiểm tra thiếu số tiền mục tiêu
         if amount <= 0:
-            amount = 5_000_000.0
+            time_note = f" (đến hạn {deadline_str})" if deadline else ""
+            return (
+                f"Bạn muốn đặt số tiền mục tiêu cần tiết kiệm cho **\"{clean}\"**{time_note} là bao nhiêu vậy? 💰\n\n"
+                f"*(Bạn có thể trả lời ví dụ: \"5 triệu\", \"10tr\" hoặc \"20 triệu\" nhé!)*"
+            )
 
+        # 2. Kiểm tra thiếu thời gian / hạn chót cụ thể
+        if not deadline:
+            return (
+                f"Bạn muốn hoàn thành mục tiêu tiết kiệm **{amount:,.0f}đ** cho **\"{clean}\"** đến khi nào (thời hạn/hạn chót cụ thể là ngày nào) vậy? 📅\n\n"
+                f"*(Bạn có thể trả lời ví dụ: \"đến 01/11/2026\", \"trong 6 tháng tới\" hoặc \"trước 31/12/2026\" nhé!)*"
+            )
+
+        # 3. Đã đủ cả 3 trường thông tin: Tên mục tiêu, Số tiền đích và Thời gian hạn chót
         new_goal = MucTieuTietKiem(
             ma_nd=ma_nd,
             ten_muc_tieu=clean,
@@ -1967,30 +2020,97 @@ class AIService:
                         return AIService._xu_ly_phan_bo_ngan_sach_tu_nhien(db, ma_nd, t_norm, alloc_amount, last_ai_msg)
 
         # Xử lý hội thoại đa lượt (Multi-turn Context):
-        # Khi người dùng gửi số tiền (vd: '30k', 'hết 30k', '50.000', '20 ngàn'...)
-        # sau khi đã nói về một hành động hoặc AI vừa hỏi xin số tiền
+        prev_user_msgs = []
+        prev_ai_msgs = []
+        if lich_su_chat:
+            prev_user_msgs = [m.get("content", "").strip() for m in lich_su_chat if m.get("role") in ["user", "nguoi_dung"] and m.get("content", "").strip()]
+            prev_ai_msgs = [m.get("content", "").strip() for m in lich_su_chat if m.get("role") in ["assistant", "ai", "ai_tro_ly"] and m.get("content", "").strip()]
+
+        # Fallback lấy từ lịch sử cơ sở dữ liệu nếu frontend chưa truyền mảng chat
+        if not prev_user_msgs:
+            try:
+                recent_log = db.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd).order_by(LichSuAI.ma_log.desc()).first()
+                if recent_log:
+                    if recent_log.cau_hoi:
+                        prev_user_msgs = [recent_log.cau_hoi.strip()]
+                    if recent_log.tra_loi:
+                        prev_ai_msgs = [recent_log.tra_loi.strip()]
+            except Exception:
+                pass
+
+        last_user = prev_user_msgs[-1] if prev_user_msgs else ""
+        last_ai = prev_ai_msgs[-1] if prev_ai_msgs else ""
+
+        # Multi-turn A: Người dùng trả lời HẠN CHÓT cho mục tiêu tiết kiệm đang chờ
+        # (Ví dụ: AI vừa hỏi "Bạn muốn hoàn thành mục tiêu tiết kiệm **5,000,000đ** cho **"Mua điện thoại mới"** đến khi nào...")
+        if "mục tiêu tiết kiệm" in last_ai.lower() and any(w in last_ai.lower() for w in ["đến khi nào", "thời hạn", "hạn chót"]):
+            deadline, deadline_str = AIService._trich_xuat_han_chot(raw)
+            if deadline:
+                m_amt = re.search(r'\*\*([\d\.,]+)đ\*\*', last_ai)
+                g_amt = float(m_amt.group(1).replace('.', '').replace(',', '')) if m_amt else (amount if amount > 0 else 5000000.0)
+                m_name = re.search(r'cho\s+\*\*[\"“](.+?)[\"”]\*\*', last_ai)
+                g_name = m_name.group(1) if m_name else "Mục tiêu tài chính"
+
+                new_goal = MucTieuTietKiem(
+                    ma_nd=ma_nd,
+                    ten_muc_tieu=g_name,
+                    so_tien_muc_tieu=g_amt,
+                    so_tien_hien_tai=0.0,
+                    han_chot=deadline,
+                    trang_thai="dang_thuc_hien"
+                )
+                db.add(new_goal)
+                db.commit()
+                db.refresh(new_goal)
+
+                return (
+                    f"Đã tạo hũ tiết kiệm mới thành công! 🎯\n\n"
+                    f"📋 **Thông tin mục tiêu:**\n"
+                    f"• **Tên hũ:** {new_goal.ten_muc_tieu}\n"
+                    f"• **Số tiền mục tiêu:** **{new_goal.so_tien_muc_tieu:,.0f}đ**\n"
+                    f"• **Đã tích lũy:** **0đ** (0%)\n"
+                    f"• **Hạn chót:** {deadline_str}\n\n"
+                    f"Hũ đã sẵn sàng! Bạn có thể bắt đầu tích lũy bằng cách nói: *'nộp 500k vào hũ {new_goal.ten_muc_tieu}'* bất kỳ lúc nào nhé! ✨"
+                )
+
+        # Multi-turn B: Người dùng trả lời SỐ TIỀN cho mục tiêu tiết kiệm đang chờ
+        if "số tiền mục tiêu cần tiết kiệm cho" in last_ai.lower() and amount > 0:
+            m_name = re.search(r'cho\s+\*\*[\"“](.+?)[\"”]\*\*', last_ai)
+            g_name = m_name.group(1) if m_name else "Mục tiêu tài chính"
+            m_time = re.search(r'đến\s+hạn\s+([^\)]+)', last_ai)
+            deadline = None
+            deadline_str = "Không giới hạn"
+            if m_time:
+                deadline_str = m_time.group(1).strip()
+                m_d = re.search(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', deadline_str)
+                if m_d:
+                    d, m, y = int(m_d.group(1)), int(m_d.group(2)), int(m_d.group(3))
+                    deadline = date(y, m, d)
+
+            new_goal = MucTieuTietKiem(
+                ma_nd=ma_nd,
+                ten_muc_tieu=g_name,
+                so_tien_muc_tieu=amount,
+                so_tien_hien_tai=0.0,
+                han_chot=deadline,
+                trang_thai="dang_thuc_hien"
+            )
+            db.add(new_goal)
+            db.commit()
+            db.refresh(new_goal)
+
+            return (
+                f"Đã tạo hũ tiết kiệm mới thành công! 🎯\n\n"
+                f"📋 **Thông tin mục tiêu:**\n"
+                f"• **Tên hũ:** {new_goal.ten_muc_tieu}\n"
+                f"• **Số tiền mục tiêu:** **{new_goal.so_tien_muc_tieu:,.0f}đ**\n"
+                f"• **Đã tích lũy:** **0đ** (0%)\n"
+                f"• **Hạn chót:** {deadline_str}\n\n"
+                f"Hũ đã sẵn sàng! Bạn có thể bắt đầu tích lũy bằng cách nói: *'nộp 500k vào hũ {new_goal.ten_muc_tieu}'* bất kỳ lúc nào nhé! ✨"
+            )
+
+        # Multi-turn C: Khi người dùng gửi số tiền (vd: '30k', 'hết 30k'...) cho giao dịch chi tiêu trước đó
         if amount > 0 and len(t.split()) <= 6:
-            prev_user_msgs = []
-            prev_ai_msgs = []
-            if lich_su_chat:
-                prev_user_msgs = [m.get("content", "").strip() for m in lich_su_chat if m.get("role") in ["user", "nguoi_dung"] and m.get("content", "").strip()]
-                prev_ai_msgs = [m.get("content", "").strip() for m in lich_su_chat if m.get("role") in ["assistant", "ai", "ai_tro_ly"] and m.get("content", "").strip()]
-
-            # Fallback lấy từ lịch sử cơ sở dữ liệu nếu frontend chưa truyền mảng chat
-            if not prev_user_msgs:
-                try:
-                    recent_log = db.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd).order_by(LichSuAI.ma_log.desc()).first()
-                    if recent_log:
-                        if recent_log.cau_hoi:
-                            prev_user_msgs = [recent_log.cau_hoi.strip()]
-                        if recent_log.tra_loi:
-                            prev_ai_msgs = [recent_log.tra_loi.strip()]
-                except Exception:
-                    pass
-
-            last_user = prev_user_msgs[-1] if prev_user_msgs else ""
-            last_ai = prev_ai_msgs[-1] if prev_ai_msgs else ""
-
             # 1. Thử kết hợp câu nói trước đó của người dùng với số tiền mới
             if last_user and AIService._parse_vietnamese_amount(last_user.lower()) <= 0:
                 combined_cand = f"{last_user} {raw}"
@@ -2017,9 +2137,207 @@ class AIService:
                     if res_comb:
                         return res_comb
 
+        # ─────────────────────────────────────────────────────────────────────
+        # COMPOUND REQUEST HANDLER — Tách câu yêu cầu kép thành 2 lệnh riêng
+        # Ví dụ: "nâng hạn mức ăn uống lên 2 triệu và thêm giúp tôi vừa ăn xiên bản hết 50k"
+        # → Lệnh 1: nâng hạn mức ăn uống lên 2 triệu
+        # → Lệnh 2: ăn xiên bản hết 50k
+        # ─────────────────────────────────────────────────────────────────────
+        COMPOUND_SEPARATORS = [" và ", " rồi ", " thêm ", " đồng thời ", ", thêm ", " + "]
+        BUDGET_VERBS = ["nâng hạn mức", "tăng hạn mức", "đặt hạn mức", "giảm hạn mức", "chỉnh hạn mức", "cập nhật hạn mức", "sửa hạn mức", "nâng ngân sách", "tăng ngân sách"]
+        TX_VERBS = ["ăn", "uống", "mua", "đổ xăng", "chi", "tiêu", "trả", "thanh toán", "hết", "vừa", "vừa ăn", "vừa mua"]
+
+        for sep in COMPOUND_SEPARATORS:
+            if sep in t:
+                parts = t.split(sep, 1)
+                raw_parts = raw.split(sep, 1) if sep in raw else parts
+                part1, part2 = parts[0].strip(), parts[1].strip()
+                raw1 = raw_parts[0].strip() if len(raw_parts) > 1 else part1
+                raw2 = raw_parts[1].strip() if len(raw_parts) > 1 else part2
+
+                is_budget_op = any(v in part1 for v in BUDGET_VERBS) or any(v in part2 for v in BUDGET_VERBS)
+                is_tx_op = (
+                    (any(v in part1 for v in TX_VERBS) and AIService._parse_vietnamese_amount(part1) > 0) or
+                    (any(v in part2 for v in TX_VERBS) and AIService._parse_vietnamese_amount(part2) > 0)
+                )
+
+                if is_budget_op and is_tx_op:
+                    # Xác định thứ tự: phần nào là budget, phần nào là giao dịch
+                    if any(v in part1 for v in BUDGET_VERBS):
+                        budget_part, tx_part = raw1, raw2
+                    else:
+                        budget_part, tx_part = raw2, raw1
+
+                    res1 = AIService.xu_ly_giao_dich_tu_nhien(db, ma_nd, budget_part, lich_su_chat=None)
+                    res2 = AIService.xu_ly_giao_dich_tu_nhien(db, ma_nd, tx_part, lich_su_chat=None)
+
+                    if res1 and res2:
+                        return (
+                            f"Mình đã xử lý xong cả 2 yêu cầu của bạn rồi nhé! ✅\n\n"
+                            f"**① Cập nhật ngân sách:**\n{res1}\n\n"
+                            f"─────────────────────────\n\n"
+                            f"**② Ghi nhận giao dịch:**\n{res2}"
+                        )
+                    elif res1:
+                        return res1
+                    elif res2:
+                        return res2
+                break
+
+        # ─────────────────────────────────────────────────────────────────────
+        # GỢI Ý MÓN ĂN THÔNG MINH — Dựa trên lịch sử chi tiêu + ngân sách còn lại
+        # Ví dụ: "hôm nay không biết ăn gì", "gợi ý món ăn", "nên ăn gì bây giờ"
+        # → AI phân tích lịch sử giao dịch Ăn uống → lọc các món ≤ ngân sách còn lại
+        # ─────────────────────────────────────────────────────────────────────
+        food_suggestion_triggers = [
+            "không biết ăn gì", "ko biết ăn gì", "nên ăn gì", "ăn gì bây giờ",
+            "ăn gì ngon", "ăn gì hôm nay", "gợi ý món ăn", "gợi ý ăn gì",
+            "hôm nay ăn gì", "trưa nay ăn gì", "tối nay ăn gì", "sáng nay ăn gì",
+            "chưa biết ăn gì", "muốn ăn gì", "gợi ý đồ ăn", "đề xuất món ăn",
+            "gợi ý bữa", "nên ăn gì được", "tìm món ăn", "cho mình gợi ý ăn",
+        ]
+        is_food_suggestion = any(trigger in t for trigger in food_suggestion_triggers)
+
+        if is_food_suggestion:
+            from datetime import datetime as dt2
+            now_m = dt2.now()
+            month_start = now_m.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+            # 1. Lấy danh mục Ăn uống của user
+            dm_an_uong = None
+            for dm in db.query(DanhMuc).filter(DanhMuc.ma_nd == ma_nd, DanhMuc.loai_dm == "chi").all():
+                if "ăn uống" in dm.ten_dm.lower() or "ăn" in dm.ten_dm.lower():
+                    dm_an_uong = dm
+                    break
+
+            # 2. Lấy lịch sử giao dịch Ăn uống (90 ngày gần nhất)
+            food_txs = []
+            if dm_an_uong:
+                from datetime import timedelta
+                since = now_m - timedelta(days=90)
+                food_txs = (
+                    db.query(GiaoDich)
+                    .filter(
+                        GiaoDich.ma_nd == ma_nd,
+                        GiaoDich.ma_dm == dm_an_uong.ma_dm,
+                        GiaoDich.loai_gd == "chi",
+                        GiaoDich.ngay_gd >= since
+                    )
+                    .order_by(GiaoDich.ngay_gd.desc())
+                    .limit(150)
+                    .all()
+                )
+            else:
+                # Tìm bất kỳ giao dịch chi nào có từ khóa thực phẩm
+                from datetime import timedelta
+                food_kws = ["ăn", "cơm", "phở", "bún", "bánh", "cafe", "trà sữa", "lẩu", "uống"]
+                all_tx = db.query(GiaoDich).filter(
+                    GiaoDich.ma_nd == ma_nd,
+                    GiaoDich.loai_gd == "chi",
+                    GiaoDich.ngay_gd >= now_m - timedelta(days=90)
+                ).all()
+                food_txs = [tx for tx in all_tx if any(kw in (tx.ghi_chu or "").lower() for kw in food_kws)]
+
+            # 3. Tính ngân sách ăn uống còn lại tháng này
+            ngan_sach_con_lai = None
+            han_muc_au = 0.0
+            da_chi_au = 0.0
+            if dm_an_uong and dm_an_uong.han_muc and dm_an_uong.han_muc > 0:
+                han_muc_au = float(dm_an_uong.han_muc)
+                spent_this_month = sum(
+                    float(tx.so_tien) for tx in db.query(GiaoDich).filter(
+                        GiaoDich.ma_nd == ma_nd,
+                        GiaoDich.ma_dm == dm_an_uong.ma_dm,
+                        GiaoDich.loai_gd == "chi",
+                        GiaoDich.ngay_gd >= month_start
+                    ).all()
+                )
+                da_chi_au = spent_this_month
+                ngan_sach_con_lai = han_muc_au - spent_this_month
+
+            # 4. Tổng hợp các món đã ăn kèm giá (deduplicate theo tên, lấy giá trung bình)
+            mon_an_stats: dict = {}
+            for tx in food_txs:
+                note = (tx.ghi_chu or "").strip()
+                if not note or len(note) < 2:
+                    continue
+                # Làm sạch tên món: bỏ số tiền, bỏ từ thừa
+                clean = re.sub(r'\d[\d\.,]*\s*(k|nghìn|ngàn|tr|triệu|đ|đồng)?', '', note, flags=re.IGNORECASE)
+                clean = re.sub(r'\b(ăn|uống|chi|tiêu|mua|hết|tại|ở|quán|hàng)\b', '', clean, flags=re.IGNORECASE)
+                clean = re.sub(r'\s+', ' ', clean).strip()
+                if len(clean) < 2:
+                    clean = note.strip()
+                price = float(tx.so_tien)
+                if clean in mon_an_stats:
+                    mon_an_stats[clean]["count"] += 1
+                    mon_an_stats[clean]["total"] += price
+                else:
+                    mon_an_stats[clean] = {"count": 1, "total": price}
+
+            # 5. Tính giá trung bình mỗi món, sắp xếp theo tần suất
+            mon_an_list = []
+            for ten, stat in mon_an_stats.items():
+                avg_price = stat["total"] / stat["count"]
+                mon_an_list.append({
+                    "ten": ten,
+                    "gia_trung_binh": avg_price,
+                    "so_lan": stat["count"]
+                })
+            # Sắp theo tần suất giảm dần
+            mon_an_list.sort(key=lambda x: x["so_lan"], reverse=True)
+
+            # 6. Lọc theo ngân sách còn lại (nếu có)
+            budget_msg = ""
+            if ngan_sach_con_lai is not None:
+                if ngan_sach_con_lai <= 0:
+                    return (
+                        f"😔 **Hũ Ăn uống tháng này đã hết ngân sách rồi!**\n\n"
+                        f"• Hạn mức: **{han_muc_au:,.0f}đ** | Đã chi: **{da_chi_au:,.0f}đ**\n"
+                        f"• Ngân sách còn lại: **0đ** (đã vượt {abs(ngan_sach_con_lai):,.0f}đ)\n\n"
+                        f"💡 Bạn có thể nâng hạn mức bằng cách nói:\n"
+                        f"_\"Nâng hạn mức ăn uống lên [số tiền]\"_\n\n"
+                        f"Hoặc tận dụng nguyên liệu ở nhà để tiết kiệm hơn nhé! 🏠"
+                    )
+                budget_msg = f"• Hạn mức Ăn uống: **{han_muc_au:,.0f}đ** | Đã chi: **{da_chi_au:,.0f}đ** | **Còn lại: {ngan_sach_con_lai:,.0f}đ**\n\n"
+                # Chỉ gợi ý các món trong khả năng chi trả
+                mon_du_tien = [m for m in mon_an_list if m["gia_trung_binh"] <= ngan_sach_con_lai]
+            else:
+                mon_du_tien = mon_an_list
+
+            # 7. Tạo phản hồi
+            if not mon_du_tien and not mon_an_list:
+                return (
+                    "🍽️ **Mình chưa có đủ dữ liệu về thói quen ăn uống của bạn!**\n\n"
+                    f"{budget_msg}"
+                    "Hãy ghi lại các bữa ăn hằng ngày để mình có thể đưa ra gợi ý phù hợp hơn nhé.\n"
+                    "Ví dụ: _\"Ăn phở bò hết 45k\"_, _\"Cơm gà hết 35k\"_... 😊"
+                )
+
+            top_goi_y = mon_du_tien[:5] if mon_du_tien else []
+
+            goi_y_lines = []
+            for i, m in enumerate(top_goi_y, 1):
+                freq_label = f"(bạn hay ăn, {m['so_lan']}x)" if m['so_lan'] >= 2 else f"({m['so_lan']}x gần đây)"
+                goi_y_lines.append(f"  {i}. **{m['ten']}** ~ {m['gia_trung_binh']:,.0f}đ {freq_label}")
+
+            resp = f"🍽️ **Gợi ý món ăn hôm nay dựa trên thói quen của bạn:**\n\n{budget_msg}"
+
+            if top_goi_y:
+                resp += "✅ **Những món bạn hay ăn và vừa túi tiền:**\n" + "\n".join(goi_y_lines)
+            else:
+                resp += "⚠️ Với ngân sách còn lại hiện tại, chưa tìm thấy món nào phù hợp từ lịch sử của bạn.\n"
+                resp += "Bạn có thể nâng hạn mức hoặc thử các món nhẹ hơn nhé!"
+
+            if not ngan_sach_con_lai and mon_an_list:
+                resp += "\n\n💡 _Thiết lập hạn mức Ăn uống để mình gợi ý chính xác hơn theo túi tiền của bạn!_"
+
+            resp += "\n\nBạn muốn ghi lại bữa ăn vừa chọn không? Chỉ cần nhập: _\"[Tên món] [giá]\"_ nhé! 😊"
+            return resp
+
         # 1. HỦY / XOÁ HŨ TIẾT KIỆM (DELETE SAVINGS GOAL)
         if any(w in t for w in ["xóa hũ", "xoá hũ", "hủy hũ", "huỷ hũ", "xóa mục tiêu", "xoá mục tiêu", "hủy mục tiêu", "huỷ mục tiêu", "bỏ hũ", "bỏ mục tiêu"]):
             return AIService._xu_ly_xoa_hu_tiet_kiem(db, ma_nd, t)
+
 
         # 2. RÚT TIỀN TỪ HŨ TIẾT KIỆM VỀ VÍ CHÍNH (WITHDRAW FROM SAVINGS GOAL)
         if any(w in t for w in ["rút", "hoàn lại", "lấy lại"]) and any(w in t for w in ["hũ", "mục tiêu", "tiết kiệm"]):
@@ -2347,6 +2665,38 @@ class AIService:
         if any(w in t for w in ["sức khỏe tài chính", "chấm điểm tài chính", "đánh giá tài chính", "phân bổ 6 hũ", "tư vấn 6 hũ", "chia 6 hũ"]):
             return AIService._xu_ly_suc_khoe_tai_chinh(db, ma_nd, t)
 
+        # 15.5. HỎI Ý KIẾN / TƯ VẤN KHẢ NĂNG CHI TIÊU TRƯỚC KHI MUA HOẶC ĂN UỐNG
+        # Ví dụ: "ăn mì cay 55k được không nhỉ", "mua cái áo 300k được ko", "có nên uống cafe 45k ko"
+        # Người dùng đang HỎI Ý KIẾN / THAM KHẢO → TUYỆT ĐỐI KHÔNG GHI NHẬN GIAO DỊCH!
+        # AI phân tích ngân sách hũ liên quan và số dư ví chính để đưa ra lời khuyên tài chính.
+        ASK_AFFORDABILITY_PHRASES = [
+            "được không", "được ko", "được k", "đc ko", "đc không", "được chưa",
+            "được không nhỉ", "được ko nhỉ", "được k nhỉ", "được chăng",
+            "có nên", "nên không", "nên ko", "có được không", "có được ko", "có đc ko",
+            "có đủ không", "có đủ ko", "có đủ tiền không", "có đủ tiền ko", "có đủ ngân sách",
+            "ổn không", "ổn ko", "hợp lý không", "hợp lý ko",
+            "không nhỉ", "ko nhỉ",
+            "phải không", "phải ko", "đúng không", "đúng ko",
+            "có nên mua", "có nên ăn", "có nên chi", "có nên uống", "có nên đi"
+        ]
+        is_asking_affordability = (
+            any(phrase in t for phrase in ASK_AFFORDABILITY_PHRASES) or
+            bool(re.search(r'\b(nhỉ|hả|sao nhỉ|sao ta|liệu có|có nên)\b', t)) or
+            t.endswith("?") or "?" in t or
+            any(t.endswith(" " + w) for w in ["nhỉ", "hả", "sao", "ta"])
+        )
+
+        command_markers = [
+            "hãy ghi nhận", "ghi nhận giúp", "thêm giao dịch", "ghi sổ", "lưu giao dịch",
+            "tạo giao dịch", "ghi vào", "nhập giúp", "thêm giúp", "ghi giúp", "hãy thêm"
+        ]
+        has_command = any(m in t for m in command_markers)
+
+        if is_asking_affordability and not has_command:
+            if amount > 0:
+                return AIService._xu_ly_tu_van_kha_nang_chi_tieu(db, ma_nd, t, raw, amount)
+            return None
+
         # 16. THÊM GIAO DỊCH THU / CHI THÔNG THƯỜNG (ADD TRANSACTION)
         question_markers = [
             "bao nhiêu", "bao nhiu", "mấy", "thế nào", "sao", "gì", "không?", "ko?", "chưa?",
@@ -2354,12 +2704,7 @@ class AIService:
             "báo cáo", "thống kê", "phân tích", "xem lại", "kiểm tra", "cho tôi biết", "hỏi",
             "như thế nào", "giúp tôi biết", "liệt kê"
         ]
-        command_markers = [
-            "hãy ghi nhận", "ghi nhận giúp", "thêm giao dịch", "ghi sổ", "lưu giao dịch",
-            "tạo giao dịch", "ghi vào", "nhập giúp", "thêm giúp", "ghi giúp", "hãy thêm"
-        ]
-        has_command = any(m in t for m in command_markers)
-        has_question = any(m in t for m in question_markers) or t.endswith("?")
+        has_question = any(m in t for m in question_markers) or t.endswith("?") or is_asking_affordability
 
         if has_question and not has_command:
             return None
@@ -2411,10 +2756,100 @@ class AIService:
         else:
             loai_gd = "chi"
 
+        # ─────────────────────────────────────────────────────────────────────
+        # KIỂM TRA: Câu kể lể / tán gẫu kèm nhận xét CẢM XÚC có số tiền
+        # (không phải lệnh ghi rõ ràng, không có từ khóa danh mục cụ thể)
+        # Ví dụ: "qua mới đi bóc bánh trả tiền hết 600k còn trẻ ko ngon lắm"
+        # → chứa nhận xét cảm xúc "ko ngon lắm" + "còn trẻ" → hỏi lại
+        # Ngược lại: "vừa đi ăn bánh cuốn hết 35k" → có "ăn" rõ ràng → ghi nhận
+        # ─────────────────────────────────────────────────────────────────────
+        NARRATIVE_OPINION_WORDS = [
+            "ngon lắm", "không ngon", "ko ngon", "dở lắm", "chán lắm", "tệ lắm",
+            "còn trẻ", "mà thôi", "thật sự", "cũng được", "cũng ổn", "tạm được",
+            "buồn cười", "hơi mắc", "hơi đắt", "khá ngon", "khá rẻ", "rẻ thôi",
+            "đắt thật", "mắc thật", "bình thường", "không tệ", "ko tệ", "cũng vui",
+            "cũng buồn", "mệt quá", "chán quá", "kiểu như", "mà đắt", "mà rẻ",
+            "nhưng ngon", "nhưng đắt", "nhưng rẻ", "mà ngon", "quá ngon", "quá rẻ",
+            "quá đắt", "thấy ngon", "thấy đắt", "thấy rẻ", "không biết", "không hiểu",
+        ]
+        # Từ khóa danh mục chi rõ ràng - nếu có thì ưu tiên ghi nhận dù có câu kể
+        CLEAR_CATEGORY_ANCHORS = [
+            "ăn", "uống", "cơm", "phở", "bún", "bánh", "cafe", "cà phê", "trà sữa",
+            "xăng", "grab", "taxi", "xe buýt",
+            "mua", "shopee", "lazada",
+            "tiền điện", "tiền nước", "tiền nhà", "wifi", "internet",
+            "xem phim", "karaoke", "du lịch", "netflix", "game",
+            "thuốc", "bệnh viện", "gym",
+        ]
+        has_clear_anchor = any(kw in t for kw in CLEAR_CATEGORY_ANCHORS)
+        is_opinion_narrative = any(w in t for w in NARRATIVE_OPINION_WORDS)
+
+        # Chỉ block khi có cảm xúc/nhận xét VÀ KHÔNG có từ khóa danh mục rõ ràng
+        if is_opinion_narrative and not has_clear_anchor and not has_command:
+            return (
+                "📝 **Mình chưa chắc bạn muốn ghi giao dịch hay chỉ đang chia sẻ nhé!**\n\n"
+                f"Mình thấy bạn nhắc đến số tiền **{amount:,.0f}đ** trong câu trên. "
+                "Bạn có muốn **ghi nhận khoản chi tiêu này** vào sổ không?\n\n"
+                "Nếu có, hãy nhập lại rõ hơn theo dạng:\n"
+                f"• _\"Ăn/mua [nội dung] {amount:,.0f}đ\"_\n"
+                f"• _\"Chi [danh mục] {amount:,.0f}đ\"_\n\n"
+                "Hoặc nếu chỉ muốn tâm sự thì mình lắng nghe, nhưng mình chỉ có thể hỗ trợ về **quản lý tài chính** thôi nhé 😊"
+            )
+
+
+
+        # ─────────────────────────────────────────────────────────────────────
+        # XÁC ĐỊNH & KIỂM TRA DANH MỤC PHÙ HỢP VỚI NGƯỜI DÙNG
+        # ─────────────────────────────────────────────────────────────────────
         note_source = extracted_note if extracted_note else raw
         clean_note = AIService._lam_sach_mo_ta_giao_dich(note_source, "Chi tiêu" if loai_gd == "chi" else "Thu nhập")
-        target_dm = AIService._xac_dinh_danh_muc(db, ma_nd, suggested_cat if suggested_cat else clean_note, loai_gd)
+
+        # Lấy danh sách danh mục hiện có của người dùng
+        user_dms_all = db.query(DanhMuc).filter(
+            DanhMuc.ma_nd == ma_nd,
+            DanhMuc.loai_dm == loai_gd
+        ).all()
+
+        # Gọi _xac_dinh_danh_muc nhưng kiểm tra xem có khớp keyword chuẩn không
+        candidate_cat_name = suggested_cat if suggested_cat else clean_note
+        target_dm = AIService._xac_dinh_danh_muc(db, ma_nd, candidate_cat_name, loai_gd)
+
+        # Nếu không có user_dms nào phù hợp (tất cả là default/mới tạo tự động)
+        # và nội dung mô tả không có từ khóa rõ ràng → cần hỏi lại danh mục
+        CATEGORY_KEYWORDS_CHI = [
+            "ăn", "uống", "cafe", "cà phê", "cơm", "phở", "bún", "bánh", "trà", "nước",   # Ăn uống
+            "xăng", "grab", "taxi", "xe", "vé", "bus",                                       # Đi lại
+            "mua", "shopee", "lazada", "quần", "áo", "giày", "điện thoại", "laptop",        # Mua sắm
+            "điện", "nước", "mạng", "wifi", "nhà", "trọ", "phòng",                          # Hóa đơn
+            "phim", "game", "karaoke", "du lịch", "bar", "netflix",                          # Giải trí
+            "thuốc", "bệnh viện", "gym", "yoga", "khám",                                     # Sức khỏe
+            "tiết kiệm", "hũ",                                                               # Tiết kiệm
+        ]
+        CATEGORY_KEYWORDS_THU = [
+            "lương", "thưởng", "thu nhập", "bán", "hoàn tiền", "kiếm", "nhận",
+        ]
+
+        kw_pool = CATEGORY_KEYWORDS_CHI if loai_gd == "chi" else CATEGORY_KEYWORDS_THU
+        has_clear_category_kw = any(kw in t for kw in kw_pool)
+
+        # Nếu không có từ khóa danh mục rõ ràng trong text → thông báo không xác định được danh mục
+        if not has_clear_category_kw and not suggested_cat:
+            user_cat_names = [dm.ten_dm for dm in user_dms_all]
+            cat_list_str = " • ".join(user_cat_names) if user_cat_names else "Chưa có danh mục nào"
+            return (
+                "❓ **Không xác định được danh mục phù hợp!**\n\n"
+                f"Mình nhận thấy số tiền **{amount:,.0f}đ** nhưng không thể phân loại vào danh mục nào trong sổ của bạn.\n\n"
+                f"📂 **Các danh mục hiện có:**\n• {cat_list_str}\n\n"
+                "Bạn có thể ghi rõ hơn nội dung chi tiêu không? Ví dụ:\n"
+                "• _\"Ăn phở 50k\"_ → Ăn uống\n"
+                "• _\"Đổ xăng 100k\"_ → Đi lại\n"
+                "• _\"Mua áo 200k\"_ → Mua sắm\n"
+                "• _\"Tiền điện 300k\"_ → Hóa đơn\n\n"
+                "Nếu bạn muốn thêm danh mục mới, hãy nói: _\"Tạo danh mục [tên] với hạn mức [số tiền]\"_ 😊"
+            )
+
         tx_time = AIService._parse_vietnamese_datetime(t)
+
 
         tx = GiaoDich(
             ma_nd=ma_nd,
@@ -2466,35 +2901,180 @@ class AIService:
         )
 
     @staticmethod
+    def _xu_ly_tu_van_kha_nang_chi_tieu(db: Session, ma_nd: int, t: str, raw: str, amount: float) -> str:
+        """
+        Tư vấn khả năng chi tiêu khi người dùng hỏi ý kiến:
+        Ví dụ: "ăn mì cay 55k được không nhỉ", "mua cái áo 300k được ko"
+        Hệ thống phân tích ngân sách hũ chi tiêu tương ứng + số dư ví chính hiện tại
+        để đưa ra câu trả lời tư vấn tài chính rõ ràng, trung thực và TUYỆT ĐỐI KHÔNG ghi nhận giao dịch.
+        """
+        from datetime import datetime as dt_now
+        now_dt = dt_now.now()
+        month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # 1. Trích xuất tên món / khoản chi sạch sẽ
+        s_item = raw.strip()
+        remove_patterns = [
+            r'(được|đc)\s*(không|ko|k)?\s*(nhỉ|hả|chăng|ta)?',
+            r'có\s*nên',
+            r'liệu\s*có',
+            r'có\s*được\s*(không|ko)?',
+            r'có\s*ổn\s*(không|ko)?',
+            r'có\s*hợp\s*lý\s*(không|ko)?',
+            r'nhỉ\??$',
+            r'hả\??$',
+            r'\?+$',
+            r'\d+[\d\.,]*\s*(k|nghìn|ngàn|tr|triệu|đ|đồng)?',
+            r'\b(hết|khoảng|tầm|giá|không|ko)\b'
+        ]
+        for p in remove_patterns:
+            s_item = re.sub(p, '', s_item, flags=re.IGNORECASE)
+        s_item = re.sub(r'\s+', ' ', s_item).strip()
+        item_name = s_item.capitalize() if s_item else "khoản chi này"
+
+        # 2. Xác định danh mục chi tiêu phù hợp
+        user_cats = db.query(DanhMuc).filter(DanhMuc.ma_nd == ma_nd, DanhMuc.loai_dm == "chi").all()
+        matched_cat = None
+
+        food_kws = ["ăn", "mì", "cơm", "phở", "bún", "bánh", "lẩu", "uống", "cafe", "cà phê", "trà", "nước", "thịt", "cá", "snack", "gà", "bò"]
+        transport_kws = ["xăng", "xe", "grab", "taxi", "vé", "tàu", "đi lại", "gửi xe", "bảo dưỡng"]
+        shopping_kws = ["mua", "sắm", "áo", "quần", "giày", "dép", "túi", "điện thoại", "máy", "laptop", "mỹ phẩm", "son"]
+
+        if any(w in t for w in food_kws):
+            matched_cat = next((c for c in user_cats if "ăn" in c.ten_dm.lower() or "uống" in c.ten_dm.lower()), None)
+        elif any(w in t for w in transport_kws):
+            matched_cat = next((c for c in user_cats if "đi lại" in c.ten_dm.lower() or "xe" in c.ten_dm.lower() or "xăng" in c.ten_dm.lower()), None)
+        elif any(w in t for w in shopping_kws):
+            matched_cat = next((c for c in user_cats if "mua" in c.ten_dm.lower() or "sắm" in c.ten_dm.lower()), None)
+
+        if not matched_cat:
+            for c in user_cats:
+                if c.ten_dm.lower() in t:
+                    matched_cat = c
+                    break
+
+        if not matched_cat and user_cats:
+            matched_cat = user_cats[0]
+
+        cat_name = matched_cat.ten_dm if matched_cat else "Ăn uống"
+        cat_limit = float(matched_cat.han_muc or 0.0) if matched_cat else 0.0
+
+        spent_this_month = 0.0
+        if matched_cat:
+            spent_this_month = sum(
+                float(tx.so_tien) for tx in db.query(GiaoDich).filter(
+                    GiaoDich.ma_nd == ma_nd,
+                    GiaoDich.ma_dm == matched_cat.ma_dm,
+                    GiaoDich.loai_gd == "chi",
+                    GiaoDich.ngay_gd >= month_start
+                ).all()
+            )
+
+        so_du_vi = NganSachService.tinh_so_du_vi_chinh(db, ma_nd)
+        icon = "🍜" if any(w in t for w in food_kws) else ("🛍️" if any(w in t for w in shopping_kws) else "💡")
+
+        if cat_limit > 0:
+            con_lai_ngan_sach = cat_limit - spent_this_month
+            if amount > con_lai_ngan_sach:
+                vuot_muc = amount - max(0.0, con_lai_ngan_sach)
+                return (
+                    f"{icon} **Về việc {item_name} ({amount:,.0f}đ):**\n\n"
+                    f"• Hũ **{cat_name}** tháng này: Hạn mức **{cat_limit:,.0f}đ** | Đã chi: **{spent_this_month:,.0f}đ**\n"
+                    f"• Ngân sách còn lại của hũ: **{max(0.0, con_lai_ngan_sach):,.0f}đ**\n\n"
+                    f"⚠️ Khoản chi **{amount:,.0f}đ** này sẽ **vượt ngân sách còn lại {vuot_muc:,.0f}đ** đấy bạn nhé!\n\n"
+                    f"💡 **Lời khuyên của AI:**\n"
+                    f"Ngân sách cho {cat_name} tháng này không còn đủ. Bạn nên cân nhắc:\n"
+                    f"  1. Chọn món/khoản chi khác vừa túi tiền hơn (dưới {max(0.0, con_lai_ngan_sach):,.0f}đ).\n"
+                    f"  2. Hoặc nâng hạn mức hũ {cat_name} nếu đây là nhu cầu cần thiết.\n\n"
+                    f"🔒 _(MoneyMind KHÔNG tự ý ghi nhận giao dịch này vào sổ chi tiêu)_"
+                )
+            else:
+                con_lai_sau_chi = con_lai_ngan_sach - amount
+                return (
+                    f"{icon} **Hoàn toàn được nhé bạn ơi!**\n\n"
+                    f"• Hũ **{cat_name}** tháng này: Hạn mức **{cat_limit:,.0f}đ** | Đã chi: **{spent_this_month:,.0f}đ**\n"
+                    f"• Ngân sách còn lại của hũ: **{con_lai_ngan_sach:,.0f}đ**\n"
+                    f"• Sau khi chi **{amount:,.0f}đ**, bạn vẫn còn **{con_lai_sau_chi:,.0f}đ** cho hũ này.\n\n"
+                    f"✅ Khoản này nằm trọn trong ngân sách cho phép. Chúc bạn có trải nghiệm thật ngon miệng/vui vẻ! ✨\n\n"
+                    f"💡 _(Mình chỉ tư vấn và KHÔNG tự ý lưu giao dịch. Khi nào bạn thực sự chi và muốn ghi lại, chỉ cần nhắn: \"Đã chi {item_name} {amount:,.0f}đ\" nhé!)_"
+                )
+        else:
+            if amount > so_du_vi:
+                return (
+                    f"{icon} **Về việc {item_name} ({amount:,.0f}đ):**\n\n"
+                    f"⚠️ **Số dư ví chính khả dụng của bạn hiện tại là {max(0.0, so_du_vi):,.0f}đ**, "
+                    f"không đủ để chi **{amount:,.0f}đ** bạn nhé! 💳\n\n"
+                    f"Bạn hãy cân nhắc chi tiêu tiết kiệm lại hoặc nạp thêm tiền vào ví nhé! 😊\n\n"
+                    f"🔒 _(MoneyMind KHÔNG tự ý ghi nhận giao dịch này vào sổ chi tiêu)_"
+                )
+            else:
+                so_du_sau_chi = so_du_vi - amount
+                return (
+                    f"{icon} **Hoàn toàn được nhé bạn ơi!**\n\n"
+                    f"• Số dư ví chính khả dụng của bạn: **{so_du_vi:,.0f}đ**\n"
+                    f"• Khoản chi **{item_name}**: **{amount:,.0f}đ**\n"
+                    f"• Sau khi chi, số dư ví ước tính còn: **{so_du_sau_chi:,.0f}đ**\n\n"
+                    f"✅ Số dư ví chính hoàn toàn đủ để bạn chi trả khoản này!\n"
+                    f"💡 _Thiết lập hạn mức cho hũ **{cat_name}** sẽ giúp mình tư vấn sát sao hơn theo kế hoạch tháng._\n\n"
+                    f"*(Lưu ý: Mình KHÔNG tự ý ghi nhận giao dịch này. Khi nào bạn thực sự chi xong và muốn lưu sổ, hãy nhắn: \"Đã chi {item_name} {amount:,.0f}đ\" nhé!)* 😊"
+                )
+
+    @staticmethod
     def _kiem_tra_noi_dung_nhay_cam_va_tieu_cuc(text: str) -> Optional[str]:
         """
         Phát hiện và đưa ra cảnh báo chuẩn mực đối với các từ ngữ không phù hợp,
         nhạy cảm, thô tục, báng bổ hoặc có xu hướng độc hại, tiêu cực, tự hại.
+        Bao gồm cả các cụm từ kết hợp từ hành động thường ngày (như 'ăn') với
+        các từ thô tục/chất thải/tục tĩu phía sau.
         """
         t = text.lower().strip()
 
-        # 1. Từ ngữ thô tục, chửi thề, lăng mạ, báng bổ
-        profanity_patterns = [
-            r'\b(?:đm|dm|đcm|dcm|vcl|vkl|vch|clgt|đmm|dmm|vl|đéo|deo|đếch|đù|đụ|địt|dit|lồn|lon|cặc|cac|buồi|buoi|dái|bìu)\b',
-            r'\b(?:chó chết|chó má|thằng chó|con chó|con đĩ|đĩ|cave|con phò|phò|khốn nạn|mất dạy|đồ ngu|thằng ngu|súc vật|óc chó|mẹ kiếp|địt mẹ|đụ má|đụ mẹ|mẹ mày|bà mẹ)\b',
-            r'\b(?:fuck|fucking|shit|bitch|asshole|bastard|motherfucker|pussy|dick|cunt|idiot)\b'
+        # ─────────────────────────────────────────────────────────────────────
+        # 1. Danh sách từ thô tục rõ ràng cần kiểm tra bằng substring
+        #    (chỉ dùng cho các từ có dấu tiếng Việt hoặc cụm đủ dài để tránh false positive)
+        # ─────────────────────────────────────────────────────────────────────
+        VULGAR_EXACT = [
+            # Chửi thề viết tắt (đủ ngắn, phải xử lý bằng regex riêng bên dưới)
+            # Bộ phận sinh dục / chất thải thô tục (tiếng Việt có dấu - substring safe)
+            "đéo", "đếch", "đù", "đụ", "địt",
+            "lồn", "cặc", "buồi", "dái", "bìu",
+            "cứt", "đái", "tiểu tiện", "ỉa", "phóng uế",
+            "nước đái",
+            "tinh trùng", "tinh dịch",
+            # Lăng mạ / xúc phạm (cụm đủ dài, có dấu)
+            "chó chết", "chó má", "thằng chó", "con đĩ",
+            "con phò", "gái điếm", "gái bán hoa",
+            "khốn nạn", "mất dạy", "đồ ngu", "thằng ngu", "súc vật",
+            "óc chó", "ngu như bò", "não cá vàng",
+            "mẹ kiếp", "địt mẹ", "đụ má", "đụ mẹ",
+            "đồ khốn", "thằng khốn",
+            # Tiếng Anh tục (cụm đủ dài, không ambiguous)
+            "motherfucker", "bullshit",
+            "asshole", "bastard",
         ]
 
-        # 2. Hành vi tiêu cực cực đoan, tự hại, bạo lực
-        harm_patterns = [
-            r'\b(?:tự tử|tự sát|muốn chết|chết đi|chết quách|cắt cổ tay|nhảy lầu|nhảy cầu|uống thuốc ngủ tự tử)\b',
-            r'\b(?:giết người|đâm chém|đánh nhau|bắn chết|chém chết|vũ khí|súng đạn|chế bom|đặt bom)\b'
-        ]
+        for vw in VULGAR_EXACT:
+            if vw in t:
+                return (
+                    "⚠️ **Cảnh báo về ngôn từ không phù hợp!**\n\n"
+                    "MoneyMind luôn duy trì một không gian quản lý tài chính **văn minh, tích cực và an toàn** cho tất cả người dùng. "
+                    "Hệ thống không tiếp nhận hoặc phản hồi các từ ngữ thô tục, nhạy cảm, độc hại hoặc có xu hướng tiêu cực.\n\n"
+                    "Tôi chỉ chuyên tâm đồng hành cùng bạn trong việc **quản lý thu chi**, **kiểm soát ngân sách** và **xây dựng mục tiêu tài chính cá nhân lành mạnh**. "
+                    "Hôm nay bạn có khoản chi tiêu hay thu nhập nào cần ghi chép không? 😊"
+                )
 
-        # 3. Tệ nạn xã hội, chất cấm, cờ bạc bất hợp pháp
-        vice_patterns = [
-            r'\b(?:ma túy|thuốc lắc|cần sa|đập đá|heroin|hút cỏ|bóng cười)\b',
-            r'\b(?:đánh bạc|đánh bài ăn tiền|sòng bạc|casino|xóc đĩa|tài xỉu|lô đề|đánh đề|ghi đề|bao lô|cá độ|cá cược|độ banh|bắn cá đổi thưởng)\b',
-            r'\b(?:rửa tiền|lừa đảo|chiếm đoạt tài sản|tống tiền|buôn lậu)\b'
+        # ─────────────────────────────────────────────────────────────────────
+        # 2. Từ viết tắt tục / ngắn: cần dùng regex có word boundary (khoảng trắng / đầu-cuối)
+        # ─────────────────────────────────────────────────────────────────────
+        VULGAR_SHORT_PATTERNS = [
+            # Chửi thề viết tắt (phải là từ riêng lẻ)
+            r'(?<![a-zA-Z\u00C0-\u1EF9])(?:đm|đcm|vcl|vkl|vch|clgt|đmm|dmm|wtf|kys)(?![a-zA-Z\u00C0-\u1EF9])',
+            # "cave" cần word-boundary (không phải substring của 'excavate')
+            r'(?<![a-zA-Z])(?:cave|đĩ|phò)(?![a-zA-Z\u00C0-\u1EF9])',
+            # Tiếng Anh tục ngắn
+            r'\b(?:fuck|fucking|fucker|fck|shit|bitch|pussy|dick|cock|cunt|ass|mf)\b',
         ]
-
-        all_patterns = profanity_patterns + harm_patterns + vice_patterns
-        for pat in all_patterns:
+        for pat in VULGAR_SHORT_PATTERNS:
             if re.search(pat, t, flags=re.IGNORECASE):
                 return (
                     "⚠️ **Cảnh báo về ngôn từ không phù hợp!**\n\n"
@@ -2503,7 +3083,68 @@ class AIService:
                     "Tôi chỉ chuyên tâm đồng hành cùng bạn trong việc **quản lý thu chi**, **kiểm soát ngân sách** và **xây dựng mục tiêu tài chính cá nhân lành mạnh**. "
                     "Hôm nay bạn có khoản chi tiêu hay thu nhập nào cần ghi chép không? 😊"
                 )
+
+        # ─────────────────────────────────────────────────────────────────────
+        # 3. Cụm từ kết hợp: động từ thông thường + đối tượng thô tục/chất thải
+        #    Ví dụ: "ăn cứt", "ăn phân", "ăn shit", "ăn c*c", "uống nước đái"
+        #    Chặn trường hợp hệ thống nhầm "ăn X" là giao dịch chi tiêu thực phẩm
+        # ─────────────────────────────────────────────────────────────────────
+        VULGAR_COMBOS = [
+            # ăn + thứ bậy (ưu tiên kiểm tra trước để tránh nhầm giao dịch ăn uống thực)
+            r'ăn\s+(?:cứt|phân|shit|cặc|buồi|dái|đái|lồn|bìu|tinh\s+trùng|nước\s+đái)',
+            r'an\s+(?:cut|phan|shit|cac|buoi|lon|tinh\s+trung)',
+            # uống + thứ bậy
+            r'uống\s+(?:nước\s+đái|nước\s+tiểu|tinh\s+dịch|đái)',
+            r'uong\s+(?:nuoc\s+dai|nuoc\s+tieu|tinh\s+dich)',
+            # liếm / liếc / ngửi + thứ bậy
+            r'(?:liếm|liếc|ngửi|hít)\s+(?:cứt|lồn|cặc|buồi|dái|đái|phân)',
+            # mày / tao / bọn mày / thằng + chửi thề
+            r'(?:mày|tao|chúng\s*mày|thằng|con|đồ)\s+(?:chó|ngu|đần|điên|óc\s+chó|mất\s+dạy|cave|đĩ)',
+            # địt / đụ + mẹ / má / mọi thứ
+            r'(?:địt|đụ|dit|du)\s+(?:mẹ|má|con|mày|nhau|me|ma)',
+            # fuck / shit đứng gần từ khác
+            r'(?:fuck|shit|bitch|dick|ass)\s*(?:you|off|ing|er|head)',
+        ]
+
+        for pat in VULGAR_COMBOS:
+            if re.search(pat, t, flags=re.IGNORECASE):
+                return (
+                    "⚠️ **Cảnh báo về ngôn từ không phù hợp!**\n\n"
+                    "MoneyMind luôn duy trì một không gian quản lý tài chính **văn minh, tích cực và an toàn** cho tất cả người dùng. "
+                    "Hệ thống không tiếp nhận hoặc phản hồi các từ ngữ thô tục, nhạy cảm, độc hại hoặc có xu hướng tiêu cực.\n\n"
+                    "Tôi chỉ chuyên tâm đồng hành cùng bạn trong việc **quản lý thu chi**, **kiểm soát ngân sách** và **xây dựng mục tiêu tài chính cá nhân lành mạnh**. "
+                    "Hôm nay bạn có khoản chi tiêu hay thu nhập nào cần ghi chép không? 😊"
+                )
+
+        # ─────────────────────────────────────────────────────────────────────
+        # 4. Hành vi tiêu cực cực đoan, tự hại, bạo lực
+        # ─────────────────────────────────────────────────────────────────────
+        harm_patterns = [
+            r'tự\s*tử|tự\s*sát|muốn\s*chết|chết\s*đi|chết\s*quách|cắt\s*cổ\s*tay|nhảy\s*lầu|nhảy\s*cầu|uống\s*thuốc\s*ngủ\s*tự\s*tử',
+            r'giết\s*người|đâm\s*chém|bắn\s*chết|chém\s*chết|chế\s*bom|đặt\s*bom',
+        ]
+
+        # ─────────────────────────────────────────────────────────────────────
+        # 5. Tệ nạn xã hội, chất cấm, cờ bạc bất hợp pháp
+        # ─────────────────────────────────────────────────────────────────────
+        vice_patterns = [
+            r'ma\s*túy|thuốc\s*lắc|cần\s*sa|đập\s*đá|heroin|hút\s*cỏ|bóng\s*cười',
+            r'đánh\s*bạc|đánh\s*bài\s*ăn\s*tiền|sòng\s*bạc|casino|xóc\s*đĩa|tài\s*xỉu|lô\s*đề|đánh\s*đề|ghi\s*đề|bao\s*lô|cá\s*độ|cá\s*cược|độ\s*banh|bắn\s*cá\s*đổi\s*thưởng',
+            r'rửa\s*tiền|lừa\s*đảo|chiếm\s*đoạt\s*tài\s*sản|tống\s*tiền|buôn\s*lậu',
+        ]
+
+        for pat in harm_patterns + vice_patterns:
+            if re.search(pat, t, flags=re.IGNORECASE):
+                return (
+                    "⚠️ **Cảnh báo về ngôn từ không phù hợp!**\n\n"
+                    "MoneyMind luôn duy trì một không gian quản lý tài chính **văn minh, tích cực và an toàn** cho tất cả người dùng. "
+                    "Hệ thống không tiếp nhận hoặc phản hồi các từ ngữ thô tục, nhạy cảm, độc hại hoặc có xu hướng tiêu cực.\n\n"
+                    "Tôi chỉ chuyên tâm đồng hành cùng bạn trong việc **quản lý thu chi**, **kiểm soát ngân sách** và **xây dựng mục tiêu tài chính cá nhân lành mạnh**. "
+                    "Hôm nay bạn có khoản chi tiêu hay thu nhập nào cần ghi chép không? 😊"
+                )
+
         return None
+
 
     @staticmethod
     def _kiem_tra_ngoai_pham_vi_tai_chinh(text: str) -> Optional[str]:
@@ -2540,6 +3181,129 @@ class AIService:
                     "• **Tra cứu lịch sử và phân tích dòng tiền** hàng tháng.\n\n"
                     "Tôi không hỗ trợ các chủ đề ngoài phạm vi tài chính cá nhân. Bạn có câu hỏi nào về số dư ví, các khoản chi gần đây hay muốn ghi nhận chi tiêu không? 💰"
                 )
+        return None
+
+    @staticmethod
+    def _kiem_tra_chuoi_vo_nghia_hoac_loan_ky_tu(text: str) -> Optional[str]:
+        """
+        Phát hiện khi người dùng nhập loạn các ký tự, gõ bừa bàn phím (keyboard smashing),
+        chuỗi ký tự vô nghĩa hoặc không luận ra được từ ngữ có nghĩa trong tiếng Việt/tiếng Anh.
+        Trả về thông báo nhắc nhở và hướng dẫn người dùng nhập đúng cú pháp mẫu.
+        """
+        s = text.strip()
+        if not s:
+            return None
+
+        # 0. Số hoặc số tiền kèm đơn vị hợp lệ (vd: 20000, 50k, 5tr, 100.000d) -> Hợp lệ
+        if re.fullmatch(r'[\d\.,\s]+(k|tr|triệu|nghìn|củ|lít|vnd|đ|m)?', s, re.IGNORECASE):
+            return None
+
+        is_gibberish = False
+
+        # 1. Toàn dấu câu hoặc ký tự đặc biệt (vd: !@#$%, ????, .....)
+        if re.fullmatch(r'[^a-zA-Z0-9\u00C0-\u1EF9\s]+', s):
+            is_gibberish = True
+
+        # 2. Lặp ký tự chữ cái hoặc ký hiệu liên tiếp >= 4 lần (vd: zzzzz, aaaaa, nhưng không bắt số 20000)
+        elif re.search(r'([^\d\s])\1{3,}', s):
+            is_gibberish = True
+
+        # 3. Quét các chuỗi phím trượt liền kề trên bàn phím (keyboard row runs)
+        elif not is_gibberish:
+            row_runs = [
+                'asdfg', 'sdfgh', 'dfghj', 'fghjk', 'ghjkl',
+                'qwerty', 'wertyu', 'ertyui', 'rtyuio', 'tyuiop',
+                'zxcvb', 'xcvbn', 'cvbnm',
+                'qazwsx', 'wsxedc', 'edcrfv',
+                'lkjhg', 'poiuy'
+            ]
+            s_lower = s.lower()
+            for run in row_runs:
+                if run in s_lower:
+                    is_gibberish = True
+                    break
+
+        # 4. Lặp cụm ký tự kiểu asdfasdf, jkjkjkjk
+        if not is_gibberish and re.search(r'([a-zA-Z]{2,4})\1{2,}', s.lower()):
+            is_gibberish = True
+
+        # 5. Phân tích từng từ (tokens)
+        if not is_gibberish:
+            s_lower = s.lower()
+            tokens = s_lower.split()
+
+            valid_vn_vocab = {
+                'ăn', 'uống', 'chi', 'tiêu', 'tiền', 'mua', 'bán', 'lương', 'tháng', 'hôm', 'nay', 
+                'ngày', 'qua', 'mai', 'ví', 'hũ', 'tiết', 'kiệm', 'ngân', 'sách', 'cho', 'xe', 
+                'xăng', 'cơm', 'phở', 'bánh', 'mì', 'cafe', 'cà', 'phê', 'trà', 'sữa', 'chợ', 
+                'siêu', 'thị', 'điện', 'thoại', 'áo', 'quần', 'thu', 'dư', 'báo', 'cáo', 'giúp', 
+                'chào', 'hi', 'hello', 'alo', 'ơi', 'nào', 'gì', 'sao', 'được', 'không', 'có', 
+                'làm', 'như', 'thế', 'nộp', 'rút', 'tạo', 'thêm', 'xóa', 'sửa', 'đổi', 'tổng', 
+                'hạn', 'mức', 'mục', 'tiêu', 'đến', 'năm', 'triệu', 'nghìn', 'k', 'tr', 'đ', 'vnd',
+                'ok', 'ừ', 'dạ', 'vâng', 'cảm', 'ơn', 'tôi', 'mình', 'bạn', 'em', 'anh', 'chị',
+                'du', 'lịch', 'học', 'phí', 'nhà', 'trọ', 'nước', 'internet', 'net',
+                'grab', 'shopee', 'lazada', 'tiki', 'ship', 'sắm', 'quà', 'tặng', 'vay', 'nợ',
+                'an', 'uong', 'tieu', 'tien', 'ban', 'luong', 'thang', 'hom', 'ngay', 'vi', 'hu',
+                'tiet', 'kiem', 'ngan', 'sach', 'xang', 'com', 'pho', 'banh', 'mi', 'ca', 'phe',
+                'tra', 'sua', 'cho', 'sieu', 'thi', 'dien', 'thoai', 'ao', 'quan', 'bao', 'cao',
+                'giup', 'chao', 'nao', 'duoc', 'khong', 'co', 'lam', 'nhu', 'the', 'nop', 'rut',
+                'tao', 'them', 'xoa', 'sua', 'doi', 'tong', 'han', 'muc', 'den', 'nam',
+                'trieu', 'nghin', 'cam', 'on', 'toi', 'minh', 'lich', 'hoc', 'phi', 'nha', 'tro',
+                'nuoc', 'sam', 'qua', 'tang', 'vay', 'no'
+            }
+
+            has_valid_word = False
+            has_number = bool(re.search(r'\d+', s))
+            valid_count = 0
+            total_meaningful_tokens = 0
+
+            for t in tokens:
+                clean_t = re.sub(r'[^a-zA-Z0-9\u00C0-\u1EF9]', '', t)
+                if not clean_t:
+                    continue
+                total_meaningful_tokens += 1
+                if clean_t in valid_vn_vocab or clean_t.isdigit():
+                    valid_count += 1
+                    has_valid_word = True
+
+            # Kiểm tra từ đơn lẻ (1 token không chứa khoảng trắng)
+            if len(tokens) == 1:
+                tok = re.sub(r'[^a-zA-Z0-9\u00C0-\u1EF9]', '', tokens[0])
+                if len(tok) >= 12 and not tok.isdigit():
+                    is_gibberish = True
+                elif re.search(r'[fjwz]{2,}|[fjwz][bcdfghjklmnpqrstvwxz]|[bcdfghjklmnpqrstvwxz][fjwz]', tok):
+                    is_gibberish = True
+                elif re.search(r'[bcdfghjklmnpqrstvwxz]{5,}', tok):
+                    is_gibberish = True
+                elif len(tok) >= 4 and not re.search(r'[aeiouy\u00C0-\u1EF9]', tok):
+                    is_gibberish = True
+
+            # Kiểm tra câu nhiều từ nhưng toàn bộ là các ký tự gõ loạn
+            elif not has_valid_word and not has_number and total_meaningful_tokens >= 1 and valid_count == 0:
+                unrecognized_count = 0
+                for t in tokens:
+                    clean_t = re.sub(r'[^a-zA-Z\u00C0-\u1EF9]', '', t)
+                    if re.search(r'[fjwz][bcdfghjklmnpqrstvwxz]|[bcdfghjklmnpqrstvwxz][fjwz]', clean_t):
+                        unrecognized_count += 1
+                    elif len(clean_t) >= 4 and not re.search(r'[aeiouy\u00C0-\u1EF9]', clean_t):
+                        unrecognized_count += 1
+                    elif any(r in clean_t for r in ['qwe', 'rty', 'uiop', 'asd', 'fgh', 'jkl', 'zxc', 'vbn']):
+                        unrecognized_count += 1
+                    elif len(clean_t) >= 8:
+                        unrecognized_count += 1
+                if unrecognized_count == total_meaningful_tokens:
+                    is_gibberish = True
+
+        if is_gibberish:
+            return (
+                "Xin lỗi bạn, mình chưa hiểu ý bạn do câu nhập chứa chuỗi ký tự ngẫu nhiên hoặc không rõ nghĩa. 🤔\n\n"
+                "💡 Bạn vui lòng kiểm tra và nhập lại hoặc có thể thử các câu mẫu sau nhé:\n"
+                "• Ghi nhanh chi tiêu: 'Ăn bánh mì 20k', 'Đổ xăng 50k', 'Mua cafe 35k'\n"
+                "• Quản lý tiết kiệm: 'Tiết kiệm 5tr mua điện thoại mới đến 01/11/2026'\n"
+                "• Nộp tiền vào hũ: 'Nộp 500k vào hũ du lịch'\n"
+                "• Tra cứu tài chính: 'Hôm nay tôi đã tiêu bao nhiêu?', 'Số dư ví còn lại bao nhiêu?'"
+            )
+
         return None
 
     @staticmethod
@@ -2663,6 +3427,12 @@ class AIService:
         if ngoai_pham_vi:
             AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, ngoai_pham_vi, loai_hanh_dong="tu_van", ma_phien=ma_phien)
             return ngoai_pham_vi
+
+        # 2.5. Kiểm tra ký tự loạn, gõ bừa bàn phím, chuỗi vô nghĩa không nhận biết được
+        canh_bao_vo_nghia = AIService._kiem_tra_chuoi_vo_nghia_hoac_loan_ky_tu(cau_hoi_clean)
+        if canh_bao_vo_nghia:
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, canh_bao_vo_nghia, loai_hanh_dong="canh_bao", ma_phien=ma_phien)
+            return canh_bao_vo_nghia
 
         # 3. Chào hỏi thông thường ngắn gọn, thân thiện
         loi_chao = AIService._kiem_tra_chao_hoi_thong_thuong(cau_hoi_clean)
@@ -2790,7 +3560,7 @@ class AIService:
     def xac_dinh_loai_hanh_dong(tra_loi: str) -> str:
         """Tự động phân loại bản chất tương tác dựa trên kết quả phản hồi của AI."""
         tl = tra_loi.lower()
-        if "cảnh báo về ngôn từ không phù hợp" in tl or "từ ngữ không phù hợp" in tl:
+        if "cảnh báo về ngôn từ không phù hợp" in tl or "từ ngữ không phù hợp" in tl or "chưa hiểu ý bạn" in tl or "chuỗi ký tự ngẫu nhiên" in tl:
             return "canh_bao"
         if "chỉ chuyên trách hỗ trợ bạn trong các vấn đề" in tl or "không hỗ trợ các chủ đề ngoài phạm vi" in tl or "không có thẩm quyền" in tl:
             return "ngoai_pham_vi"
@@ -2878,10 +3648,32 @@ class AIService:
             db.add(log)
             db.commit()
             db.refresh(log)
+
+            # Tự động dọn dẹp: chỉ lưu giữ tối đa 10 nhật ký tương tác gần nhất của người dùng
+            try:
+                sub_ids = (
+                    db.query(LichSuAI.ma_log)
+                    .filter(LichSuAI.ma_nd == ma_nd)
+                    .order_by(LichSuAI.ma_log.desc())
+                    .limit(10)
+                    .all()
+                )
+                keep_ids = [r[0] for r in sub_ids]
+                if keep_ids:
+                    db.query(LichSuAI).filter(
+                        LichSuAI.ma_nd == ma_nd,
+                        ~LichSuAI.ma_log.in_(keep_ids)
+                    ).delete(synchronize_session=False)
+                    db.commit()
+            except Exception:
+                db.rollback()
+
             return log
         except Exception:
             db.rollback()
             return None
+
+    ghi_nhat_ky_ai = luu_nhat_ky_ai
 
     @staticmethod
     def lay_lich_su_ai_theo_ngay(
@@ -2890,11 +3682,11 @@ class AIService:
         ngay: Optional[str] = None,
         ma_phien: Optional[str] = None,
         tu_khoa: Optional[str] = None,
-        limit: int = 200
+        limit: int = 10
     ) -> Dict:
         """
-        Truy xuất nhật ký tương tác với AI, gom nhóm theo từng phiên trò chuyện và theo ngày.
-        Hỗ trợ lọc theo mã phiên, ngày cụ thể (YYYY-MM-DD) và tìm kiếm từ khóa.
+        Truy xuất tối đa 10 nhật ký tương tác gần nhất với AI, gom nhóm theo từng phiên trò chuyện.
+        Hỗ trợ lọc theo mã phiên và tìm kiếm từ khóa.
         """
         from collections import OrderedDict
         q = db.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd)

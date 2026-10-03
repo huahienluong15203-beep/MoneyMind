@@ -1,15 +1,15 @@
 # 💰 MoneyMind - Hệ Thống Quản Lý Tài Chính Cá Nhân Thông Minh Tích Hợp AI
 
-Ứng dụng quản lý tài chính cá nhân toàn diện theo mô hình **6 Hũ Chi Tiêu (Jars Financial System)** kết hợp **Trí tuệ nhân tạo (Google Gemini AI)** giúp tối ưu hóa ngân sách, lập kế hoạch tiết kiệm và cảnh báo chi tiêu thông minh theo thời gian thực.
+Ứng dụng quản lý tài chính cá nhân thông minh và linh hoạt kết hợp **Trí tuệ nhân tạo (Google Gemini AI)** giúp tối ưu hóa ngân sách, lập kế hoạch tiết kiệm và cảnh báo chi tiêu thông minh theo thời gian thực.
 
 ---
 
 ## 🌟 Tính Năng Nổi Bật
 
-### 1. 🏺 Quản Lý Tài Chính Chuẩn Mô Hình 6 Hũ
-- **6 Nhóm Ngân Sách**: Thiết yếu (Ăn uống, sinh hoạt), Đầu tư & Tiết kiệm, Giáo dục & Học tập, Hưởng thụ & Giải trí, Cho đi & Thiện nguyện, Dự phòng khẩn cấp.
+### 1. 📊 Quản Lý Ngân Sách & Danh Mục Linh Hoạt
+- **Tùy chỉnh danh mục chi tiêu**: Người dùng hoàn toàn chủ động tạo, đổi tên, điều chỉnh hạn mức ngân sách theo nhu cầu thực tế cá nhân (Ăn uống, Đi lại, Mua sắm, v.v.).
 - Theo dõi dòng tiền thu - chi minh bạch, trực quan theo từng danh mục.
-- Cảnh báo vượt ngân sách tự động theo mức phần trăm thời gian thực (≥ 90% và vượt 100%).
+- Cảnh báo ngưỡng chi tiêu thông minh theo thời gian thực (cảnh báo sớm khi đạt ≥ 80%, cảnh báo sát ngưỡng ≥ 90% và cảnh báo vượt hạn mức ≥ 100%).
 
 ### 2. 🤖 Trợ Lý Ảo Tài Chính Thông Minh (AI Gemini)
 - Phân tích thói quen chi tiêu hàng tuần, hàng tháng.
@@ -37,7 +37,7 @@
 ## 🛠 Công Nghệ Sử Dụng
 
 - **Backend**: Python 3.8+, FastAPI, SQLAlchemy, SQLite/PostgreSQL, Uvicorn, Pydantic.
-- **AI Engine**: Google Gemini API (`gemini-1.5-flash` / `gemini-pro`).
+- **AI Engine**: Google Gemini API (`gemini-3.8-flash` / `gemini-flash-lite-latest`).
 - **Frontend**: HTML5, Vanilla JavaScript (ES6+), Modern Responsive CSS, Glassmorphism UI.
 - **Mobile Packaging**: Progressive Web Apps (PWA) / Trusted Web Activities (TWA - Android APK).
 - **Email Server**: Google SMTP với App Password.

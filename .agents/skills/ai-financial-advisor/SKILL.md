@@ -13,7 +13,7 @@ Chức năng ứng dụng mô hình trí tuệ nhân tạo tạo sinh Google Gem
 
 - **Dịch vụ AI Trung Tâm**: [ai_service.py](file:///c:/Users/Admin/OneDrive/Desktop/DỰ ÁN LỚN/app/services/ai_service.py) (44KB - Module nghiệp vụ đồ sộ nhất)
   - Sử dụng REST API v1beta / Google Generative AI với mô hình **Gemini 3.8 Flash** thế hệ mới nhất của Google.
-  - Tích hợp Prompt Engineering chuyên sâu về phương pháp 6 hũ.
+  - Tích hợp Prompt Engineering chuyên sâu về hoạch định tài chính cá nhân và cân đối ngân sách linh hoạt.
   - Cơ chế Cascade Multi-Model Fallback an toàn (3.8 Flash -> 3.7 Flash -> Flash Latest) khi API gặp sự cố timeout hoặc hết quota (HTTP 429).
 
 - **Bộ Lọc Quyền Riêng Tư**: [privacy_service.py](file:///c:/Users/Admin/OneDrive/Desktop/DỰ ÁN LỚN/app/services/privacy_service.py)
@@ -29,10 +29,10 @@ Chức năng ứng dụng mô hình trí tuệ nhân tạo tạo sinh Google Gem
 
 1. **Báo Cáo Tài Chính Tháng Tự Động**:
    - Chấm điểm sức khỏe tài chính trên thang điểm 100.
-   - Nhận xét chi tiết việc tuân thủ quy tắc 6 hũ.
+   - Nhận xét chi tiết cơ cấu chi tiêu và tỷ lệ phân bổ ngân sách.
    - Đưa ra 3 hành động cụ thể người dùng cần làm trong tháng tới để cải thiện số dư.
 2. **Tư Vấn Ngân Sách Thông Minh**:
-   - Phân tích thu nhập thực tế và đề xuất mức phân bổ tiền mặt chi tiết cho từng hũ.
+   - Phân tích thu nhập thực tế và đề xuất mức phân bổ tiền mặt chi tiết cho từng danh mục chi tiêu.
 3. **Chat Hỏi Đáp Trực Tiếp**:
    - Trả lời các câu hỏi: "Tôi có nên mua điện thoại mới lúc này?", "Làm sao để tiết kiệm tiền ăn uống?".
 4. **Đặc Vụ Tài Chính Tự Hành Hoàn Toàn Bằng Giao Tiếp Tự Nhiên (AI Autonomous Financial Agent)**:
@@ -48,13 +48,13 @@ Chức năng ứng dụng mô hình trí tuệ nhân tạo tạo sinh Google Gem
      - *Nâng/Giảm mục tiêu*: *"Nâng mục tiêu du lịch lên 4 triệu"*, *"Giảm mục tiêu xuống 3tr"*.
      - *Rút tiền về ví*: *"Rút 500k từ hũ du lịch về ví chính"*, *"Hoàn 200k từ hũ về ví"*.
      - *Xóa hũ*: *"Xóa hũ du lịch"* (hoàn lại 100% tiền tích lũy về ví chính an toàn).
-   - **Danh Mục & Ngân Sách Hũ**:
-     - *Tạo danh mục*: *"Tạo danh mục học tập hạn mức 1 triệu"*, *"Thêm hũ từ thiện"*.
+   - **Danh Mục & Ngân Sách**:
+     - *Tạo danh mục*: *"Tạo danh mục học tập hạn mức 1 triệu"*, *"Thêm danh mục từ thiện"*.
      - *Đổi tên danh mục*: *"Đổi tên danh mục đi chơi thành giải trí"*.
      - *Chỉnh hạn mức*: *"Nâng hạn mức ăn uống lên 3 triệu"*, *"Đặt hạn mức đi chơi là 1tr5"*.
      - *Xóa danh mục*: *"Xóa danh mục từ thiện"* (tự động thu hồi hạn mức khả dụng về ví).
-   - **Sức Khỏe Tài Chính & 6 Hũ**:
-     - *"Đánh giá sức khỏe tài chính"*, *"Chấm điểm tài chính"*, *"Tư vấn phân bổ 6 hũ"*.
+   - **Sức Khỏe Tài Chính & Ngân Sách**:
+     - *"Đánh giá sức khỏe tài chính"*, *"Chấm điểm tài chính"*, *"Tư vấn phân bổ ngân sách"*.
    - Frontend tự động kích hoạt cập nhật giao diện thời gian thực (`loadSummary()`, `loadTransactions()`, `loadSavingsGoals()`, `loadCategories()`, `loadNotifications()`) tức thì mà không cần reload trang.
 
 ---

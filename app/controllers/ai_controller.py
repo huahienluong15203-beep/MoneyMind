@@ -97,18 +97,18 @@ def hoi_dap_ai(
     )
     return HoiDapAIResponse(tra_loi=tra_loi)
 
-@router.get("/lich-su", summary="Xem nhật ký lịch sử tương tác AI theo phiên trò chuyện")
+@router.get("/lich-su", summary="Xem 10 nhật ký lịch sử tương tác AI gần nhất")
 def lay_lich_su_ai(
     ngay: Optional[str] = Query(None, description="Lọc theo ngày cụ thể (YYYY-MM-DD)"),
     ma_phien: Optional[str] = Query(None, description="Lọc theo mã phiên trò chuyện"),
     tu_khoa: Optional[str] = Query(None, description="Tìm kiếm từ khóa câu hỏi hoặc câu trả lời"),
-    limit: int = Query(200, ge=1, le=500),
+    limit: int = Query(10, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: NguoiDung = Depends(get_current_user)
 ):
     """
-    Truy xuất toàn bộ nhật ký tương tác AI được gom nhóm theo từng phiên trò chuyện.
-    Hỗ trợ lọc theo phiên, lọc theo ngày và tìm kiếm từ khóa.
+    Truy xuất 10 nhật ký tương tác AI gần nhất được gom nhóm theo từng phiên trò chuyện.
+    Hỗ trợ lọc theo phiên và tìm kiếm từ khóa.
     """
     return AIService.lay_lich_su_ai_theo_ngay(
         db=db,

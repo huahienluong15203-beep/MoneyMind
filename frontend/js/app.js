@@ -184,6 +184,7 @@
                 await checkLoginBudgetWarnings();
                 renderJarsProgressList();
                 checkNewMonthWelcome();
+                if (typeof startSessionHeartbeat === 'function') startSessionHeartbeat();
             }
 
             function checkNewMonthWelcome() {

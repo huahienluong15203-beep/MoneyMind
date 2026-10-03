@@ -131,3 +131,48 @@ def test_quen_mat_khau_va_dat_lai_thanh_cong(client, user_a):
     })
     assert resp_login_old.status_code == status.HTTP_401_UNAUTHORIZED
 
+def test_dang_nhap_don_thiet_bi_kickout_thiet_bi_cu(client, user_a):
+    """
+    Kiểm thử cơ chế đăng nhập đơn thiết bị (Single Active Session):
+    - Khi thiết bị 1 đăng nhập -> hợp lệ
+    - Khi thiết bị 2 đăng nhập vào cùng tài khoản -> thiết bị 2 hợp lệ
+    - Thiết bị 1 ngay lập tức bị từ chối (401 Unauthorized), header X-Logout-Reason: concurrent_login
+    """
+    # 1. Thiết bị 1 đăng nhập
+    resp1 = client.post("/api/auth/dang-nhap", json={
+        "email": user_a.email,
+        "password": "password123"
+    })
+    assert resp1.status_code == status.HTTP_200_OK
+    token_dev1 = resp1.json()["access_token"]
+
+    # Thiết bị 1 kiểm tra session -> Hợp lệ
+    res_chk1 = client.get("/api/auth/check-session", headers={"Authorization": f"Bearer {token_dev1}"})
+    assert res_chk1.status_code == status.HTTP_200_OK
+    assert res_chk1.json()["status"] == "valid"
+
+    # 2. Thiết bị 2 đăng nhập vào cùng tài khoản
+    resp2 = client.post("/api/auth/dang-nhap", json={
+        "email": user_a.email,
+        "password": "password123"
+    })
+    assert resp2.status_code == status.HTTP_200_OK
+    token_dev2 = resp2.json()["access_token"]
+
+    # Thiết bị 2 kiểm tra session -> Hợp lệ
+    res_chk2 = client.get("/api/auth/check-session", headers={"Authorization": f"Bearer {token_dev2}"})
+    assert res_chk2.status_code == status.HTTP_200_OK
+    assert res_chk2.json()["status"] == "valid"
+
+    # 3. Thiết bị 1 gọi lại API (/check-session hoặc bất kỳ endpoint nào) -> BỊ OUT NGAY LẬP TỨC (401)
+    res_kick = client.get("/api/auth/check-session", headers={"Authorization": f"Bearer {token_dev1}"})
+    assert res_kick.status_code == status.HTTP_401_UNAUTHORIZED
+    assert res_kick.headers.get("X-Logout-Reason") == "concurrent_login"
+    assert "thiết bị khác" in res_kick.json()["detail"].lower()
+
+    # 4. Kiểm tra endpoint legacy /check-session cũng hoạt động đồng nhất
+    res_kick_legacy = client.get("/check-session", headers={"Authorization": f"Bearer {token_dev1}"})
+    assert res_kick_legacy.status_code == status.HTTP_401_UNAUTHORIZED
+    assert res_kick_legacy.headers.get("X-Logout-Reason") == "concurrent_login"
+
+

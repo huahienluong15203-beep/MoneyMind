@@ -125,3 +125,38 @@ def test_ai_session_lifecycle_and_deletion(client, auth_headers_a):
     res_p2 = client.get(f"/api/ai/lich-su?ma_phien={phien_2}", headers=auth_headers_a)
     assert res_p2.json()["tong_so_phien"] == 1
     assert res_p2.json()["cac_phien"][0]["ma_phien"] == phien_2
+
+def test_ai_logs_gioi_han_10_ban_ghi_gan_nhat(db_session, user_a):
+    """Kiểm thử nghiệp vụ chỉ ghi lại tối đa 10 nhật ký tương tác gần nhất"""
+    ma_nd = user_a.ma_nd
+    # Xóa sạch log cũ
+    db_session.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd).delete()
+    db_session.commit()
+
+    # Thêm 15 bản ghi liên tiếp
+    for i in range(15):
+        AIService.luu_nhat_ky_ai(
+            db=db_session,
+            ma_nd=ma_nd,
+            cau_hoi=f"Câu hỏi số {i+1}",
+            tra_loi=f"Câu trả lời số {i+1}",
+            loai_hanh_dong="tu_van",
+            ma_phien="phien_test_10"
+        )
+
+    # Kiểm tra trong DB chỉ còn tối đa 10 bản ghi
+    total_in_db = db_session.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd).count()
+    assert total_in_db == 10
+
+    # Lấy lịch sử qua hàm lay_lich_su_ai_theo_ngay
+    res = AIService.lay_lich_su_ai_theo_ngay(db_session, ma_nd)
+    assert res["tong_so"] == 10
+
+    # Bản ghi mới nhất phải là câu hỏi số 15
+    first_session = res["cac_phien"][0]
+    all_q = [item["cau_hoi"] for item in first_session["nhat_ky"]]
+    assert "Câu hỏi số 15" in all_q
+    # Bản ghi cũ nhất số 1, 2, 3, 4, 5 phải bị dọn dẹp
+    assert "Câu hỏi số 1" not in all_q
+    assert "Câu hỏi số 5" not in all_q
+

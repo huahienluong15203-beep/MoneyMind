@@ -54,8 +54,8 @@
             <!-- CỤM NÚT NỔI Ở GÓC DƯỚI BÊN PHẢI: ICON AI (VỊ TRÍ 1 - Ở TRÊN) VÀ DẤU + (Ở DƯỚI) -->
             <div id="floating-bottom-controls" class="hidden absolute bottom-16 right-3.5 z-40 flex flex-col items-center gap-2.5">
                 <!-- Nút AI -->
-                <button onclick="toggleAiModal()" id="bottom-ai-btn" class="w-11 h-11 bg-teal-500 hover:bg-teal-600 text-white rounded-full flex items-center justify-center text-lg shadow-xl transition-all hover:scale-105 active:scale-95 relative border-2 border-white/80" title="Trợ lý AI MoneyMind">
-                    <span>🤖</span>
+                <button onclick="toggleAiModal()" id="bottom-ai-btn" class="w-11 h-11 bg-teal-500 hover:bg-teal-600 text-white rounded-full flex items-center justify-center shadow-xl transition-all hover:scale-105 active:scale-95 relative border-2 border-white/80 overflow-hidden p-0.5" title="Trợ lý AI MoneyMind">
+                    <img src="./icons/piggy-bank.png" alt="Trợ lý AI Heo Tiết Kiệm" class="w-full h-full object-cover rounded-full">
                     <span class="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white animate-pulse"></span>
                 </button>
                 <!-- Nút Thêm Nhanh (+) -->
@@ -264,6 +264,28 @@
                 </div>
             </div>
 
+            <!-- MODAL CẢNH BÁO ĐĂNG NHẬP TRÊN THIẾT BỊ KHÁC (Z-INDEX 10001) -->
+            <div id="concurrent-logout-modal" style="z-index: 10001;" class="hidden fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+                <div class="bg-white border border-rose-100 w-full max-w-xs rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in duration-200">
+                    <div class="w-16 h-16 bg-rose-50 border border-rose-200 text-rose-500 rounded-full flex items-center justify-center mx-auto text-3xl shadow-inner animate-pulse">
+                        ⚠️
+                    </div>
+                    <div class="space-y-1.5">
+                        <h3 class="text-base font-bold text-slate-800">Đã đăng nhập ở nơi khác</h3>
+                        <div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[11px] font-semibold">
+                            <span>📱</span> Thiết bị khác vừa truy cập
+                        </div>
+                        <p class="text-xs text-slate-500 leading-relaxed pt-1">
+                            Tài khoản của bạn vừa được đăng nhập trên một thiết bị khác.<br>
+                            Để bảo vệ an toàn tài khoản, bạn đã bị đăng xuất khỏi thiết bị này.
+                        </p>
+                    </div>
+                    <button onclick="dismissConcurrentModalAndGoLogin()" class="w-full py-2.5 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white text-xs font-bold rounded-xl transition shadow-md shadow-rose-500/20 active:scale-95">
+                        Đăng nhập lại
+                    </button>
+                </div>
+            </div>
+
             <!-- MODAL TRÍCH TIỀN TIẾT KIỆM -->
             <div id="savings-deposit-modal" style="z-index: 1000;" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
                 <div class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
@@ -446,17 +468,21 @@
                 <div class="bg-white w-full h-[90%] rounded-t-3xl p-4 flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-300">
                     <!-- HEADER -->
                     <div class="flex justify-between items-center pb-2 border-b border-slate-100">
-                        <div class="flex items-center gap-2">
-                            <div class="w-8 h-8 bg-gradient-to-tr from-teal-500 to-emerald-400 text-white rounded-full flex items-center justify-center font-bold text-sm shadow-md">🤖</div>
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-9 h-9 rounded-full overflow-hidden shadow-md shrink-0 border border-teal-200/80 flex items-center justify-center bg-teal-50">
+                                <img src="./icons/piggy-bank.png" alt="AI Heo Tiết Kiệm" class="w-full h-full object-cover">
+                            </div>
                             <div>
                                 <h3 class="text-sm font-bold text-slate-800">Trợ Lý AI Tài Chính Thông Minh</h3>
                                 <p class="text-[10px] text-slate-400">Google Gemini Flash Engine</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-1.5">
-                            <button onclick="startNewAiSession(true)" title="Kết thúc cuộc trò chuyện và tạo phiên mới" class="px-2.5 py-1 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 rounded-xl flex items-center gap-1 text-[11px] font-bold text-slate-600 transition border border-slate-200/80 cursor-pointer">
-                                <span>🔄</span>
-                                <span>Phiên mới</span>
+                            <button onclick="startNewAiSession(true)" title="Tạo phiên trò chuyện mới" aria-label="Tạo phiên trò chuyện mới" class="w-8 h-8 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 rounded-full flex items-center justify-center transition border border-slate-200/80 cursor-pointer shadow-2xs">
+                                <svg class="w-4 h-4 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/>
+                                </svg>
                             </button>
                             <button onclick="toggleAiModal()" class="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-600 transition">✕</button>
                         </div>
@@ -485,7 +511,9 @@
                     <div id="ai-view-chat" class="flex-1 flex flex-col overflow-hidden">
                         <div id="ai-chat-box" class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-3 overflow-y-auto space-y-3 mb-2 text-xs">
                             <div class="flex gap-2">
-                                <div class="w-7 h-7 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">AI</div>
+                                <div class="w-7 h-7 rounded-full overflow-hidden shrink-0 shadow-xs border border-teal-100">
+                                    <img src="./icons/piggy-bank.png" alt="AI" class="w-full h-full object-cover">
+                                </div>
                                 <div class="bg-white p-3 rounded-2xl border border-slate-100 text-slate-700 shadow-sm leading-relaxed">
                                     Xin chào! Tôi là Trợ lý AI tài chính cá nhân MoneyMind. Bạn có thể trò chuyện tự nhiên để <strong>ghi nhanh chi tiêu</strong> (ví dụ: <em>"Ăn bánh mì 20k"</em>, <em>"Đổ xăng 50k"</em>, <em>"Nộp 500k vào hũ du lịch"</em>) hoặc hỏi đáp, phân tích ngân sách tài chính cá nhân. Bạn cần mình giúp gì nào? 😊
                                 </div>
@@ -520,28 +548,19 @@
                         </div>
                     </div>
 
-                    <!-- VIEW 2: NHẬT KÝ TƯƠNG TÁC AI THEO NGÀY -->
+                    <!-- VIEW 2: NHẬT KÝ TƯƠNG TÁC AI (10 GẦN NHẤT) -->
                     <div id="ai-view-logs" class="hidden flex-1 flex flex-col overflow-hidden">
-                        <!-- BỘ LỌC TÌM KIẾM & NGÀY -->
-                        <div class="space-y-2 pb-2 shrink-0 border-b border-slate-100">
-                            <div class="flex gap-2 items-center">
-                                <div class="relative flex-1">
-                                    <span class="absolute left-3 top-2.5 text-xs text-slate-400">🔍</span>
-                                    <input type="text" id="ai-logs-search" placeholder="Tìm kiếm trong các phiên trò chuyện..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500 transition" oninput="debounceAiLogSearch()">
-                                </div>
-                                <input type="date" id="ai-logs-date-filter" class="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 focus:outline-none focus:border-teal-500" onchange="filterAiLogsByDate()">
-                                <button onclick="clearAllAiLogs()" title="Xóa toàn bộ nhật ký" class="p-2 text-rose-500 hover:bg-rose-50 rounded-xl border border-rose-200 transition shrink-0 text-xs font-bold">🗑️</button>
+                        <!-- THANH CÔNG CỤ TÌM KIẾM & THAO TÁC -->
+                        <div class="pb-2.5 shrink-0 border-b border-slate-100 flex items-center gap-2">
+                            <div class="relative flex-1">
+                                <span class="absolute left-3 top-2.5 text-xs text-slate-400">🔍</span>
+                                <input type="text" id="ai-logs-search" placeholder="Tìm kiếm trong 10 nhật ký gần nhất..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500 transition" oninput="debounceAiLogSearch()">
                             </div>
-                            <!-- QUICK PILLS -->
-                            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[11px]">
-                                <button onclick="setAiLogQuickFilter('all')" id="pill-filter-all" class="px-2.5 py-1 bg-teal-50 text-teal-700 font-bold rounded-lg border border-teal-200 transition">Tất cả</button>
-                                <button onclick="setAiLogQuickFilter('today')" id="pill-filter-today" class="px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition">Hôm nay</button>
-                                <button onclick="setAiLogQuickFilter('yesterday')" id="pill-filter-yesterday" class="px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition">Hôm qua</button>
-                                <button onclick="refreshAiLogs()" class="ml-auto px-2 py-1 text-slate-400 hover:text-teal-600 transition flex items-center gap-1 font-medium">🔄 Làm mới</button>
-                            </div>
+                            <button onclick="refreshAiLogs()" title="Làm mới" class="p-2 text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded-xl border border-slate-200 transition shrink-0 text-xs font-medium">🔄</button>
+                            <button onclick="clearAllAiLogs()" title="Xóa toàn bộ 10 nhật ký" class="p-2 text-rose-500 hover:bg-rose-50 rounded-xl border border-rose-200 transition shrink-0 text-xs font-bold">🗑️</button>
                         </div>
 
-                        <!-- DANH SÁCH NHẬT KÝ GOM THEO TỪNG NGÀY -->
+                        <!-- DANH SÁCH 10 NHẬT KÝ GẦN NHẤT -->
                         <div id="ai-logs-container" class="flex-1 overflow-y-auto space-y-3.5 pr-1 text-xs no-scrollbar pt-2">
                             <!-- Render dynamically -->
                         </div>

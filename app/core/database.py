@@ -36,7 +36,12 @@ def migrate_legacy_data():
     try:
         con = sqlite3.connect(db_path)
         cur = con.cursor()
-        tables = [r[0] for r in cur.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+        # 0. Đảm bảo cột session_id tồn tại trong nguoi_dung
+        if "nguoi_dung" in tables:
+            cols = [c[1] for c in cur.execute("PRAGMA table_info(nguoi_dung)").fetchall()]
+            if "session_id" not in cols:
+                cur.execute("ALTER TABLE nguoi_dung ADD COLUMN session_id VARCHAR(100)")
+                con.commit()
 
         # 1. users -> nguoi_dung
         if "users" in tables and "nguoi_dung" in tables:

@@ -142,8 +142,8 @@ def test_ai_nang_han_muc_ngan_sach_tu_nhien(client, db_session, user_a, auth_hea
     assert tx_count_after == tx_count_before
 
 def test_ai_tao_hu_tiet_kiem_tu_nhien(client, db_session, user_a, auth_headers_a):
-    """Test người dùng: 'tạo hũ tiết kiệm mua laptop 20 triệu'"""
-    payload = {"cau_hoi": "tạo hũ tiết kiệm mua laptop 20 triệu"}
+    """Test người dùng: 'tạo hũ tiết kiệm mua laptop 20 triệu đến 31/12/2026'"""
+    payload = {"cau_hoi": "tạo hũ tiết kiệm mua laptop 20 triệu đến 31/12/2026"}
     res = client.post("/api/ai/hoi-dap", json=payload, headers=auth_headers_a)
     assert res.status_code == status.HTTP_200_OK
     data = res.json()
@@ -155,7 +155,51 @@ def test_ai_tao_hu_tiet_kiem_tu_nhien(client, db_session, user_a, auth_headers_a
         MucTieuTietKiem.so_tien_muc_tieu == 20000000.0
     ).first()
     assert goal is not None
-    assert "laptop" in goal.ten_muc_tieu.lower()
+    assert goal.ten_muc_tieu == "Mua laptop"
+
+def test_ai_tao_hu_tiet_kiem_chuan_hoa_ten_va_so_tien_dich(client, db_session, user_a, auth_headers_a):
+    """Test người dùng: 'tôi muốn tiết kiệm 5tr đến 01/11/2026 phải mua được điện thoại mới'"""
+    payload = {"cau_hoi": "tôi muốn tiết kiệm 5tr đến 01/11/2026 phải mua được điện thoại mới"}
+    res = client.post("/api/ai/hoi-dap", json=payload, headers=auth_headers_a)
+    assert res.status_code == status.HTTP_200_OK
+    data = res.json()
+    assert "tạo hũ tiết kiệm mới thành công" in data["tra_loi"].lower()
+    assert "5,000,000" in data["tra_loi"]
+
+    goal = db_session.query(MucTieuTietKiem).filter(
+        MucTieuTietKiem.ma_nd == user_a.ma_nd,
+        MucTieuTietKiem.ten_muc_tieu == "Mua điện thoại mới"
+    ).first()
+    assert goal is not None
+    assert "2026-11-01" in str(goal.han_chot)
+
+def test_ai_tao_hu_tiet_kiem_thieu_han_chot_hoi_lai_va_da_luot(client, db_session, user_a, auth_headers_a):
+    """Test thiếu hạn chót thì AI hỏi lại, sau đó trả lời hạn chót thì tạo hũ thành công"""
+    # Lượt 1: Thiếu hạn chót
+    res1 = client.post("/api/ai/hoi-dap", json={"cau_hoi": "tôi muốn tiết kiệm 5tr mua xe máy"}, headers=auth_headers_a)
+    assert res1.status_code == status.HTTP_200_OK
+    data1 = res1.json()
+    assert "đến khi nào" in data1["tra_loi"].lower() or "hạn chót" in data1["tra_loi"].lower()
+
+    # Lượt 2: Người dùng trả lời hạn chót
+    res2 = client.post("/api/ai/hoi-dap", json={
+        "cau_hoi": "đến 15/12/2026",
+        "lich_su_chat": [
+            {"role": "user", "content": "tôi muốn tiết kiệm 5tr mua xe máy"},
+            {"role": "assistant", "content": data1["tra_loi"]}
+        ]
+    }, headers=auth_headers_a)
+    assert res2.status_code == status.HTTP_200_OK
+    data2 = res2.json()
+    assert "tạo hũ tiết kiệm mới thành công" in data2["tra_loi"].lower()
+
+    goal = db_session.query(MucTieuTietKiem).filter(
+        MucTieuTietKiem.ma_nd == user_a.ma_nd,
+        MucTieuTietKiem.ten_muc_tieu == "Mua xe máy"
+    ).first()
+    assert goal is not None
+    assert goal.so_tien_muc_tieu == 5000000.0
+    assert "2026-12-15" in str(goal.han_chot)
 
 def test_ai_rut_tien_hu_tiet_kiem_tu_nhien(client, db_session, user_a, auth_headers_a):
     """Test người dùng: 'rút 500k từ hũ du lịch về ví chính'"""
@@ -395,5 +439,49 @@ def test_ai_multi_turn_giao_dich_tu_nhien(client, db_session, user_a, auth_heade
     assert tx.so_tien == 30000.0
 
 
+def test_ai_phat_hien_ky_tu_loan_va_vo_nghia(client, auth_headers_a):
+    """
+    Test khi người dùng nhập chuỗi ký tự ngẫu nhiên hoặc gõ loạn bàn phím
+    (ví dụ: 'athgyjdrrawgfykrtyrjty', 'asdfghjkl', '!@#$%^&*')
+    Hệ thống phát hiện ngay và thông báo nhắc nhở kèm gợi ý mẫu.
+    """
+    samples = [
+        "athgyjdrrawgfykrtyrjty",
+        "asdfghjkl",
+        "qwertyuiop",
+        "zzzzzzzzzz",
+        "!@#$%^&*",
+        "ajskdhasjkdha"
+    ]
+    for s in samples:
+        res = client.post("/api/ai/hoi-dap", json={"cau_hoi": s}, headers=auth_headers_a)
+        assert res.status_code == status.HTTP_200_OK
+        data = res.json()
+        tl = data["tra_loi"].lower()
+        assert "chưa hiểu ý bạn" in tl or "ký tự ngẫu nhiên" in tl
 
+def test_ai_hoi_y_kien_chi_tieu_khong_tu_y_ghi_giao_dich(client, db_session, user_a, auth_headers_a, cat_chi_a):
+    """
+    Test khi người dùng hỏi ý kiến / tham khảo khả năng chi tiêu:
+    Ví dụ: 'ăn mì cay 55k được không nhỉ', 'mua cái áo 300k được ko'
+    Hệ thống:
+    1. Đưa ra lời khuyên tư vấn tài chính theo ngân sách hũ
+    2. TUYỆT ĐỐI KHÔNG tự ý ghi nhận giao dịch vào CSDL
+    """
+    # Đếm số lượng giao dịch trước khi hỏi
+    count_before = db_session.query(GiaoDich).filter(GiaoDich.ma_nd == user_a.ma_nd).count()
+
+    # Người dùng hỏi ý kiến: 'ăn mì cay 55k được không nhỉ'
+    res = client.post("/api/ai/hoi-dap", json={"cau_hoi": "ăn mì cay 55k được không nhỉ"}, headers=auth_headers_a)
+    assert res.status_code == status.HTTP_200_OK
+    data = res.json()
+    tra_loi = data["tra_loi"]
+
+    # Phải có tư vấn ngân sách hũ Ăn uống và thông báo không tự ý ghi nhận
+    assert "ăn uống" in tra_loi.lower() or "mì cay" in tra_loi.lower()
+    assert "không tự ý ghi nhận" in tra_loi.lower() or "không tự ý lưu" in tra_loi.lower()
+
+    # Kiểm tra CSDL KHÔNG hề có thêm giao dịch mới nào
+    count_after = db_session.query(GiaoDich).filter(GiaoDich.ma_nd == user_a.ma_nd).count()
+    assert count_after == count_before
 

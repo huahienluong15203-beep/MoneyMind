@@ -105,7 +105,7 @@ Sinh Deployment Architecture Diagram (Mermaid.js flowchart TB) cho MoneyMind.
 - PostgreSQL: Production (Render.com cloud)
 
 [External Services]
-- Google Gemini API (gemini-2.5-flash, cascade fallback)
+- Google Gemini API (gemini-3.8-flash, cascade fallback)
 - Gmail SMTP (Port 587, TLS, App Password)
 
 Mũi tên thể hiện data flow. Ghi chú protocol trên mũi tên.

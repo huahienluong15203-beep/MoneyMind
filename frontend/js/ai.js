@@ -1,21 +1,33 @@
 /**
  * MoneyMind - Trợ Lý AI Tài Chính Thông Minh (Google Gemini Flash Engine)
  */
-var currentAiSessionId = null;
-var aiSessionEnded = true; // Ban đầu chưa có phiên đang mở
+var currentAiSessionId = sessionStorage.getItem('current_ai_session_id') || null;
+
+function getOrCreateAiSessionId() {
+    if (!currentAiSessionId) {
+        currentAiSessionId = sessionStorage.getItem('current_ai_session_id');
+        if (!currentAiSessionId) {
+            currentAiSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+            sessionStorage.setItem('current_ai_session_id', currentAiSessionId);
+        }
+    }
+    return currentAiSessionId;
+}
 
 function startNewAiSession(showAlert = false) {
     currentAiSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-    aiSessionEnded = false;
+    sessionStorage.setItem('current_ai_session_id', currentAiSessionId);
     aiChatHistory = [];
 
     const box = document.getElementById('ai-chat-box');
     if (box) {
         box.innerHTML = `
             <div class="flex gap-2">
-                <div class="w-7 h-7 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">AI</div>
+                <div class="w-7 h-7 rounded-full overflow-hidden shrink-0 shadow-xs border border-teal-100">
+                    <img src="./icons/piggy-bank.png" alt="AI" class="w-full h-full object-cover">
+                </div>
                 <div class="bg-white p-3 rounded-2xl border border-slate-100 text-slate-700 shadow-sm leading-relaxed">
-                    Xin chào! Tôi là Trợ lý AI tài chính cá nhân MoneyMind. Bạn có thể trò chuyện tự nhiên để <strong>ghi nhanh chi tiêu</strong> (ví dụ: <em>"Ăn bánh mì 20k"</em>, <em>"Đổ xăng 50k"</em>, <em>"Nộp 500k vào hũ du lịch"</em>) hoặc hỏi đáp, phân tích ngân sách tài chính cá nhân. Bạn cần mình giúp gì nào? 😊
+                    Xin chào! Tôi là Trợ lý AI tài chính cá nhân MoneyMind. Bạn có thể trò chuyện tự nhiên để <strong>ghi nhanh chi tiêu</strong> (ví dụ: <em>"Ăn bánh mì 20k"</em>, <em>"Đổ xăng 50k"</em>, <em>"Nộp 500k vào mục tiêu du lịch"</em>) hoặc hỏi đáp, phân tích ngân sách tài chính cá nhân. Bạn cần mình giúp gì nào? 😊
                 </div>
             </div>
         `;
@@ -39,17 +51,15 @@ function toggleAiModal() {
     if (!modal) return;
     modal.classList.toggle('hidden');
     if (!modal.classList.contains('hidden')) {
-        // Mở modal: nếu vừa thoát ra vào lại -> tự động tính là 1 phiên mới!
-        if (aiSessionEnded || !currentAiSessionId) {
-            startNewAiSession(false);
-        }
+        // Mở modal: Sử dụng phiên hiện tại (không tạo phiên mới khi chỉ đóng/mở modal)
+        getOrCreateAiSessionId();
         updateAiLogBadge();
         if (currentAiTab === 'logs') {
             loadAiLogs();
         }
     } else {
-        // Thoát khỏi modal -> đánh dấu phiên kết thúc
-        aiSessionEnded = true;
+        // Đóng modal qua nút [X]:
+        // TUYỆT ĐỐI KHÔNG kết thúc phiên, giữ nguyên phiên hiện tại
         if (typeof loadSummary === 'function') loadSummary();
         if (typeof loadSavingsGoals === 'function') loadSavingsGoals();
         if (typeof loadCategories === 'function') loadCategories();
@@ -125,7 +135,9 @@ var aiChatHistory = [];
                 // Hiển thị typing indicator
                 const typingId = 'typing-' + Date.now();
                 box.innerHTML += `<div id="${typingId}" class="flex gap-2 items-end">
-                    <div class="w-7 h-7 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">AI</div>
+                    <div class="w-7 h-7 rounded-full overflow-hidden shrink-0 shadow-xs border border-teal-100">
+                        <img src="./icons/piggy-bank.png" alt="AI" class="w-full h-full object-cover">
+                    </div>
                     <div class="bg-white p-2.5 rounded-2xl border shadow-sm">
                         <span class="flex gap-1 items-center">
                             <span class="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce" style="animation-delay:0ms"></span>
@@ -136,10 +148,7 @@ var aiChatHistory = [];
                 </div>`;
                 box.scrollTop = box.scrollHeight;
 
-                if (!currentAiSessionId || aiSessionEnded) {
-                    currentAiSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-                    aiSessionEnded = false;
-                }
+                const sessionId = getOrCreateAiSessionId();
 
                 try {
                     const res = await fetch('/ai-tro-ly', {
@@ -166,7 +175,9 @@ var aiChatHistory = [];
 
                         const formatted = formatAIResponse(answerText);
                         box.innerHTML += `<div class="flex gap-2 items-end">
-                            <div class="w-7 h-7 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">AI</div>
+                            <div class="w-7 h-7 rounded-full overflow-hidden shrink-0 shadow-xs border border-teal-100">
+                                <img src="./icons/piggy-bank.png" alt="AI" class="w-full h-full object-cover">
+                            </div>
                             <div class="bg-white p-2.5 rounded-2xl border text-slate-700 shadow-sm max-w-[85%] text-xs leading-relaxed" style="word-break: break-word;">${formatted}</div>
                         </div>`;
 
@@ -261,27 +272,23 @@ var aiChatHistory = [];
                 } catch(e) {}
             }
 
-            async function loadAiLogs(dateFilter, keyword) {
+            async function loadAiLogs(keyword) {
                 const container = document.getElementById('ai-logs-container');
                 if (!container) return;
 
                 const searchInput = document.getElementById('ai-logs-search');
-                const dateInput = document.getElementById('ai-logs-date-filter');
-
-                const qDate = typeof dateFilter !== 'undefined' ? dateFilter : (dateInput ? dateInput.value : '');
                 const qSearch = typeof keyword !== 'undefined' ? keyword : (searchInput ? searchInput.value.trim() : '');
 
                 container.innerHTML = `
                     <div class="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
                         <span class="animate-spin text-xl">⏳</span>
-                        <p class="text-xs">Đang tải nhật ký các phiên trò chuyện...</p>
+                        <p class="text-xs">Đang tải 10 nhật ký gần nhất...</p>
                     </div>
                 `;
 
                 try {
                     const authToken = typeof token !== 'undefined' ? token : (localStorage.getItem('token') || '');
-                    let url = '/api/ai/lich-su?limit=200';
-                    if (qDate) url += `&ngay=${encodeURIComponent(qDate)}`;
+                    let url = '/api/ai/lich-su?limit=10';
                     if (qSearch) url += `&tu_khoa=${encodeURIComponent(qSearch)}`;
 
                     const res = await fetch(url, {
@@ -298,7 +305,7 @@ var aiChatHistory = [];
                     }
 
                     const data = await res.json();
-                    renderAiLogs(data, qDate, qSearch);
+                    renderAiLogs(data, qSearch);
                     updateAiLogBadge();
                 } catch(e) {
                     container.innerHTML = `
@@ -309,15 +316,14 @@ var aiChatHistory = [];
                 }
             }
 
-            function renderAiLogs(data, activeDate, activeKeyword) {
+            function renderAiLogs(data, activeKeyword) {
                 const container = document.getElementById('ai-logs-container');
                 if (!container) return;
 
                 const sessions = data.cac_phien || [];
                 if (sessions.length === 0) {
                     let msg = "Bạn chưa có nhật ký tương tác nào với AI.";
-                    if (activeDate) msg = `Không có phiên trò chuyện nào trong ngày ${activeDate}.`;
-                    if (activeKeyword) msg = `Không tìm thấy phiên trò chuyện nào chứa từ khóa "${activeKeyword}".`;
+                    if (activeKeyword) msg = `Không tìm thấy nhật ký nào chứa từ khóa "${activeKeyword}".`;
 
                     container.innerHTML = `
                         <div class="py-12 flex flex-col items-center justify-center text-slate-400 gap-2 text-center px-4">
@@ -416,7 +422,9 @@ var aiChatHistory = [];
 
                                 <!-- PHẢN HỒI CỦA AI -->
                                 <div class="bg-teal-50/30 border border-teal-100/60 rounded-xl p-2.5 flex items-start gap-2">
-                                    <span class="text-xs shrink-0 mt-0.5">🤖</span>
+                                    <div class="w-4 h-4 rounded-full overflow-hidden shrink-0 mt-0.5 border border-teal-200">
+                                        <img src="./icons/piggy-bank.png" alt="AI" class="w-full h-full object-cover">
+                                    </div>
                                     <div class="text-[11px] text-slate-700 leading-relaxed break-words flex-1">
                                         ${formattedAnswer}
                                     </div>
@@ -494,21 +502,11 @@ var aiChatHistory = [];
             }
 
             async function clearAllAiLogs() {
-                const dateInput = document.getElementById('ai-logs-date-filter');
-                const qDate = dateInput ? dateInput.value : '';
-
-                const confirmMsg = qDate
-                    ? `Bạn có chắc muốn xóa tất cả các phiên tương tác trong ngày ${qDate} không?`
-                    : "Bạn có chắc chắn muốn xóa TOÀN BỘ nhật ký các phiên trò chuyện với AI không?";
-
-                if (!confirm(confirmMsg)) return;
+                if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ 10 nhật ký tương tác gần nhất với AI không?")) return;
 
                 try {
                     const authToken = typeof token !== 'undefined' ? token : (localStorage.getItem('token') || '');
-                    let url = '/api/ai/lich-su';
-                    if (qDate) url += `?ngay=${encodeURIComponent(qDate)}`;
-
-                    const res = await fetch(url, {
+                    const res = await fetch('/api/ai/lich-su', {
                         method: 'DELETE',
                         headers: { 'Authorization': 'Bearer ' + authToken }
                     });
@@ -522,50 +520,6 @@ var aiChatHistory = [];
                 } catch(e) {
                     alert("Lỗi kết nối: " + e.message);
                 }
-            }
-
-            function setAiLogQuickFilter(type) {
-                const dateInput = document.getElementById('ai-logs-date-filter');
-                const pAll = document.getElementById('pill-filter-all');
-                const pToday = document.getElementById('pill-filter-today');
-                const pYesterday = document.getElementById('pill-filter-yesterday');
-
-                // Reset pills styling
-                [pAll, pToday, pYesterday].forEach(p => {
-                    if (p) {
-                        p.className = "px-2.5 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition";
-                    }
-                });
-
-                const now = new Date();
-                const formatYMD = d => {
-                    const y = d.getFullYear();
-                    const m = String(d.getMonth() + 1).padStart(2, '0');
-                    const day = String(d.getDate()).padStart(2, '0');
-                    return `${y}-${m}-${day}`;
-                };
-
-                if (type === 'all') {
-                    if (dateInput) dateInput.value = '';
-                    if (pAll) pAll.className = "px-2.5 py-1 bg-teal-50 text-teal-700 font-bold rounded-lg border border-teal-200 transition";
-                    loadAiLogs('');
-                } else if (type === 'today') {
-                    const todayStr = formatYMD(now);
-                    if (dateInput) dateInput.value = todayStr;
-                    if (pToday) pToday.className = "px-2.5 py-1 bg-teal-50 text-teal-700 font-bold rounded-lg border border-teal-200 transition";
-                    loadAiLogs(todayStr);
-                } else if (type === 'yesterday') {
-                    const yDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-                    const yStr = formatYMD(yDate);
-                    if (dateInput) dateInput.value = yStr;
-                    if (pYesterday) pYesterday.className = "px-2.5 py-1 bg-teal-50 text-teal-700 font-bold rounded-lg border border-teal-200 transition";
-                    loadAiLogs(yStr);
-                }
-            }
-
-            function filterAiLogsByDate() {
-                const dateInput = document.getElementById('ai-logs-date-filter');
-                loadAiLogs(dateInput ? dateInput.value : '');
             }
 
             function debounceAiLogSearch() {
