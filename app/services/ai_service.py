@@ -695,19 +695,14 @@ class AIService:
                 f"• Tích lũy tiết kiệm: **{khoan_tk['so_tien']:,.0f}đ** ({khoan_tk['ty_le']})" if khoan_tk else ""
             )
 
-        # 9. PHẢN HỒI THÔNG MINH MẶC ĐỊNH
-        top_name = max_cat['ten'] if max_cat else 'Chưa có'
-        min_name = min_cat['ten'] if min_cat else 'Chưa có'
+        # 9. PHẢN HỒI MẶC ĐỊNH ĐÚNG TRỌNG TÂM QUẢN LÝ TÀI CHÍNH CÁ NHÂN
         return (
-            f"👋 Chào bạn! Tôi là Trợ Lý AI Tài Chính MoneyMind.\n"
-            f"Trong tháng {thang}, bạn đã chi **{tong_chi:,.0f}đ** trên tổng thu **{tong_thu:,.0f}đ** (dư **{so_du:,.0f}đ**).\n"
-            f"• Mục chi nhiều nhất: **{top_name}**\n"
-            f"• Mục chi ít nhất: **{min_name}**\n\n"
-            f"💡 Bạn có thể hỏi tôi bất cứ điều gì, ví dụ:\n"
-            f"- *'Tôi chi tiêu ít nhất vào mục nào?'*\n"
-            f"- *'Tháng này chi nhiều nhất vào đâu?'*\n"
-            f"- *'Tiền ăn uống tháng này là bao nhiêu?'*\n"
-            f"- *'Số dư ví chính hiện tại còn bao nhiêu?'*"
+            "Tôi là Trợ Lý AI Tài Chính MoneyMind, chuyên hỗ trợ bạn quản lý chi tiêu cá nhân một cách thông minh và tiện lợi.\n\n"
+            "Tôi có thể hỗ trợ bạn ngay:\n"
+            "• **Ghi chép chi tiêu siêu tốc:** Nhắn câu tự nhiên như *'Ăn bún chả 35k'*, *'Đổ xăng 50k'*, *'Uống cafe 30k'*.\n"
+            "• **Tra cứu tài chính:** Hỏi *'Hôm nay tôi đã tiêu những gì?'*, *'Số dư ví chính còn bao nhiêu?'*, *'Mục chi nhiều nhất tháng này?'*.\n"
+            "• **Quản lý ngân sách:** Hỏi *'Hạn mức ăn uống còn bao nhiêu?'*, *'Tình hình ngân sách các danh mục'*.\n\n"
+            "Bạn muốn kiểm tra số dư hay ghi nhận khoản chi tiêu nào ngay bây giờ không? 😊"
         )
 
     @staticmethod
@@ -834,7 +829,7 @@ class AIService:
             s = re.sub(r'^(?:hôm\s*nay|hôm\s*qua|hôm\s*kia|tuần\s*này|tuần\s*trước|tháng\s*này)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
             s = re.sub(r'^(?:sáng\s*nay|trưa\s*nay|chiều\s*nay|tối\s*nay|tối\s*qua|đêm\s*qua|sáng\s*qua|trưa\s*qua|chiều\s*qua)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
             s = re.sub(r'^(?:lúc\s*sáng|lúc\s*trưa|lúc\s*chiều|lúc\s*tối|hồi\s*sáng|hồi\s*trưa|hồi\s*chiều|hồi\s*tối|ban\s*sáng|ban\s*trưa|ban\s*chiều|ban\s*tối)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
-            s = re.sub(r'^(?:khi\s*nãy|lúc\s*nãy|vừa\s*nãy|mới\s*nãy|ban\s*nãy|vừa\s*rồi|mới\s*rồi)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
+            s = re.sub(r'^(?:khi\s*nãy|lúc\s*nãy|vừa\s*nãy|mới\s*nãy|ban\s*nãy|vừa\s*rồi|mới\s*rồi|hồi\s*nãy|nãy)\s+[,:\-]?\s*', '', s, flags=re.IGNORECASE)
             s = re.sub(r'^(?:rồi|sau\s*đó|xong|rồi\s*thì|tiện\s*thể|nhân\s*tiện|tiện\s*đường|ghé\s*qua|tạt\s*qua|tạt\s*vào|ghé|tạt)\s+', '', s, flags=re.IGNORECASE)
             s = re.sub(r'^(?:vừa\s*mới|vừa\s*đi|mới\s*đi|vừa|mới|có|đã|lại|cũng)\s+', '', s, flags=re.IGNORECASE)
             s = re.sub(r'^(?:thành|sang|về|là)\s+', '', s, flags=re.IGNORECASE)
@@ -1972,11 +1967,26 @@ class AIService:
                         return AIService._xu_ly_phan_bo_ngan_sach_tu_nhien(db, ma_nd, t_norm, alloc_amount, last_ai_msg)
 
         # Xử lý hội thoại đa lượt (Multi-turn Context):
-        # Khi người dùng chỉ gửi số tiền (vd: '30k', 'hết 30k', '50.000', '20 ngàn'...)
+        # Khi người dùng gửi số tiền (vd: '30k', 'hết 30k', '50.000', '20 ngàn'...)
         # sau khi đã nói về một hành động hoặc AI vừa hỏi xin số tiền
-        if lich_su_chat and amount > 0 and len(t.split()) <= 4:
-            prev_user_msgs = [m.get("content", "").strip() for m in lich_su_chat if m.get("role") in ["user", "nguoi_dung"] and m.get("content", "").strip()]
-            prev_ai_msgs = [m.get("content", "").strip() for m in lich_su_chat if m.get("role") in ["assistant", "ai", "ai_tro_ly"] and m.get("content", "").strip()]
+        if amount > 0 and len(t.split()) <= 6:
+            prev_user_msgs = []
+            prev_ai_msgs = []
+            if lich_su_chat:
+                prev_user_msgs = [m.get("content", "").strip() for m in lich_su_chat if m.get("role") in ["user", "nguoi_dung"] and m.get("content", "").strip()]
+                prev_ai_msgs = [m.get("content", "").strip() for m in lich_su_chat if m.get("role") in ["assistant", "ai", "ai_tro_ly"] and m.get("content", "").strip()]
+
+            # Fallback lấy từ lịch sử cơ sở dữ liệu nếu frontend chưa truyền mảng chat
+            if not prev_user_msgs:
+                try:
+                    recent_log = db.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd).order_by(LichSuAI.ma_log.desc()).first()
+                    if recent_log:
+                        if recent_log.cau_hoi:
+                            prev_user_msgs = [recent_log.cau_hoi.strip()]
+                        if recent_log.tra_loi:
+                            prev_ai_msgs = [recent_log.tra_loi.strip()]
+                except Exception:
+                    pass
 
             last_user = prev_user_msgs[-1] if prev_user_msgs else ""
             last_ai = prev_ai_msgs[-1] if prev_ai_msgs else ""
@@ -1988,7 +1998,16 @@ class AIService:
                 if res_comb:
                     return res_comb
 
-            # 2. Nếu câu trước đó của AI có nhắc đến danh mục cụ thể hoặc hành động
+            # 2. Nếu câu trước đó của AI có hỏi về món cụ thể (vd: "Bạn ăn bún chả hết bao nhiêu tiền vậy?...")
+            m_ai_act = re.search(r'Bạn\s+\*\*(.+?)\*\*\s+hết\s+bao\s+nhiêu\s+tiền', last_ai)
+            if m_ai_act:
+                act = m_ai_act.group(1).strip()
+                combined_cand = f"{act} {raw}"
+                res_comb = AIService.xu_ly_giao_dich_tu_nhien(db, ma_nd, combined_cand, lich_su_chat=None)
+                if res_comb:
+                    return res_comb
+
+            # 3. Nếu câu trước đó của AI có nhắc đến danh mục cụ thể hoặc hành động
             for cname in ["Ăn uống", "Đi lại", "Mua sắm", "Hóa đơn", "Giải trí", "Sức khỏe", "Tiết kiệm", "Tiền lương"]:
                 if cname.lower() in last_ai.lower() or cname.lower() in last_user.lower():
                     action_type = "chi" if cname != "Tiền lương" else "thu"
@@ -2447,6 +2466,176 @@ class AIService:
         )
 
     @staticmethod
+    def _kiem_tra_noi_dung_nhay_cam_va_tieu_cuc(text: str) -> Optional[str]:
+        """
+        Phát hiện và đưa ra cảnh báo chuẩn mực đối với các từ ngữ không phù hợp,
+        nhạy cảm, thô tục, báng bổ hoặc có xu hướng độc hại, tiêu cực, tự hại.
+        """
+        t = text.lower().strip()
+
+        # 1. Từ ngữ thô tục, chửi thề, lăng mạ, báng bổ
+        profanity_patterns = [
+            r'\b(?:đm|dm|đcm|dcm|vcl|vkl|vch|clgt|đmm|dmm|vl|đéo|deo|đếch|đù|đụ|địt|dit|lồn|lon|cặc|cac|buồi|buoi|dái|bìu)\b',
+            r'\b(?:chó chết|chó má|thằng chó|con chó|con đĩ|đĩ|cave|con phò|phò|khốn nạn|mất dạy|đồ ngu|thằng ngu|súc vật|óc chó|mẹ kiếp|địt mẹ|đụ má|đụ mẹ|mẹ mày|bà mẹ)\b',
+            r'\b(?:fuck|fucking|shit|bitch|asshole|bastard|motherfucker|pussy|dick|cunt|idiot)\b'
+        ]
+
+        # 2. Hành vi tiêu cực cực đoan, tự hại, bạo lực
+        harm_patterns = [
+            r'\b(?:tự tử|tự sát|muốn chết|chết đi|chết quách|cắt cổ tay|nhảy lầu|nhảy cầu|uống thuốc ngủ tự tử)\b',
+            r'\b(?:giết người|đâm chém|đánh nhau|bắn chết|chém chết|vũ khí|súng đạn|chế bom|đặt bom)\b'
+        ]
+
+        # 3. Tệ nạn xã hội, chất cấm, cờ bạc bất hợp pháp
+        vice_patterns = [
+            r'\b(?:ma túy|thuốc lắc|cần sa|đập đá|heroin|hút cỏ|bóng cười)\b',
+            r'\b(?:đánh bạc|đánh bài ăn tiền|sòng bạc|casino|xóc đĩa|tài xỉu|lô đề|đánh đề|ghi đề|bao lô|cá độ|cá cược|độ banh|bắn cá đổi thưởng)\b',
+            r'\b(?:rửa tiền|lừa đảo|chiếm đoạt tài sản|tống tiền|buôn lậu)\b'
+        ]
+
+        all_patterns = profanity_patterns + harm_patterns + vice_patterns
+        for pat in all_patterns:
+            if re.search(pat, t, flags=re.IGNORECASE):
+                return (
+                    "⚠️ **Cảnh báo về ngôn từ không phù hợp!**\n\n"
+                    "MoneyMind luôn duy trì một không gian quản lý tài chính **văn minh, tích cực và an toàn** cho tất cả người dùng. "
+                    "Hệ thống không tiếp nhận hoặc phản hồi các từ ngữ thô tục, nhạy cảm, độc hại hoặc có xu hướng tiêu cực.\n\n"
+                    "Tôi chỉ chuyên tâm đồng hành cùng bạn trong việc **quản lý thu chi**, **kiểm soát ngân sách** và **xây dựng mục tiêu tài chính cá nhân lành mạnh**. "
+                    "Hôm nay bạn có khoản chi tiêu hay thu nhập nào cần ghi chép không? 😊"
+                )
+        return None
+
+    @staticmethod
+    def _kiem_tra_ngoai_pham_vi_tai_chinh(text: str) -> Optional[str]:
+        """
+        Phát hiện và từ chối các câu hỏi lạc đề, nằm ngoài phạm vi quản lý tài chính cá nhân.
+        """
+        t = text.lower().strip()
+
+        # Từ khóa lạc đề hoàn toàn
+        out_of_scope_cues = [
+            # Đầu tư rủi ro cao / coin
+            "mua cổ phiếu", "mã chứng khoán", "đầu tư coin", "crypto", "bitcoin", "thị trường coin",
+            # Chính trị, tôn giáo, chiến tranh
+            "chính trị", "bầu cử", "tổng thống", "thủ tướng", "chiến tranh", "tôn giáo", "đảng phái",
+            # Học tập, giải bài tập
+            "giải bài tập", "giải toán", "vật lý", "hóa học", "ngữ văn", "tiếng anh", "dịch hộ", "viết văn",
+            # Kỹ thuật, lập trình
+            "viết code", "lập trình", "python", "javascript", "html", "fix bug", "sửa lỗi code",
+            # Giải trí, phiếm thoại
+            "thời tiết", "dự báo thời tiết", "kể chuyện ma", "kể chuyện cười", "hát cho tôi nghe", "làm thơ",
+            "bói toán", "tử vi", "cung hoàng đạo", "phong thủy", "xem tướng",
+            "bóng đá", "thể thao", "kết quả trận đấu", "ngoại hạng anh", "world cup",
+            "nấu ăn", "công thức nấu", "cách làm bánh", "mẹo vặt"
+        ]
+
+        for cue in out_of_scope_cues:
+            if cue in t:
+                return (
+                    "Xin lỗi bạn! 🙏 Tôi là Trợ Lý Quản Lý Tài Chính Cá Nhân MoneyMind.\n\n"
+                    "Tôi chỉ chuyên trách hỗ trợ bạn trong các vấn đề quản lý tài chính cá nhân:\n"
+                    "• **Ghi chép giao dịch Thu - Chi** siêu tốc (ví dụ: *'Ăn trưa 40k'*, *'Đổ xăng 50k'*).\n"
+                    "• **Kiểm soát hạn mức ngân sách** và phát hiện cảnh báo vượt ngưỡng an toàn.\n"
+                    "• **Theo dõi mục tiêu tiết kiệm** và tiến độ tích lũy.\n"
+                    "• **Tra cứu lịch sử và phân tích dòng tiền** hàng tháng.\n\n"
+                    "Tôi không hỗ trợ các chủ đề ngoài phạm vi tài chính cá nhân. Bạn có câu hỏi nào về số dư ví, các khoản chi gần đây hay muốn ghi nhận chi tiêu không? 💰"
+                )
+        return None
+
+    @staticmethod
+    def _kiem_tra_chao_hoi_thong_thuong(text: str) -> Optional[str]:
+        """Phát hiện lời chào hỏi thông thường và phản hồi ngắn gọn, thân thiện, không tuôn báo cáo dài."""
+        t = text.lower().strip()
+        t_clean = re.sub(r'[!?,.]', '', t).strip()
+        greetings = [
+            "hello", "hi", "hey", "alo", "xin chào", "chào", "chào bạn", "chào bot",
+            "chào trợ lý", "chào moneymind", "chào buổi sáng", "chào buổi chiều", "chào buổi tối"
+        ]
+        if t_clean in greetings:
+            return (
+                "👋 **Xin chào bạn! Tôi là Trợ Lý AI Tài Chính MoneyMind.**\n\n"
+                "Hôm nay bạn có phát sinh khoản chi tiêu hay thu nhập nào cần mình ghi chép (ví dụ: *'Ăn bún chả 35k'*, *'Đổ xăng 50k'*) "
+                "hoặc cần kiểm tra số dư ví không? Tôi luôn sẵn sàng hỗ trợ bạn! 😊"
+            )
+        return None
+
+    @staticmethod
+    def _kiem_tra_hanh_dong_thieu_so_tien(text: str) -> Optional[str]:
+        """
+        Nhận diện các câu người dùng kể về hoạt động chi tiêu / thu nhập nhưng chưa có số tiền
+        (Ví dụ: 'nãy tôi vừa đi ăn bún chả', 'vừa đi đổ xăng', 'sáng nay uống cafe', 'mới nhận lương'...)
+        để hỏi trực tiếp đúng trọng tâm số tiền thay vì tuôn ra báo cáo lan man.
+        """
+        t = text.lower().strip()
+
+        # Không áp dụng cho câu hỏi tra cứu
+        question_words = ["bao nhiêu", "bao nhiu", "những gì", "liệt kê", "báo cáo", "thống kê", "phân tích", "xem lại", "kiểm tra", "cho tôi biết", "hỏi"]
+        if any(w in t for w in question_words) or t.endswith("?"):
+            return None
+
+        # 1. Ăn uống
+        an_uong_patterns = [
+            r'(?:nãy|vừa|mới|hôm nay|sáng nay|trưa nay|chiều nay|tối nay)?\s*(?:tôi\s+)?(?:vừa\s+|mới\s+)?(?:đi\s+)?(?:ăn|uống|nhậu|dùng bữa)\s+([a-zA-Zàáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệđìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ\s]{2,25})',
+            r'(?:uống|mua)\s+(cafe|cà phê|trà sữa|trà chanh|nước ngọt|bia)\b'
+        ]
+        for pat in an_uong_patterns:
+            m = re.search(pat, t, re.IGNORECASE)
+            if m:
+                mon = m.group(1).strip()
+                mon = re.sub(r'^(?:một\s+|1\s+|bát\s+|tô\s+|suất\s+|phần\s+|cốc\s+|ly\s+)', '', mon).strip()
+                action_name = f"ăn {mon}" if not mon.startswith("ăn") and not mon.startswith("uống") else mon
+                return (
+                    f"Bạn **{action_name}** hết bao nhiêu tiền vậy? 😊\n\n"
+                    f"Hãy nhắn cho mình số tiền (ví dụ: **35k**, **40 nghìn**...) để mình ghi nhận ngay vào danh mục **Ăn uống** giúp bạn nhé! 💸"
+                )
+
+        # 2. Đi lại / Xăng xe
+        di_lai_cues = ["đổ xăng", "rửa xe", "bắt grab", "đi grab", "đi taxi", "mua vé xe", "sửa xe", "gửi xe", "thay nhớt", "thay dầu"]
+        for cue in di_lai_cues:
+            if cue in t:
+                return (
+                    f"Khoản **{cue}** này hết bao nhiêu tiền vậy bạn? 😊\n\n"
+                    f"Hãy nhắn cho mình số tiền (ví dụ: **50k**, **70 nghìn**...) để mình ghi nhận ngay vào danh mục **Đi lại** cho bạn nhé! 🛵"
+                )
+
+        # 3. Mua sắm
+        mua_sam_pattern = r'(?:mua|sắm)\s+([a-zA-Zàáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệđìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ\s]{2,25})'
+        m_mua = re.search(mua_sam_pattern, t, re.IGNORECASE)
+        if m_mua:
+            mon_mua = m_mua.group(1).strip()
+            if not any(w in mon_mua for w in ["cơm", "phở", "bún", "bánh", "cafe", "cà phê", "nước"]):
+                return (
+                    f"Món **{mon_mua}** bạn mua hết bao nhiêu tiền vậy? 😊\n\n"
+                    f"Hãy nhắn cho mình số tiền (ví dụ: **150k**, **200 nghìn**...) để mình ghi nhận ngay vào danh mục **Mua sắm** cho bạn nhé! 🛍️"
+                )
+
+        # 4. Hóa đơn / Dịch vụ
+        hoa_don_cues = [
+            ("tiền điện", "Hóa đơn điện"),
+            ("tiền nước", "Hóa đơn nước"),
+            ("tiền mạng", "Tiền Internet"),
+            ("tiền wifi", "Tiền Wifi"),
+            ("tiền nhà", "Tiền thuê nhà"),
+            ("tiền phòng", "Tiền phòng trọ"),
+            ("học phí", "Học phí")
+        ]
+        for kw, label in hoa_don_cues:
+            if kw in t and any(w in t for w in ["đóng", "trả", "thanh toán", "nộp", "hết"]):
+                return (
+                    f"Khoản **{label}** này hết bao nhiêu tiền vậy bạn? 😊\n\n"
+                    f"Hãy nhắn số tiền để mình ghi nhận ngay vào danh mục **Hóa đơn** cho bạn nhé! 🧾"
+                )
+
+        # 5. Thu nhập (Lương, Thưởng)
+        if any(w in t for w in ["nhận lương", "lãnh lương", "được thưởng", "nhận thưởng", "vừa có lương"]):
+            return (
+                "Chúc mừng bạn! 🎉 Khoản thu nhập này bạn nhận được bao nhiêu tiền vậy?\n\n"
+                "Hãy nhắn số tiền (ví dụ: **10 triệu**, **15tr**...) để mình cộng ngay vào **Ví chính** cho bạn nhé! 💰"
+            )
+
+        return None
+
+    @staticmethod
     def hoi_dap_ai(
         db: Session,
         ma_nd: int,
@@ -2463,25 +2652,35 @@ class AIService:
         if not cau_hoi_clean:
             return "Bạn vui lòng nhập câu hỏi về chi tiêu tài chính cá nhân nhé! 😊"
 
-        # TC-09: Từ chối các chủ đề ngoài phạm vi quản lý tài chính cá nhân
-        tu_khoa_ngoai_le = [
-            "mua cổ phiếu", "mã chứng khoán", "đầu tư coin", "crypto", "bitcoin",
-            "xổ số", "lô đề", "chính trị", "bóng đá", "thể thao", "nấu ăn", "công thức nấu"
-        ]
-        if any(kw in cau_hoi_clean.lower() for kw in tu_khoa_ngoai_le):
-            tra_loi_refuse = (
-                "Xin lỗi bạn! 🙏 Tôi là Trợ lý Quản lý Tài chính Cá nhân MoneyMind, "
-                "không có thẩm quyền tư vấn đầu tư chứng khoán rủi ro hay các chủ đề ngoài phạm vi quản lý thu chi, ngân sách và tiết kiệm. "
-                "Bạn có thắc mắc nào về thu chi, số dư hay ngân sách tháng này không? 💰"
-            )
-            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, tra_loi_refuse, loai_hanh_dong="tu_van", ma_phien=ma_phien)
-            return tra_loi_refuse
+        # 1. Kiểm tra từ ngữ không phù hợp, nhạy cảm, độc hại, tiêu cực
+        canh_bao_doc_hai = AIService._kiem_tra_noi_dung_nhay_cam_va_tieu_cuc(cau_hoi_clean)
+        if canh_bao_doc_hai:
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, canh_bao_doc_hai, loai_hanh_dong="canh_bao", ma_phien=ma_phien)
+            return canh_bao_doc_hai
 
-        # Tự động nhận diện lệnh giao tiếp tự nhiên và thêm giao dịch vào hệ thống (hỗ trợ đa lượt)
+        # 2. TC-09: Kiểm tra và từ chối các chủ đề ngoài phạm vi quản lý tài chính cá nhân
+        ngoai_pham_vi = AIService._kiem_tra_ngoai_pham_vi_tai_chinh(cau_hoi_clean)
+        if ngoai_pham_vi:
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, ngoai_pham_vi, loai_hanh_dong="tu_van", ma_phien=ma_phien)
+            return ngoai_pham_vi
+
+        # 3. Chào hỏi thông thường ngắn gọn, thân thiện
+        loi_chao = AIService._kiem_tra_chao_hoi_thong_thuong(cau_hoi_clean)
+        if loi_chao:
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, loi_chao, loai_hanh_dong="tu_van", ma_phien=ma_phien)
+            return loi_chao
+
+        # 4. Tự động nhận diện lệnh giao tiếp tự nhiên và thêm giao dịch vào hệ thống (hỗ trợ đa lượt)
         thao_tac_res = AIService.xu_ly_giao_dich_tu_nhien(db, ma_nd, cau_hoi_clean, lich_su_chat=lich_su_chat)
         if thao_tac_res:
             AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, thao_tac_res, ma_phien=ma_phien)
             return thao_tac_res
+
+        # 5. Nhận diện các hành động chi tiêu/thu nhập nhưng thiếu số tiền -> hỏi đúng trọng tâm số tiền
+        thieu_tien_res = AIService._kiem_tra_hanh_dong_thieu_so_tien(cau_hoi_clean)
+        if thieu_tien_res:
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, thieu_tien_res, loai_hanh_dong="tu_van", ma_phien=ma_phien)
+            return thieu_tien_res
 
         ctx = AIService._get_spending_context(db, ma_nd)
         tong_chi = ctx["chi_tieu"]["thang_nay"]
@@ -2591,6 +2790,14 @@ class AIService:
     def xac_dinh_loai_hanh_dong(tra_loi: str) -> str:
         """Tự động phân loại bản chất tương tác dựa trên kết quả phản hồi của AI."""
         tl = tra_loi.lower()
+        if "cảnh báo về ngôn từ không phù hợp" in tl or "từ ngữ không phù hợp" in tl:
+            return "canh_bao"
+        if "chỉ chuyên trách hỗ trợ bạn trong các vấn đề" in tl or "không hỗ trợ các chủ đề ngoài phạm vi" in tl or "không có thẩm quyền" in tl:
+            return "ngoai_pham_vi"
+        if "hết bao nhiêu tiền vậy" in tl or "nhắn cho mình số tiền" in tl:
+            return "hoi_so_tien"
+        if "xin chào bạn" in tl or "chào bạn!" in tl:
+            return "chao_hoi"
         if "xác nhận xóa" in tl or "xác nhận xoá" in tl:
             return "xac_nhan_xoa"
         if "hủy thao tác xóa" in tl or "huỷ thao tác xoá" in tl:
@@ -2625,6 +2832,10 @@ class AIService:
     def lay_nhan_hanh_dong(loai: str) -> Dict[str, str]:
         """Trả về nhãn hiển thị, icon và màu sắc tương ứng với từng loại tương tác."""
         labels = {
+            "canh_bao": {"ten": "Cảnh báo an toàn", "icon": "⚠️", "mau": "rose"},
+            "ngoai_pham_vi": {"ten": "Ngoài phạm vi", "icon": "🚫", "mau": "amber"},
+            "hoi_so_tien": {"ten": "Hỏi số tiền chi tiêu", "icon": "❓", "mau": "sky"},
+            "chao_hoi": {"ten": "Chào hỏi", "icon": "👋", "mau": "teal"},
             "xac_nhan_xoa": {"ten": "Hỏi xác nhận xóa", "icon": "⚠️", "mau": "amber"},
             "huy_xoa": {"ten": "Hủy thao tác xóa", "icon": "🛡️", "mau": "slate"},
             "them_giao_dich": {"ten": "Thêm giao dịch", "icon": "💸", "mau": "emerald"},
