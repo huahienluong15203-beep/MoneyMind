@@ -92,26 +92,29 @@ def hoi_dap_ai(
         db=db,
         ma_nd=current_user.ma_nd,
         cau_hoi=payload.cau_hoi,
-        lich_su_chat=payload.lich_su_chat
+        lich_su_chat=payload.lich_su_chat,
+        ma_phien=payload.ma_phien
     )
     return HoiDapAIResponse(tra_loi=tra_loi)
 
-@router.get("/lich-su", summary="Xem nhật ký lịch sử tương tác AI theo ngày")
+@router.get("/lich-su", summary="Xem nhật ký lịch sử tương tác AI theo phiên trò chuyện")
 def lay_lich_su_ai(
     ngay: Optional[str] = Query(None, description="Lọc theo ngày cụ thể (YYYY-MM-DD)"),
+    ma_phien: Optional[str] = Query(None, description="Lọc theo mã phiên trò chuyện"),
     tu_khoa: Optional[str] = Query(None, description="Tìm kiếm từ khóa câu hỏi hoặc câu trả lời"),
     limit: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: NguoiDung = Depends(get_current_user)
 ):
     """
-    Truy xuất toàn bộ nhật ký tương tác AI được gom nhóm theo từng ngày (Hôm nay, Hôm qua, Ngày...).
-    Hỗ trợ lọc theo ngày và tìm kiếm từ khóa.
+    Truy xuất toàn bộ nhật ký tương tác AI được gom nhóm theo từng phiên trò chuyện.
+    Hỗ trợ lọc theo phiên, lọc theo ngày và tìm kiếm từ khóa.
     """
     return AIService.lay_lich_su_ai_theo_ngay(
         db=db,
         ma_nd=current_user.ma_nd,
         ngay=ngay,
+        ma_phien=ma_phien,
         tu_khoa=tu_khoa,
         limit=limit
     )
@@ -128,12 +131,13 @@ def xoa_mot_ban_ghi_ai(
         raise HTTPException(status_code=404, detail="Không tìm thấy bản ghi nhật ký tương tác AI.")
     return {"status": "ok", "message": "Đã xóa bản ghi nhật ký tương tác AI thành công."}
 
-@router.delete("/lich-su", summary="Xóa toàn bộ hoặc xóa nhật ký tương tác AI theo ngày")
+@router.delete("/lich-su", summary="Xóa toàn bộ hoặc xóa nhật ký tương tác AI theo ngày hoặc theo phiên")
 def xoa_toan_bo_lich_su_ai(
     ngay: Optional[str] = Query(None, description="Xóa theo ngày (YYYY-MM-DD) hoặc xóa tất cả"),
+    ma_phien: Optional[str] = Query(None, description="Xóa theo mã phiên trò chuyện"),
     db: Session = Depends(get_db),
     current_user: NguoiDung = Depends(get_current_user)
 ):
-    """Xóa toàn bộ lịch sử tương tác AI hoặc theo một ngày cụ thể."""
-    count = AIService.xoa_lich_su_ai(db=db, ma_nd=current_user.ma_nd, ngay=ngay)
+    """Xóa toàn bộ lịch sử tương tác AI hoặc theo một ngày / phiên cụ thể."""
+    count = AIService.xoa_lich_su_ai(db=db, ma_nd=current_user.ma_nd, ngay=ngay, ma_phien=ma_phien)
     return {"status": "ok", "message": f"Đã xóa {count} bản ghi nhật ký tương tác AI.", "deleted_count": count}

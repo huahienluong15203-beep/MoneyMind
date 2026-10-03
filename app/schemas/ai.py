@@ -26,6 +26,7 @@ class GoiYNganSachResponse(BaseModel):
 class HoiDapAIRequest(BaseModel):
     cau_hoi: str = Field(..., min_length=1, description="Câu hỏi ngôn ngữ tự nhiên về chi tiêu")
     lich_su_chat: Optional[List[Dict[str, str]]] = Field(None, description="Lịch sử trò chuyện đa lượt gần nhất")
+    ma_phien: Optional[str] = Field(None, description="Mã định danh phiên trò chuyện")
 
 class HoiDapAIResponse(BaseModel):
     tra_loi: str

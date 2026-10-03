@@ -1,23 +1,62 @@
 /**
  * MoneyMind - Trợ Lý AI Tài Chính Thông Minh (Google Gemini Flash Engine)
  */
-            function toggleAiModal() {
-                const modal = document.getElementById('ai-modal');
-                if (!modal) return;
-                modal.classList.toggle('hidden');
-                if (!modal.classList.contains('hidden')) {
-                    updateAiLogBadge();
-                    if (currentAiTab === 'logs') {
-                        loadAiLogs();
-                    }
-                } else {
-                    if (typeof loadSummary === 'function') loadSummary();
-                    if (typeof loadSavingsGoals === 'function') loadSavingsGoals();
-                    if (typeof loadCategories === 'function') loadCategories();
-                    if (typeof loadTransactions === 'function') loadTransactions();
-                    if (typeof loadNotifications === 'function') loadNotifications();
-                }
-            }
+var currentAiSessionId = null;
+var aiSessionEnded = true; // Ban đầu chưa có phiên đang mở
+
+function startNewAiSession(showAlert = false) {
+    currentAiSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    aiSessionEnded = false;
+    aiChatHistory = [];
+
+    const box = document.getElementById('ai-chat-box');
+    if (box) {
+        box.innerHTML = `
+            <div class="flex gap-2">
+                <div class="w-7 h-7 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-[10px] shrink-0">AI</div>
+                <div class="bg-white p-3 rounded-2xl border border-slate-100 text-slate-700 shadow-sm leading-relaxed">
+                    Xin chào! Tôi là Trợ lý AI tài chính cá nhân MoneyMind. Bạn có thể trò chuyện tự nhiên để <strong>ghi nhanh chi tiêu</strong> (ví dụ: <em>"Ăn bánh mì 20k"</em>, <em>"Đổ xăng 50k"</em>, <em>"Nộp 500k vào hũ du lịch"</em>) hoặc hỏi đáp, phân tích ngân sách tài chính cá nhân. Bạn cần mình giúp gì nào? 😊
+                </div>
+            </div>
+        `;
+    }
+    const input = document.getElementById('ai-input');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    if (typeof currentAiTab !== 'undefined' && currentAiTab === 'logs') {
+        switchAiTab('chat');
+    }
+    if (showAlert && typeof showCustomToast === 'function') {
+        showCustomToast("Đã bắt đầu phiên trò chuyện mới! 💬", "info");
+    }
+    updateAiLogBadge();
+}
+
+function toggleAiModal() {
+    const modal = document.getElementById('ai-modal');
+    if (!modal) return;
+    modal.classList.toggle('hidden');
+    if (!modal.classList.contains('hidden')) {
+        // Mở modal: nếu vừa thoát ra vào lại -> tự động tính là 1 phiên mới!
+        if (aiSessionEnded || !currentAiSessionId) {
+            startNewAiSession(false);
+        }
+        updateAiLogBadge();
+        if (currentAiTab === 'logs') {
+            loadAiLogs();
+        }
+    } else {
+        // Thoát khỏi modal -> đánh dấu phiên kết thúc
+        aiSessionEnded = true;
+        if (typeof loadSummary === 'function') loadSummary();
+        if (typeof loadSavingsGoals === 'function') loadSavingsGoals();
+        if (typeof loadCategories === 'function') loadCategories();
+        if (typeof loadTransactions === 'function') loadTransactions();
+        if (typeof loadNotifications === 'function') loadNotifications();
+    }
+}
 
             function formatAIResponse(text) {
                 if (!text) return '';
@@ -97,13 +136,19 @@ var aiChatHistory = [];
                 </div>`;
                 box.scrollTop = box.scrollHeight;
 
+                if (!currentAiSessionId || aiSessionEnded) {
+                    currentAiSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+                    aiSessionEnded = false;
+                }
+
                 try {
                     const res = await fetch('/ai-tro-ly', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
                         body: JSON.stringify({
                             cau_hoi: text,
-                            lich_su_chat: aiChatHistory.slice(-8)
+                            lich_su_chat: aiChatHistory.slice(-8),
+                            ma_phien: currentAiSessionId
                         })
                     });
                     
@@ -205,7 +250,7 @@ var aiChatHistory = [];
                     });
                     if (res.ok) {
                         const data = await res.json();
-                        const total = data.tong_so || 0;
+                        const total = (typeof data.tong_so_phien !== 'undefined') ? data.tong_so_phien : (data.tong_so || 0);
                         if (total > 0) {
                             badge.textContent = total > 99 ? '99+' : total;
                             badge.classList.remove('hidden');
@@ -229,7 +274,7 @@ var aiChatHistory = [];
                 container.innerHTML = `
                     <div class="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
                         <span class="animate-spin text-xl">⏳</span>
-                        <p class="text-xs">Đang tải nhật ký tương tác...</p>
+                        <p class="text-xs">Đang tải nhật ký các phiên trò chuyện...</p>
                     </div>
                 `;
 
@@ -268,18 +313,18 @@ var aiChatHistory = [];
                 const container = document.getElementById('ai-logs-container');
                 if (!container) return;
 
-                const days = data.cac_ngay || [];
-                if (days.length === 0) {
+                const sessions = data.cac_phien || [];
+                if (sessions.length === 0) {
                     let msg = "Bạn chưa có nhật ký tương tác nào với AI.";
-                    if (activeDate) msg = `Không có tương tác nào trong ngày ${activeDate}.`;
-                    if (activeKeyword) msg = `Không tìm thấy tương tác nào chứa từ khóa "${activeKeyword}".`;
+                    if (activeDate) msg = `Không có phiên trò chuyện nào trong ngày ${activeDate}.`;
+                    if (activeKeyword) msg = `Không tìm thấy phiên trò chuyện nào chứa từ khóa "${activeKeyword}".`;
 
                     container.innerHTML = `
                         <div class="py-12 flex flex-col items-center justify-center text-slate-400 gap-2 text-center px-4">
                             <span class="text-3xl">📜</span>
                             <p class="text-xs font-semibold text-slate-600">${msg}</p>
-                            <p class="text-[11px] text-slate-400">Hãy chuyển sang tab "Trò chuyện" để trò chuyện và ghi nhanh các khoản chi nhé! 😊</p>
-                            <button onclick="switchAiTab('chat')" class="mt-2 px-3.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold rounded-xl transition border border-teal-200">
+                            <p class="text-[11px] text-slate-400">Hãy chuyển sang tab "Trò chuyện" để bắt đầu phiên mới nhé! 😊</p>
+                            <button onclick="startNewAiSession(false); switchAiTab('chat');" class="mt-2 px-3.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold rounded-xl transition border border-teal-200 flex items-center gap-1.5">
                                 💬 Bắt đầu trò chuyện ngay
                             </button>
                         </div>
@@ -288,27 +333,45 @@ var aiChatHistory = [];
                 }
 
                 let html = '';
-                days.forEach(day => {
+                sessions.forEach((s, sIdx) => {
+                    const isExpanded = sIdx < 2; // Mở sẵn 2 phiên gần nhất để người dùng tiện xem ngay
+                    const safeSessionId = (s.ma_phien || '').replace(/'/g, "\\'");
+
                     html += `
-                        <div class="space-y-2">
-                            <!-- TIÊU ĐỀ NGÀY -->
-                            <div class="sticky top-0 bg-white/95 backdrop-blur-xs py-1 z-10 flex items-center justify-between border-b border-slate-100">
-                                <div class="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
-                                    <span class="text-teal-600">📅</span>
-                                    <span>${day.ngay_hien_thi}</span>
+                        <div class="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden transition mb-3">
+                            <!-- HEADER PHIÊN TRÒ CHUYỆN -->
+                            <div class="p-3 bg-gradient-to-r from-slate-50/90 to-white flex items-center justify-between border-b border-slate-100 cursor-pointer select-none hover:bg-slate-50 transition" onclick="toggleAiSession(${sIdx})">
+                                <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                    <span class="w-7 h-7 rounded-xl bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center text-xs shrink-0 font-bold">💬</span>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
+                                            <span class="text-xs font-bold text-slate-800 truncate max-w-[220px]" title="${s.tieu_de_phien}">${s.tieu_de_phien}</span>
+                                            <span class="px-2 py-0.5 bg-teal-50 text-teal-700 font-bold rounded-full text-[10px] shrink-0 border border-teal-100">
+                                                ${s.so_luong} tương tác
+                                            </span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                                            <span>🕒 ${s.thoi_gian_hien_thi}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <span class="px-2 py-0.5 bg-slate-100 text-slate-600 font-bold rounded-full text-[10px]">
-                                    ${day.so_luong} tương tác
-                                </span>
+                                <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
+                                    <button onclick="deleteAiSession('${safeSessionId}')" title="Xóa toàn bộ phiên này" class="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg text-xs transition">
+                                        🗑️
+                                    </button>
+                                    <button onclick="toggleAiSession(${sIdx})" title="Thu gọn / Mở rộng" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg text-xs transition font-bold" id="ai-session-chevron-${sIdx}">
+                                        ${isExpanded ? '▲' : '▼'}
+                                    </button>
+                                </div>
                             </div>
 
-                            <!-- CÁC BẢN GHI TRONG NGÀY -->
-                            <div class="space-y-2.5">
+                            <!-- NỘI DUNG CÁC TIN NHẮN TRONG PHIÊN -->
+                            <div id="ai-session-body-${sIdx}" class="p-3 space-y-2.5 bg-slate-50/30 ${isExpanded ? '' : 'hidden'}">
                     `;
 
-                    day.nhat_ky.forEach(log => {
+                    (s.nhat_ky || []).forEach(log => {
                         const formattedAnswer = formatAIResponse(log.tra_loi);
-                        const safeQuestion = log.cau_hoi.replace(/"/g, '&quot;');
+                        const safeQuestion = (log.cau_hoi || '').replace(/"/g, '&quot;').replace(/'/g, "\\'");
                         const badgeColorMap = {
                             emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
                             amber: "bg-amber-50 text-amber-700 border-amber-200",
@@ -323,7 +386,7 @@ var aiChatHistory = [];
                         const badgeClass = badgeColorMap[log.mau] || badgeColorMap.teal;
 
                         html += `
-                            <div class="bg-white border border-slate-200/90 rounded-2xl p-3 shadow-xs hover:border-teal-300 transition space-y-2">
+                            <div class="bg-white border border-slate-200/90 rounded-2xl p-2.5 shadow-2xs hover:border-teal-300 transition space-y-2">
                                 <!-- HEADER THẺ TƯƠNG TÁC -->
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-1.5">
@@ -371,6 +434,37 @@ var aiChatHistory = [];
                 container.innerHTML = html;
             }
 
+            function toggleAiSession(idx) {
+                const body = document.getElementById(`ai-session-body-${idx}`);
+                const chevron = document.getElementById(`ai-session-chevron-${idx}`);
+                if (body) {
+                    body.classList.toggle('hidden');
+                    if (chevron) {
+                        chevron.textContent = body.classList.contains('hidden') ? '▼' : '▲';
+                    }
+                }
+            }
+
+            async function deleteAiSession(maPhien) {
+                if (!maPhien) return;
+                if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử trong phiên trò chuyện này không?")) return;
+                try {
+                    const authToken = typeof token !== 'undefined' ? token : (localStorage.getItem('token') || '');
+                    const res = await fetch(`/api/ai/lich-su?ma_phien=${encodeURIComponent(maPhien)}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    if (res.ok) {
+                        loadAiLogs();
+                        updateAiLogBadge();
+                    } else {
+                        alert("Không thể xóa phiên trò chuyện.");
+                    }
+                } catch(e) {
+                    alert("Lỗi kết nối: " + e.message);
+                }
+            }
+
             function reuseAiQuestion(q) {
                 switchAiTab('chat');
                 const input = document.getElementById('ai-input');
@@ -390,6 +484,7 @@ var aiChatHistory = [];
                     });
                     if (res.ok) {
                         loadAiLogs();
+                        updateAiLogBadge();
                     } else {
                         alert("Không thể xóa bản ghi nhật ký.");
                     }
@@ -403,8 +498,8 @@ var aiChatHistory = [];
                 const qDate = dateInput ? dateInput.value : '';
 
                 const confirmMsg = qDate
-                    ? `Bạn có chắc muốn xóa tất cả nhật ký tương tác trong ngày ${qDate} không?`
-                    : "Bạn có chắc chắn muốn xóa TOÀN BỘ lịch sử tương tác với AI không?";
+                    ? `Bạn có chắc muốn xóa tất cả các phiên tương tác trong ngày ${qDate} không?`
+                    : "Bạn có chắc chắn muốn xóa TOÀN BỘ nhật ký các phiên trò chuyện với AI không?";
 
                 if (!confirm(confirmMsg)) return;
 

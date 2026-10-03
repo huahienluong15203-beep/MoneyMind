@@ -134,6 +134,13 @@ def migrate_legacy_data():
         """)
         con.commit()
 
+        # 9. Thêm cột ma_phien cho lich_su_ai nếu chưa có
+        if "lich_su_ai" in tables:
+            ai_cols = [info[1] for info in cur.execute("PRAGMA table_info(lich_su_ai)").fetchall()]
+            if "ma_phien" not in ai_cols:
+                cur.execute("ALTER TABLE lich_su_ai ADD COLUMN ma_phien VARCHAR(50)")
+                con.commit()
+
         con.close()
     except Exception as e:
         print("Lỗi migrate legacy data:", e)

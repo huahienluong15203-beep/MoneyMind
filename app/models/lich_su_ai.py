@@ -8,6 +8,7 @@ class LichSuAI(Base):
 
     ma_log = Column(Integer, primary_key=True, index=True)
     ma_nd = Column(Integer, ForeignKey("nguoi_dung.ma_nd", ondelete="CASCADE"), index=True)
+    ma_phien = Column(String(50), nullable=True, index=True)  # Định danh phiên trò chuyện
     cau_hoi = Column(Text, nullable=False)
     tra_loi = Column(Text, nullable=False)
     loai_hanh_dong = Column(String(50), nullable=True)  # them_giao_dich, sua_giao_dich, xoa_giao_dich, tra_cuu, tao_hu, nop_hu, rut_hu, doi_muc_tieu, xoa_hu, ngan_sach, suc_khoe, tu_van

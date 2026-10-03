@@ -1026,7 +1026,8 @@ def xoa_tiet_kiem_legacy(goal_id: int, db: Session = Depends(get_db), current_us
 def ai_tro_ly_legacy(payload: dict, db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
     cau_hoi = payload.get("cau_hoi", "").strip()
     lich_su_chat = payload.get("lich_su_chat") or payload.get("history") or []
-    tra_loi = AIService.hoi_dap_ai(db=db, ma_nd=current_user.ma_nd, cau_hoi=cau_hoi, lich_su_chat=lich_su_chat)
+    ma_phien = payload.get("ma_phien")
+    tra_loi = AIService.hoi_dap_ai(db=db, ma_nd=current_user.ma_nd, cau_hoi=cau_hoi, lich_su_chat=lich_su_chat, ma_phien=ma_phien)
     co_giao_dich = (
         "thành công" in tra_loi.lower() or
         "đã ghi nhận" in tra_loi.lower() or

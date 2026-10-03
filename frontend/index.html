@@ -453,10 +453,16 @@
                                 <p class="text-[10px] text-slate-400">Google Gemini Flash Engine</p>
                             </div>
                         </div>
-                        <button onclick="toggleAiModal()" class="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-600 transition">✕</button>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="startNewAiSession(true)" title="Kết thúc cuộc trò chuyện và tạo phiên mới" class="px-2.5 py-1 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 rounded-xl flex items-center gap-1 text-[11px] font-bold text-slate-600 transition border border-slate-200/80 cursor-pointer">
+                                <span>🔄</span>
+                                <span>Phiên mới</span>
+                            </button>
+                            <button onclick="toggleAiModal()" class="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-600 transition">✕</button>
+                        </div>
                     </div>
 
-                    <!-- TAB ĐIỀU HƯỚNG: TRÒ CHUYỆN vs NHẬT KÝ THEO NGÀY -->
+                    <!-- TAB ĐIỀU HƯỚNG: TRÒ CHUYỆN vs NHẬT KÝ -->
                     <div class="flex items-center gap-2 my-2.5 p-1 bg-slate-100 rounded-2xl shrink-0">
                         <button id="ai-tab-btn-chat" onclick="switchAiTab('chat')" class="flex-1 py-1.5 px-3 rounded-xl text-xs font-bold text-teal-700 bg-white shadow-xs transition flex items-center justify-center gap-1.5">
                             <span>💬</span>
@@ -464,7 +470,7 @@
                         </button>
                         <button id="ai-tab-btn-logs" onclick="switchAiTab('logs')" class="flex-1 py-1.5 px-3 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 transition flex items-center justify-center gap-1.5">
                             <span>📜</span>
-                            <span>Nhật ký theo ngày</span>
+                            <span>Nhật ký</span>
                             <span id="ai-logs-badge" class="hidden min-w-[16px] h-4 bg-teal-500 text-white text-[9px] font-bold rounded-full px-1 flex items-center justify-center"></span>
                         </button>
                     </div>
@@ -521,7 +527,7 @@
                             <div class="flex gap-2 items-center">
                                 <div class="relative flex-1">
                                     <span class="absolute left-3 top-2.5 text-xs text-slate-400">🔍</span>
-                                    <input type="text" id="ai-logs-search" placeholder="Tìm kiếm câu hỏi, câu trả lời, món ăn..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500 transition" oninput="debounceAiLogSearch()">
+                                    <input type="text" id="ai-logs-search" placeholder="Tìm kiếm trong các phiên trò chuyện..." class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500 transition" oninput="debounceAiLogSearch()">
                                 </div>
                                 <input type="date" id="ai-logs-date-filter" class="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 focus:outline-none focus:border-teal-500" onchange="filterAiLogsByDate()">
                                 <button onclick="clearAllAiLogs()" title="Xóa toàn bộ nhật ký" class="p-2 text-rose-500 hover:bg-rose-50 rounded-xl border border-rose-200 transition shrink-0 text-xs font-bold">🗑️</button>
@@ -1289,7 +1295,7 @@
         <script src="js/tra-cuu.js?v=9.0"></script>
         <script src="js/thong-ke.js?v=9.1"></script>
         <script src="js/thong-bao.js?v=9.0"></script>
-        <script src="js/ai.js?v=9.0"></script>
+        <script src="js/ai.js?v=9.2"></script>
         <script src="js/app.js?v=9.0"></script>
         <script>
             if ('serviceWorker' in navigator) {

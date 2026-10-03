@@ -2447,7 +2447,13 @@ class AIService:
         )
 
     @staticmethod
-    def hoi_dap_ai(db: Session, ma_nd: int, cau_hoi: str, lich_su_chat: Optional[List[Dict[str, str]]] = None) -> str:
+    def hoi_dap_ai(
+        db: Session,
+        ma_nd: int,
+        cau_hoi: str,
+        lich_su_chat: Optional[List[Dict[str, str]]] = None,
+        ma_phien: Optional[str] = None
+    ) -> str:
         """
         UC012 & TC-09: Hỏi đáp tự nhiên với AI Tài Chính Thông Minh (Gemini Flash Engine + Local Reasoning).
         Trang bị năng lực tư duy logic, phân tích đúng ý định, trả lời thẳng vào câu hỏi,
@@ -2468,13 +2474,13 @@ class AIService:
                 "không có thẩm quyền tư vấn đầu tư chứng khoán rủi ro hay các chủ đề ngoài phạm vi quản lý thu chi, ngân sách và tiết kiệm. "
                 "Bạn có thắc mắc nào về thu chi, số dư hay ngân sách tháng này không? 💰"
             )
-            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, tra_loi_refuse, loai_hanh_dong="tu_van")
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, tra_loi_refuse, loai_hanh_dong="tu_van", ma_phien=ma_phien)
             return tra_loi_refuse
 
         # Tự động nhận diện lệnh giao tiếp tự nhiên và thêm giao dịch vào hệ thống (hỗ trợ đa lượt)
         thao_tac_res = AIService.xu_ly_giao_dich_tu_nhien(db, ma_nd, cau_hoi_clean, lich_su_chat=lich_su_chat)
         if thao_tac_res:
-            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, thao_tac_res)
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, thao_tac_res, ma_phien=ma_phien)
             return thao_tac_res
 
         ctx = AIService._get_spending_context(db, ma_nd)
@@ -2577,7 +2583,7 @@ class AIService:
             tra_loi_ai = AIService._tra_loi_cuc_bo_thong_minh(cau_hoi_clean, ctx, lich_su_chat)
 
         if tra_loi_ai:
-            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, tra_loi_ai)
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, tra_loi_ai, ma_phien=ma_phien)
 
         return tra_loi_ai
 
@@ -2638,13 +2644,21 @@ class AIService:
         return labels.get(loai, {"ten": "Hỏi đáp AI", "icon": "🤖", "mau": "teal"})
 
     @staticmethod
-    def luu_nhat_ky_ai(db: Session, ma_nd: int, cau_hoi: str, tra_loi: str, loai_hanh_dong: Optional[str] = None):
-        """Ghi nhận nhật ký tương tác người dùng - AI vào cơ sở dữ liệu."""
+    def luu_nhat_ky_ai(
+        db: Session,
+        ma_nd: int,
+        cau_hoi: str,
+        tra_loi: str,
+        loai_hanh_dong: Optional[str] = None,
+        ma_phien: Optional[str] = None
+    ):
+        """Ghi nhận nhật ký tương tác người dùng - AI vào cơ sở dữ liệu theo phiên."""
         try:
             if not loai_hanh_dong:
                 loai_hanh_dong = AIService.xac_dinh_loai_hanh_dong(tra_loi)
             log = LichSuAI(
                 ma_nd=ma_nd,
+                ma_phien=ma_phien,
                 cau_hoi=cau_hoi,
                 tra_loi=tra_loi,
                 loai_hanh_dong=loai_hanh_dong,
@@ -2659,13 +2673,23 @@ class AIService:
             return None
 
     @staticmethod
-    def lay_lich_su_ai_theo_ngay(db: Session, ma_nd: int, ngay: Optional[str] = None, tu_khoa: Optional[str] = None, limit: int = 200) -> Dict:
+    def lay_lich_su_ai_theo_ngay(
+        db: Session,
+        ma_nd: int,
+        ngay: Optional[str] = None,
+        ma_phien: Optional[str] = None,
+        tu_khoa: Optional[str] = None,
+        limit: int = 200
+    ) -> Dict:
         """
-        Truy xuất toàn bộ nhật ký tương tác với AI và gom nhóm theo từng ngày.
-        Hỗ trợ lọc theo ngày cụ thể (YYYY-MM-DD) và tìm kiếm từ khóa.
+        Truy xuất nhật ký tương tác với AI, gom nhóm theo từng phiên trò chuyện và theo ngày.
+        Hỗ trợ lọc theo mã phiên, ngày cụ thể (YYYY-MM-DD) và tìm kiếm từ khóa.
         """
         from collections import OrderedDict
         q = db.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd)
+
+        if ma_phien:
+            q = q.filter(LichSuAI.ma_phien == ma_phien)
 
         if ngay:
             try:
@@ -2687,15 +2711,29 @@ class AIService:
         yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
         thu_names = {0: "Thứ Hai", 1: "Thứ Ba", 2: "Thứ Tư", 3: "Thứ Năm", 4: "Thứ Sáu", 5: "Thứ Bảy", 6: "Chủ Nhật"}
 
-        groups = OrderedDict()
+        # 1. Gom nhóm theo từng phiên trò chuyện (Sessions)
+        session_groups = OrderedDict()
+        # 2. Đồng thời gom nhóm theo ngày để đảm bảo tương thích ngược 100%
+        day_groups = OrderedDict()
+
         for item in logs:
             day_str = item.ngay_tao.strftime("%Y-%m-%d") if item.ngay_tao else today_str
-            if day_str not in groups:
-                groups[day_str] = []
+            if day_str not in day_groups:
+                day_groups[day_str] = []
+
+            # Xác định khóa phiên trò chuyện
+            s_key = item.ma_phien if item.ma_phien else (f"legacy_{item.ngay_tao.strftime('%Y%m%d_%H')}" if item.ngay_tao else "legacy_phien")
+            if s_key not in session_groups:
+                session_groups[s_key] = {
+                    "ma_phien": s_key,
+                    "thoi_gian_bat_dau": item.ngay_tao,
+                    "items": []
+                }
 
             badge_info = AIService.lay_nhan_hanh_dong(item.loai_hanh_dong or "tu_van")
-            groups[day_str].append({
+            log_item = {
                 "ma_log": item.ma_log,
+                "ma_phien": s_key,
                 "cau_hoi": item.cau_hoi,
                 "tra_loi": item.tra_loi,
                 "loai_hanh_dong": item.loai_hanh_dong or "tu_van",
@@ -2704,10 +2742,40 @@ class AIService:
                 "mau": badge_info["mau"],
                 "thoi_gian": item.ngay_tao.strftime("%H:%M") if item.ngay_tao else "",
                 "ngay_tao": item.ngay_tao.strftime("%Y-%m-%d %H:%M:%S") if item.ngay_tao else ""
+            }
+            session_groups[s_key]["items"].append(log_item)
+            day_groups[day_str].append(log_item)
+
+        cac_phien = []
+        for s_key, s_data in session_groups.items():
+            dt = s_data["thoi_gian_bat_dau"] or now
+            dt_str = dt.strftime("%Y-%m-%d")
+            d_format = dt.strftime("%d/%m/%Y")
+            time_str = dt.strftime("%H:%M")
+            if dt_str == today_str:
+                label = f"Hôm nay, {time_str}"
+            elif dt_str == yesterday_str:
+                label = f"Hôm qua, {time_str}"
+            else:
+                label = f"{time_str} - {d_format}"
+
+            items = s_data["items"]
+            # Sắp xếp các tin trong phiên theo thứ tự thời gian tăng dần để dễ đọc mạch hội thoại
+            items_sorted = sorted(items, key=lambda x: x["ma_log"])
+            first_q = items_sorted[0]["cau_hoi"] if items_sorted else "Trò chuyện"
+            summary_title = first_q if len(first_q) <= 45 else (first_q[:42] + "...")
+
+            cac_phien.append({
+                "ma_phien": s_key,
+                "tieu_de_phien": summary_title,
+                "thoi_gian_hien_thi": label,
+                "ngay_gio": dt.strftime("%Y-%m-%d %H:%M:%S"),
+                "so_luong": len(items),
+                "nhat_ky": items_sorted
             })
 
         cac_ngay = []
-        for day_str, items in groups.items():
+        for day_str, items in day_groups.items():
             d_obj = datetime.strptime(day_str, "%Y-%m-%d")
             d_format = d_obj.strftime("%d/%m/%Y")
             if day_str == today_str:
@@ -2726,16 +2794,26 @@ class AIService:
 
         return {
             "tong_so": len(logs),
+            "tong_so_phien": len(cac_phien),
+            "cac_phien": cac_phien,
             "tong_so_ngay": len(cac_ngay),
             "cac_ngay": cac_ngay
         }
 
     @staticmethod
-    def xoa_lich_su_ai(db: Session, ma_nd: int, ma_log: Optional[int] = None, ngay: Optional[str] = None) -> int:
-        """Xóa nhật ký tương tác AI theo ID cụ thể, theo ngày hoặc toàn bộ."""
+    def xoa_lich_su_ai(
+        db: Session,
+        ma_nd: int,
+        ma_log: Optional[int] = None,
+        ngay: Optional[str] = None,
+        ma_phien: Optional[str] = None
+    ) -> int:
+        """Xóa nhật ký tương tác AI theo ID cụ thể, theo phiên, theo ngày hoặc toàn bộ."""
         q = db.query(LichSuAI).filter(LichSuAI.ma_nd == ma_nd)
         if ma_log:
             q = q.filter(LichSuAI.ma_log == ma_log)
+        elif ma_phien:
+            q = q.filter(LichSuAI.ma_phien == ma_phien)
         elif ngay:
             try:
                 dt_start = datetime.strptime(ngay, "%Y-%m-%d")

@@ -87,3 +87,41 @@ def test_api_ai_logs_endpoints(client, auth_headers_a):
     res_del_all = client.delete("/api/ai/lich-su", headers=auth_headers_a)
     assert res_del_all.status_code == 200
     assert res_del_all.json()["status"] == "ok"
+
+def test_ai_session_lifecycle_and_deletion(client, auth_headers_a):
+    """Kiểm thử tính năng quản lý nhật ký theo phiên trò chuyện (Sessions)"""
+    phien_1 = "test_phien_001"
+    phien_2 = "test_phien_002"
+
+    # Gửi 2 tin nhắn trong phiên 1
+    client.post("/api/ai/hoi-dap", json={"cau_hoi": "Ăn phở 40k", "ma_phien": phien_1}, headers=auth_headers_a)
+    client.post("/api/ai/hoi-dap", json={"cau_hoi": "Uống cafe 25k", "ma_phien": phien_1}, headers=auth_headers_a)
+
+    # Gửi 1 tin nhắn trong phiên 2 (phiên mới sau khi thoát ra vào lại)
+    client.post("/api/ai/hoi-dap", json={"cau_hoi": "Đổ xăng xe máy 60k", "ma_phien": phien_2}, headers=auth_headers_a)
+
+    # Lấy lịch sử và kiểm tra gom theo phiên
+    res = client.get("/api/ai/lich-su", headers=auth_headers_a)
+    assert res.status_code == 200
+    data = res.json()
+    assert "cac_phien" in data
+    assert data["tong_so_phien"] >= 2
+
+    # Lọc riêng phiên 1
+    res_p1 = client.get(f"/api/ai/lich-su?ma_phien={phien_1}", headers=auth_headers_a)
+    data_p1 = res_p1.json()
+    assert data_p1["tong_so_phien"] == 1
+    assert data_p1["cac_phien"][0]["ma_phien"] == phien_1
+    assert data_p1["cac_phien"][0]["so_luong"] == 2
+
+    # Xóa riêng phiên 1
+    del_res = client.delete(f"/api/ai/lich-su?ma_phien={phien_1}", headers=auth_headers_a)
+    assert del_res.status_code == 200
+
+    # Kiểm tra phiên 1 đã bị xóa, phiên 2 vẫn còn
+    res_after = client.get(f"/api/ai/lich-su?ma_phien={phien_1}", headers=auth_headers_a)
+    assert res_after.json()["tong_so_phien"] == 0
+
+    res_p2 = client.get(f"/api/ai/lich-su?ma_phien={phien_2}", headers=auth_headers_a)
+    assert res_p2.json()["tong_so_phien"] == 1
+    assert res_p2.json()["cac_phien"][0]["ma_phien"] == phien_2
