@@ -1468,7 +1468,7 @@ class AIService:
         icon_sign = "💸 -" if tx.loai_gd == "chi" else "💰 +"
 
         return (
-            f"Dạ mình hiểu rồi, không sao cả! Mình đã sửa lại ngay giao dịch cho bạn rồi nhé: ✏️\n\n"
+            f"Dạ mình hiểu rồi, không sao cả! Đã cập nhật giao dịch thành công! Mình đã sửa lại ngay giao dịch cho bạn rồi nhé: ✏️\n\n"
             f"📋 **Giao dịch sau khi đính chính:**\n"
             f"• **Nội dung:** {tx.ghi_chu}\n"
             f"• **Số tiền:** **{icon_sign}{tx.so_tien:,.0f}đ**\n"
@@ -1623,6 +1623,245 @@ class AIService:
         )
 
     @staticmethod
+    def _thuc_thi_thiet_lap_ngan_sach(db: Session, ma_nd: int, category_allocations: List[Tuple[Any, float]]) -> str:
+        """
+        Thực thi thiết lập / cập nhật hạn mức ngân sách trực tiếp vào cơ sở dữ liệu
+        cho một hoặc nhiều danh mục chi tiêu trong tháng hiện tại.
+        Kiểm tra số dư ví chính, kiểm tra số tiền đã chi thực tế, tạo bản ghi NganSach
+        và thông báo hệ thống thời gian thực.
+        """
+        if not category_allocations:
+            return "Không tìm thấy danh mục chi tiêu phù hợp để thiết lập hạn mức."
+
+        now_dt = datetime.now()
+        now_ym = now_dt.strftime("%Y-%m")
+        start_this = datetime(now_dt.year, now_dt.month, 1)
+        end_this = datetime(now_dt.year + 1, 1, 1) if now_dt.month == 12 else datetime(now_dt.year, now_dt.month + 1, 1)
+
+        # 1. Kiểm tra từng danh mục xem hạn mức mới có nhỏ hơn số tiền đã chi tháng này không
+        for cat, new_limit in category_allocations:
+            txs = db.query(GiaoDich).filter(
+                GiaoDich.ma_nd == ma_nd,
+                GiaoDich.ma_dm == cat.ma_dm,
+                GiaoDich.loai_gd == "chi",
+                GiaoDich.ngay_gd >= start_this,
+                GiaoDich.ngay_gd < end_this
+            ).all()
+            spent = sum(float(item.so_tien or 0.0) for item in txs)
+            if new_limit < spent:
+                return (
+                    f"Dạ hạn mức mới (**{new_limit:,.0f}đ**) cho hũ **'{cat.ten_dm}'** không thể nhỏ hơn "
+                    f"số tiền bạn đã chi tiêu tháng này trong hũ này (**{spent:,.0f}đ**) nhé! 😊\n\n"
+                    f"Bạn vui lòng đặt hạn mức tối thiểu bằng {spent:,.0f}đ ạ."
+                )
+
+        # 2. Tính toán số tiền cấp mới và kiểm tra số dư ví chính khả dụng
+        total_diff = 0.0
+        diff_map = {}
+        for cat, new_limit in category_allocations:
+            ns = db.query(NganSach).filter(
+                NganSach.ma_nd == ma_nd,
+                NganSach.ma_dm == cat.ma_dm,
+                NganSach.thang_nam == now_ym
+            ).first()
+            old_limit = float(ns.han_muc) if (ns and ns.han_muc is not None) else 0.0
+            so_du = float(ns.so_du_chuyen_sang or 0.0) if ns else 0.0
+            old_allocated = max(0.0, old_limit - so_du)
+            new_allocated = max(0.0, new_limit - so_du)
+            diff = new_allocated - old_allocated
+            diff_map[cat.ma_dm] = (diff, new_allocated)
+            if diff > 0:
+                total_diff += diff
+
+        current_balance = NganSachService.tinh_so_du_vi_chinh(db, ma_nd)
+        if current_balance > 0 and total_diff > current_balance:
+            return (
+                f"Dạ số dư ví chính khả dụng hiện tại (**{max(0.0, current_balance):,.0f}đ**) không đủ để trích cấp thêm "
+                f"tổng cộng **{total_diff:,.0f}đ** cho các hũ ngân sách này ạ! 💳\n\n"
+                f"Bạn có thể nạp thêm thu nhập hoặc cân đối lại mức ngân sách vừa phải hơn nhé! 😊"
+            )
+
+        # 3. Thực thi cập nhật cơ sở dữ liệu
+        lines = []
+        total_budget = 0.0
+        for cat, new_limit in category_allocations:
+            txs = db.query(GiaoDich).filter(
+                GiaoDich.ma_nd == ma_nd,
+                GiaoDich.ma_dm == cat.ma_dm,
+                GiaoDich.loai_gd == "chi",
+                GiaoDich.ngay_gd >= start_this,
+                GiaoDich.ngay_gd < end_this
+            ).all()
+            spent = sum(float(item.so_tien or 0.0) for item in txs)
+
+            diff, new_allocated = diff_map[cat.ma_dm]
+            cat.han_muc = new_limit
+
+            ns = db.query(NganSach).filter(
+                NganSach.ma_nd == ma_nd,
+                NganSach.ma_dm == cat.ma_dm,
+                NganSach.thang_nam == now_ym
+            ).first()
+
+            if ns:
+                ns.han_muc = new_limit
+                ns.han_muc_cap_moi = new_allocated
+                ns.so_tien_da_chi = spent
+            else:
+                ns = NganSach(
+                    ma_nd=ma_nd,
+                    ma_dm=cat.ma_dm,
+                    thang_nam=now_ym,
+                    han_muc=new_limit,
+                    han_muc_cap_moi=new_allocated,
+                    so_du_chuyen_sang=0.0,
+                    so_tien_da_chi=spent
+                )
+                db.add(ns)
+
+            con_lai = max(0.0, new_limit - spent)
+            icon = "🍲" if "ăn" in cat.ten_dm.lower() else ("🏍️" if "đi" in cat.ten_dm.lower() else ("🛍️" if "mua" in cat.ten_dm.lower() else "🏺"))
+            lines.append(f"• {icon} **{cat.ten_dm}:** **{new_limit:,.0f}đ** *(Còn lại: {con_lai:,.0f}đ)*")
+            total_budget += new_limit
+
+        db.commit()
+
+        for cat, _ in category_allocations:
+            db.refresh(cat)
+
+        new_wallet_bal = NganSachService.tinh_so_du_vi_chinh(db, ma_nd)
+
+        # Tạo thông báo hệ thống (tránh tạo trùng lặp liên tục)
+        title_tb = f"🏺 Đã Thiết Lập Hạn Mức Ngân Sách Tháng {now_dt.month}/{now_dt.year}"
+        existing_tb = db.query(ThongBao).filter(
+            ThongBao.ma_nd == ma_nd,
+            ThongBao.tieu_de == title_tb,
+            ThongBao.ngay_tao >= datetime(now_dt.year, now_dt.month, now_dt.day, 0, 0, 0)
+        ).first()
+        if existing_tb:
+            existing_tb.noi_dung = f"Bạn đã thiết lập hạn mức cho {len(category_allocations)} hũ chi tiêu với tổng ngân sách {total_budget:,.0f}đ."
+            existing_tb.ngay_tao = now_dt
+            existing_tb.da_xem = False
+        else:
+            db.add(ThongBao(
+                ma_nd=ma_nd,
+                tieu_de=title_tb,
+                noi_dung=f"Bạn đã thiết lập hạn mức cho {len(category_allocations)} hũ chi tiêu với tổng ngân sách {total_budget:,.0f}đ.",
+                da_xem=False,
+                ngay_tao=now_dt
+            ))
+        db.commit()
+
+        if len(category_allocations) == 1:
+            cat, new_limit = category_allocations[0]
+            txs = db.query(GiaoDich).filter(
+                GiaoDich.ma_nd == ma_nd,
+                GiaoDich.ma_dm == cat.ma_dm,
+                GiaoDich.loai_gd == "chi",
+                GiaoDich.ngay_gd >= start_this,
+                GiaoDich.ngay_gd < end_this
+            ).all()
+            spent = sum(float(item.so_tien or 0.0) for item in txs)
+            pct = round((spent / new_limit) * 100) if new_limit > 0 else 0
+            con_lai = max(0.0, new_limit - spent)
+            return (
+                f"Đã điều chỉnh hạn mức ngân sách thành công! 🏺\n\n"
+                f"📋 **Thông tin hũ chi tiêu sau điều chỉnh:**\n"
+                f"• **Hũ ngân sách:** {cat.ten_dm}\n"
+                f"• **Hạn mức mới:** **{new_limit:,.0f}đ**\n"
+                f"• **Đã chi tiêu tháng này:** **{spent:,.0f}đ** ({pct}%)\n"
+                f"• **Hạn mức còn lại:** **{con_lai:,.0f}đ**\n\n"
+                f"Hạn mức mới đã được áp dụng trực tiếp vào hệ thống quản lý ngân sách tháng này! 💡"
+            )
+
+        details_str = "\n".join(lines)
+        return (
+            f"Tuyệt vời luôn! 🎯 Mình đã thiết lập ngay hạn mức ngân sách trực tiếp vào hệ thống cho bạn rồi nhé:\n\n"
+            f"{details_str}\n\n"
+            f"📊 **Tổng ngân sách đã cấp:** **{total_budget:,.0f}đ**\n"
+            f"💳 **Số dư ví chính khả dụng:** **{new_wallet_bal:,.0f}đ**\n\n"
+            f"✨ Hạn mức mới đã hiển thị trực tiếp trên giao diện Dashboard. Mình sẽ đồng hành theo dõi và cảnh báo chi tiêu thông minh cùng bạn nhé! 🚀"
+        )
+
+    @staticmethod
+    def _xu_ly_phan_bo_ngan_sach_tu_nhien(db: Session, ma_nd: int, t: str, default_amount: float, context_msg: str = "") -> Optional[str]:
+        """
+        Tự động phân bổ ngân sách / hạn mức chi tiêu cho các danh mục (hũ) từ ngôn ngữ tự nhiên.
+        Hỗ trợ:
+        - Phân bổ đều cho các danh mục phổ biến / tất cả danh mục chi tiêu (vd: 'cấp cho mỗi danh mục 1tr5').
+        - Phân bổ cụ thể từng danh mục (vd: 'ăn uống 2tr, đi lại 1tr5, mua sắm 1tr').
+        - Hội thoại đa lượt: xác nhận sau khi AI gợi ý phân bổ ngân sách.
+        - Tự động tạo danh mục nếu người dùng yêu cầu hũ phổ biến chưa có (vd: Giải trí).
+        """
+        combined_text = f"{context_msg} {t}".lower()
+
+        # Danh sách danh mục chi tiêu hiện có của người dùng (loại trừ Tiết kiệm)
+        user_dms = db.query(DanhMuc).filter(
+            DanhMuc.ma_nd == ma_nd,
+            DanhMuc.loai_dm == "chi",
+            DanhMuc.ten_dm != "Tiết kiệm"
+        ).all()
+        dm_map = {dm.ten_dm.lower(): dm for dm in user_dms}
+
+        popular_defs = [
+            ("Ăn uống", "utensils", "#f97316"),
+            ("Đi lại", "car", "#0ea5e9"),
+            ("Mua sắm", "shopping-bag", "#ec4899"),
+            ("Giải trí", "film", "#8b5cf6"),
+            ("Hóa đơn", "file-text", "#6366f1"),
+            ("Sức khỏe", "heart-pulse", "#ef4444")
+        ]
+
+        # Kiểm tra xem người dùng có chỉ định số tiền riêng cho từng danh mục hay không
+        specific_allocations = []
+        for name, icon, color in popular_defs:
+            nl = name.lower()
+            if nl in t:
+                m = re.search(rf"{nl}[^\d]{{0,15}}?(\d+(?:[\.,]\d+)?\s*(?:triệu|tr|nghìn|ngàn|k|củ|đ)?)", t)
+                if m:
+                    parsed_amt = AIService._parse_vietnamese_amount(m.group(1))
+                    if parsed_amt > 0:
+                        dm = dm_map.get(nl)
+                        if not dm:
+                            dm = DanhMuc(ma_nd=ma_nd, ten_dm=name, loai_dm="chi", icon=icon, mau_sac=color, han_muc=0.0)
+                            db.add(dm)
+                            db.flush()
+                            dm_map[nl] = dm
+                        specific_allocations.append((dm, parsed_amt))
+
+        if specific_allocations:
+            return AIService._thuc_thi_thiet_lap_ngan_sach(db, ma_nd, specific_allocations)
+
+        if default_amount <= 0:
+            return None
+
+        # Xác định các danh mục cần phân bổ
+        target_cats = []
+        if any(w in combined_text for w in ["phổ biến", "giải trí", "ăn uống", "đi lại", "mua sắm"]):
+            for name, icon, color in [("Ăn uống", "utensils", "#f97316"), ("Đi lại", "car", "#0ea5e9"), ("Mua sắm", "shopping-bag", "#ec4899"), ("Giải trí", "film", "#8b5cf6")]:
+                dm = dm_map.get(name.lower())
+                if not dm:
+                    dm = DanhMuc(ma_nd=ma_nd, ten_dm=name, loai_dm="chi", icon=icon, mau_sac=color, han_muc=0.0)
+                    db.add(dm)
+                    db.flush()
+                    dm_map[name.lower()] = dm
+                target_cats.append(dm)
+        else:
+            target_cats = list(user_dms)
+            if not target_cats:
+                for name, icon, color in popular_defs[:4]:
+                    dm = DanhMuc(ma_nd=ma_nd, ten_dm=name, loai_dm="chi", icon=icon, mau_sac=color, han_muc=0.0)
+                    db.add(dm)
+                    db.flush()
+                    target_cats.append(dm)
+
+        if not target_cats:
+            return "Chưa có danh mục chi tiêu nào để thiết lập hạn mức bạn nhé!"
+
+        category_allocations = [(cat, default_amount) for cat in target_cats]
+        return AIService._thuc_thi_thiet_lap_ngan_sach(db, ma_nd, category_allocations)
+
+    @staticmethod
     def xu_ly_giao_dich_tu_nhien(db: Session, ma_nd: int, cau_hoi: str, lich_su_chat: Optional[List[Dict[str, str]]] = None) -> Optional[str]:
         """
         AI Financial Autonomous Agent:
@@ -1661,12 +1900,14 @@ class AIService:
             if is_cancel:
                 return "Dạ vâng! Mình đã hủy thao tác xóa rồi nhé. Mọi dữ liệu của bạn vẫn được giữ nguyên vẹn an toàn! 😊"
 
-            confirm_cues = [
+            confirm_phrases = [
                 "đồng ý", "xác nhận", "chắc chắn", "tiến hành", "tiến hành xóa",
                 "xóa đi", "xóa luôn", "xóa nó", "xóa đi nhé", "xóa giúp", "xóa hộ",
-                "ok", "oke", "okay", "yes", "có", "ừ", "uh", "ừm", "yep", "chuẩn rồi", "đúng rồi"
+                "chuẩn rồi", "đúng rồi", "ok xóa", "đồng ý xóa"
             ]
-            is_confirm = any(w in t for w in confirm_cues) or t in ["xóa", "xoá", "có", "ừ", "ok", "oke", "yes", "y", "đúng"]
+            t_words = set(re.findall(r'\b\w+\b', t))
+            confirm_single_words = {"ok", "oke", "okay", "yes", "có", "ừ", "uh", "ừm", "yep", "xóa", "xoá"}
+            is_confirm = any(p in t for p in confirm_phrases) or (len(t.split()) <= 3 and bool(t_words.intersection(confirm_single_words)))
             if is_confirm:
                 # 1. Giao dịch
                 m_gd = re.search(r'Mã giao dịch:\s*#(\d+)', last_ai_msg)
@@ -1697,6 +1938,38 @@ class AIService:
                         return AIService._thuc_thi_xoa_danh_muc(db, ma_nd, cat)
                     else:
                         return "Danh mục này không còn tồn tại hoặc đã được xóa trước đó rồi bạn nhé!"
+
+        # 0.1. Multi-turn Confirmation Resolver (Xác nhận phân bổ ngân sách / hạn mức):
+        # Chỉ kích hoạt khi lượt AI trước thực sự đưa ra lời đề xuất / câu hỏi phân bổ ngân sách
+        is_asking_alloc = any(kw in last_ai_msg.lower() for kw in [
+            "bạn có muốn mình hỗ trợ phân bổ", "bạn có muốn mình áp dụng mức này", "để mình lên kế hoạch ngân sách luôn",
+            "bạn có đồng ý với đề xuất phân bổ", "áp dụng mức này cho các danh mục", "phân bổ thêm hạn mức cho các danh mục khác"
+        ])
+        if last_ai_msg and is_asking_alloc:
+            t_norm = t.replace("dnah", "danh")
+            # Nếu người dùng đang thực hiện một lệnh độc lập khác (rút, nộp, tạo, sửa, xóa...), không chặn lại
+            action_interrupt = any(w in t_norm for w in ["rút", "nộp", "tạo", "sửa", "xoá", "xóa", "hủy", "huỷ", "đổi", "chi tiêu", "đã chi"])
+            if not action_interrupt:
+                cancel_cues = ["hủy", "huỷ", "thôi", "đừng", "không cần", "ko cần", "bỏ qua", "cancel"]
+                is_cancel = any(w in t_norm for w in cancel_cues) or t_norm in ["không", "ko", "k", "no", "thôi"]
+                if is_cancel:
+                    return "Dạ vâng! Mình đã hủy kế hoạch phân bổ hạn mức rồi nhé. Mọi số liệu của bạn vẫn giữ nguyên an toàn! 😊"
+
+                confirm_phrases = [
+                    "đúng rồi", "chuẩn rồi", "chính xác", "đồng ý", "tiến hành",
+                    "cấp đi", "làm đi", "thiết lập đi", "áp dụng", "cấp cho", "cấp luôn", "áp dụng đi"
+                ]
+                t_words = set(re.findall(r'\b\w+\b', t_norm))
+                confirm_single_words = {"ok", "oke", "okay", "yes", "có", "ừ", "uh", "ừm", "yep", "chuẩn", "cấp"}
+                is_confirm = any(p in t_norm for p in confirm_phrases) or (len(t_norm.split()) <= 4 and bool(t_words.intersection(confirm_single_words)))
+                if is_confirm:
+                    alloc_amount = amount if amount > 0 else AIService._parse_vietnamese_amount(last_ai_msg.lower())
+                    if alloc_amount <= 0:
+                        m_amt = re.search(r'(\d[\d\.,]*)\s*(?:đ|k|triệu|tr)?', last_ai_msg)
+                        if m_amt:
+                            alloc_amount = AIService._parse_vietnamese_amount(m_amt.group(1))
+                    if alloc_amount > 0:
+                        return AIService._xu_ly_phan_bo_ngan_sach_tu_nhien(db, ma_nd, t_norm, alloc_amount, last_ai_msg)
 
         # Xử lý hội thoại đa lượt (Multi-turn Context):
         # Khi người dùng chỉ gửi số tiền (vd: '30k', 'hết 30k', '50.000', '20 ngàn'...)
@@ -1752,7 +2025,7 @@ class AIService:
         matched_goal = None
         for g in sorted_goals:
             g_name = g.ten_muc_tieu.lower()
-            if g_name in t or any(w in t for w in g_name.split() if len(w) > 2):
+            if g_name in t or any(w in t for w in g_name.split() if len(w) > 3 and w not in ["tiết", "kiệm", "mua", "tiền", "quỹ"]):
                 matched_goal = g
                 break
 
@@ -1764,10 +2037,10 @@ class AIService:
         ]
         has_goal_term = any(w in t for w in ["mục tiêu", "hũ", "quỹ", "tiết kiệm", "heo", "lợn"])
         has_update_verb = any(w in t for w in ["nâng", "tăng", "đổi", "sửa", "chỉnh", "đặt lại", "thành", "giảm", "hạ", "lên mức", "lên"])
-        not_deposit = not any(w in t for w in ["nộp", "trích", "nạp", "bỏ", "chuyển", "gửi", "giao dịch", "hạn mức"])
+        not_deposit = not any(w in t for w in ["nộp", "trích", "nạp", "bỏ", "chuyển", "gửi", "giao dịch", "hạn mức", "ngân sách", "danh mục"])
 
         is_update_goal = any(c in t for c in update_goal_cues) or (
-            (has_goal_term or matched_goal) and has_update_verb and not_deposit
+            (has_goal_term or matched_goal) and has_update_verb and not_deposit and not any(w in t for w in ["ngân sách", "hạn mức", "danh mục"])
         )
         if is_update_goal and amount > 0:
             if not matched_goal and goals:
@@ -1917,74 +2190,82 @@ class AIService:
         if any(w in t for w in ["tạo danh mục", "thêm danh mục", "lập danh mục"]):
             return AIService._xu_ly_tao_danh_muc(db, ma_nd, t, amount, raw)
 
+        # 8.5. PHÂN BỔ / CẤP HẠN MỨC NGÂN SÁCH ĐA HŨ HOẶC MỖI DANH MỤC
+        t_norm = t.replace("dnah", "danh")
+        multi_budget_cues = [
+            "cấp cho mỗi", "mỗi danh mục", "mỗi hũ", "các danh mục", "các hũ",
+            "chia đều", "phân bổ mỗi", "phân bổ cho mỗi", "phân bổ đều", "chia ngân sách",
+            "cấp ngân sách", "phân bổ ngân sách", "cho mỗi danh mục", "cho từng danh mục",
+            "cho từng hũ", "cho mỗi hũ", "cấp cho các", "thiết lập cho mỗi", "đặt cho mỗi",
+            "cấp cho cả", "cấp mỗi danh mục", "cấp mỗi hũ", "cấp hạn mức các hũ", "cấp hạn mức mỗi hũ",
+            "phân bổ 6 hũ"
+        ]
+        is_multi_budget = any(c in t_norm for c in multi_budget_cues) or (
+            any(w in t_norm for w in ["cấp", "phân bổ", "chia", "đặt", "thiết lập"]) and any(w in t_norm for w in ["hạn mức", "ngân sách"]) and any(w in t_norm for w in ["mỗi", "các", "tất cả", "đều", "cho", "hũ"])
+        )
+        if is_multi_budget and amount > 0:
+            return AIService._xu_ly_phan_bo_ngan_sach_tu_nhien(db, ma_nd, t_norm, amount, last_ai_msg)
+
         # 9. ĐIỀU CHỈNH HẠN MỨC NGÂN SÁCH HŨ (UPDATE BUDGET LIMIT)
+        user_dms = db.query(DanhMuc).filter(DanhMuc.ma_nd == ma_nd, DanhMuc.loai_dm == "chi").all()
+        target_dm = None
+        for dm in user_dms:
+            if dm.ten_dm.lower() in t:
+                target_dm = dm
+                break
+        if not target_dm:
+            for dm in user_dms:
+                for kw in ["ăn uống", "đi chơi", "mua sắm", "đi lại", "hóa đơn", "giải trí", "học tập", "sức khỏe"]:
+                    if kw in t and kw in dm.ten_dm.lower():
+                        target_dm = dm
+                        break
+                if target_dm:
+                    break
+
+        update_limit_verbs = ["nâng", "tăng", "đổi", "sửa", "chỉnh", "đặt", "giảm", "hạ", "cập nhật", "cấp", "thiết lập"]
+        level_preps = ["xuống", "thành", "lên", "còn", "về"]
+        explicit_budget_terms = ["hạn mức", "ngân sách", "danh mục", "hũ"]
+
+        is_tx_indicator = any(m in t for m in ["đã chi", "đã tiêu", "vừa chi", "vừa ăn", "vừa mua", "hết", "thanh toán", "trả tiền", "giao dịch vừa", "khoản chi"])
+
+        has_explicit_term = any(term in t for term in explicit_budget_terms)
+        has_verb = any(v in t for v in update_limit_verbs)
+        has_level = any(lp in t for lp in level_preps)
+
         update_limit_cues = [
             "nâng hạn mức", "tăng hạn mức", "đổi hạn mức", "sửa hạn mức", "giảm hạn mức", "chỉnh hạn mức",
-            "đặt hạn mức", "hạn mức lên", "hạn mức thành", "hạn mức hũ"
+            "đặt hạn mức", "hạn mức lên", "hạn mức thành", "hạn mức hũ", "cấp hạn mức", "cấp ngân sách",
+            "sửa danh mục", "giảm danh mục", "tăng danh mục", "chỉnh danh mục", "đổi danh mục", "hạ danh mục",
+            "sửa hũ", "giảm hũ", "tăng hũ", "chỉnh hũ", "hạ hũ", "đổi hũ", "đặt hũ", "cập nhật hũ",
+            "ngân sách hũ", "ngân sách danh mục"
         ]
-        is_update_limit = any(c in t for c in update_limit_cues) or (
-            "hạn mức" in t and any(w in t for w in ["nâng", "tăng", "đổi", "sửa", "chỉnh", "đặt", "thành", "lên", "giảm"])
-        )
+
+        is_update_limit = False
+        if amount > 0 and not is_tx_indicator:
+            # 1. Khớp từ khóa cụ thể
+            if any(c in t for c in update_limit_cues):
+                is_update_limit = True
+            # 2. Có từ hạn mức/ngân sách kết hợp danh mục hoặc hành động
+            elif any(term in t for term in ["hạn mức", "ngân sách"]):
+                if target_dm or has_verb or has_level or any(c in t for c in ["cho", "của", "mỗi", "các", "là", "thành"]):
+                    is_update_limit = True
+            # 3. Có từ "danh mục" hoặc "hũ" kết hợp hành động điều chỉnh hoặc cấp tiền
+            elif any(term in t for term in ["danh mục", "hũ"]) and (has_verb or has_level or "cho" in t):
+                is_update_limit = True
+            # 4. Có danh mục cụ thể và có hướng điều chỉnh mức tiền
+            elif target_dm and (
+                (has_verb and (has_level or "thành" in t or "là" in t)) or
+                has_level or
+                (has_verb and not any(w in t for w in ["chi", "tiêu", "ăn", "uống", "mua"]))
+            ):
+                is_update_limit = True
+
         if is_update_limit and amount > 0:
-            user_dms = db.query(DanhMuc).filter(DanhMuc.ma_nd == ma_nd, DanhMuc.loai_dm == "chi").all()
-            target_dm = None
-            for dm in user_dms:
-                if dm.ten_dm.lower() in t:
-                    target_dm = dm
-                    break
-            if not target_dm:
-                for dm in user_dms:
-                    for kw in ["ăn uống", "đi chơi", "mua sắm", "đi lại", "hóa đơn", "giải trí"]:
-                        if kw in t and kw in dm.ten_dm.lower():
-                            target_dm = dm
-                            break
-                    if target_dm:
-                        break
             if not target_dm and user_dms:
                 target_dm = user_dms[0]
 
             if target_dm:
-                now_chk = datetime.now()
-                start_this = datetime(now_chk.year, now_chk.month, 1)
-                end_this = datetime(now_chk.year + 1, 1, 1) if now_chk.month == 12 else datetime(now_chk.year, now_chk.month + 1, 1)
-                txs = db.query(GiaoDich).filter(
-                    GiaoDich.ma_dm == target_dm.ma_dm,
-                    GiaoDich.loai_gd == "chi",
-                    GiaoDich.ngay_gd >= start_this,
-                    GiaoDich.ngay_gd < end_this
-                ).all()
-                spent = sum(item.so_tien for item in txs)
-                if amount < spent:
-                    return (
-                        f"Dạ hạn mức mới (**{amount:,.0f}đ**) không thể nhỏ hơn số tiền bạn đã chi tiêu tháng này "
-                        f"trong hũ **'{target_dm.ten_dm}'** (**{spent:,.0f}đ**) nhé! 😊\n\n"
-                        f"Bạn vui lòng đặt hạn mức tối thiểu bằng {spent:,.0f}đ ạ."
-                    )
-
-                target_dm.han_muc = amount
-                thang_nam = datetime.now().strftime("%Y-%m")
-                ns = db.query(NganSach).filter(
-                    NganSach.ma_nd == ma_nd,
-                    NganSach.ma_dm == target_dm.ma_dm,
-                    NganSach.thang_nam == thang_nam
-                ).first()
-                if ns:
-                    ns.han_muc = amount
-                db.commit()
-                db.refresh(target_dm)
-
-                pct = round((spent / amount) * 100) if amount > 0 else 0
-                con_lai = max(0.0, amount - spent)
-
-                return (
-                    f"Đã điều chỉnh hạn mức ngân sách thành công! 🏺\n\n"
-                    f"📋 **Thông tin hũ chi tiêu sau điều chỉnh:**\n"
-                    f"• **Hũ ngân sách:** {target_dm.ten_dm}\n"
-                    f"• **Hạn mức mới:** **{amount:,.0f}đ**\n"
-                    f"• **Đã chi tiêu tháng này:** **{spent:,.0f}đ** ({pct}%)\n"
-                    f"• **Hạn mức còn lại:** **{con_lai:,.0f}đ**\n\n"
-                    f"Hạn mức mới đã được áp dụng trực tiếp vào hệ thống quản lý ngân sách tháng này! 💡"
-                )
+                return AIService._thuc_thi_thiet_lap_ngan_sach(db, ma_nd, [(target_dm, amount)])
 
         # 10. XOÁ / HỦY GIAO DỊCH (DELETE TRANSACTION)
         delete_cues = [
@@ -2260,9 +2541,9 @@ class AIService:
             "   - Tuyệt đối KHÔNG coi đây là tin nhắn gửi nhầm hoặc câu nói chưa hoàn chỉnh!\n"
             "   - Hãy đọc câu hỏi/gợi ý gần nhất của AI trong 'LỊCH SỬ TRÒ CHUYỆN GẦN ĐÂY' để thực hiện ngay hành động tiếp theo.\n"
             "   - Ví dụ: Nếu câu trước AI vừa hỏi 'Bạn có muốn mình hỗ trợ lập kế hoạch chi tiêu cho tháng 10 không?' và người dùng trả lời 'có' / 'ok' -> Hãy lập ngay một bản kế hoạch chi tiêu cụ thể, thông minh, chi tiết cho tháng 10 dựa trên dữ liệu thu chi thực tế của họ!\n\n"
-            "5. QUY TẮC BẢO TOÀN DỮ LIỆU & TRÁNH NHẬN VƠ THỰC THI GIAO DỊCH:\n"
-            "   - Mọi thao tác thêm/sửa/xóa giao dịch hoặc trích tiền đều do hệ thống backend tự động xử lý trực tiếp vào cơ sở dữ liệu.\n"
-            "   - Bạn là Trí tuệ Nhân tạo tư vấn, TUYỆT ĐỐI KHÔNG tự nhận là 'mình đã ghi nhận', 'mình đã lưu giao dịch' nếu người dùng chưa cung cấp đủ số tiền hoặc câu hỏi mang tính trò chuyện.\n"
+            "5. QUY TẮC BẢO TOÀN DỮ LIỆU & TRÁNH NHẬN VƠ THỰC THI GIAO DỊCH / NGÂN SÁCH:\n"
+            "   - Mọi thao tác thêm/sửa/xóa giao dịch, phân bổ ngân sách, thiết lập hạn mức hoặc trích tiền đều do hệ thống backend tự động xử lý trực tiếp vào cơ sở dữ liệu.\n"
+            "   - Bạn là Trí tuệ Nhân tạo tư vấn, TUYỆT ĐỐI KHÔNG tự nhận là 'mình đã ghi nhận', 'mình đã lưu giao dịch', 'mình đã thiết lập hạn mức', 'mình đã phân bổ ngân sách' nếu bạn chỉ đang đưa ra lời khuyên hoặc trò chuyện!\n"
             "   - Nếu người dùng kể về một khoản chi tiêu nhưng chưa có số tiền (ví dụ: 'trưa nay tôi đi ăn cơm', 'vừa đi đổ xăng'), hãy hỏi lại họ số tiền một cách ngắn gọn, tự nhiên để hệ thống tiến hành ghi nhận.\n\n"
             f"DỮ LIỆU TÀI CHÍNH THỰC TẾ (Tháng {ctx['thang_hien_tai']}):\n"
             f"• Thu nhập: {tong_thu:,.0f}đ\n"

@@ -170,20 +170,13 @@
                     } else if (effectiveLimit > 0 && percent >= 80) {
                         barColor = "bg-amber-400";
                         alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⚠️ Cảnh báo (${percent}%)</span>`;
-                    } else if (c.chua_du_han_muc && c.so_tien_thieu > 0) {
-                        if (effectiveLimit <= 0) {
-                            barColor = "bg-slate-200";
-                            alertBadge = `<span class="bg-rose-100 text-rose-700 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⚠️ Chưa đủ tiền cấp</span>`;
-                        } else {
-                            alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⏳ Thiếu ${c.so_tien_thieu.toLocaleString()} đ</span>`;
-                        }
                     } else if (effectiveLimit <= 0) {
                         barColor = spent > 0 ? "bg-teal-400" : "bg-slate-200";
                         alertBadge = `<span class="bg-slate-100 text-slate-500 text-[9px] font-medium px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">Chưa đặt hạn mức</span>`;
                     }
 
                     const safeName = (c.name || '').replace(/'/g, "\\'");
-                    const suggestLimit = c.han_muc_dinh_muc || c.han_muc_goc || c.han_muc || effectiveLimit || 0;
+                    const suggestLimit = c.han_muc_goc || c.han_muc || effectiveLimit || 0;
 
                     // Chỉ khi thực sự có hạn mức và bị quá mức mới hiển thị thông báo vượt hạn mức
                     let overBudgetNoticeHtml = "";
@@ -202,22 +195,6 @@
                         `;
                     }
 
-                    let shortageNoticeHtml = "";
-                    if (c.chua_du_han_muc && c.so_tien_thieu > 0 && !isOverBudget) {
-                        const dinhMuc = parseFloat(c.han_muc_dinh_muc || 0) || 0;
-                        shortageNoticeHtml = `
-                            <div class="flex items-center justify-between bg-amber-50/90 border border-amber-200/90 px-2.5 py-1.5 rounded-xl text-xs gap-2" onclick="event.stopPropagation()">
-                                <div class="flex items-center gap-1.5 text-amber-800 text-[11px] font-medium truncate">
-                                    <span>⚠️</span>
-                                    <span class="truncate">Ví chính chưa đủ tiền cấp: thiếu <strong>${c.so_tien_thieu.toLocaleString()} đ</strong>${dinhMuc > 0 ? ` (Định mức: ${dinhMuc.toLocaleString()} đ)` : ''}</span>
-                                </div>
-                                <button type="button" onclick="event.stopPropagation(); if(typeof openEditCategoryModal === 'function') openEditCategoryModal(${catId}, '${safeName}', 'chi', ${suggestLimit});" class="text-[10px] font-bold bg-amber-600 hover:bg-amber-700 text-white px-2 py-0.5 rounded-lg shadow-2xs whitespace-nowrap transition cursor-pointer shrink-0">
-                                    + Cấp thêm
-                                </button>
-                            </div>
-                        `;
-                    }
-
                     const progressWidth = effectiveLimit > 0 ? Math.min(percent, 100) : 0;
 
                     container.innerHTML += `
@@ -229,7 +206,6 @@
                             </div>
 
                             ${overBudgetNoticeHtml}
-                            ${shortageNoticeHtml}
 
                             <!-- Hàng 2: Số tiền còn lại/quá mức & Hạn mức -->
                             <div class="flex justify-between items-center text-xs">

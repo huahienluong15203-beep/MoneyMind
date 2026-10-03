@@ -9,7 +9,7 @@ Bao gồm:
 """
 from datetime import datetime
 from fastapi import status
-from app.models import NganSach, GiaoDich
+from app.models import NganSach, GiaoDich, DanhMuc
 
 def test_tc03_them_giao_dich_so_tien_am(client, cat_chi_a, auth_headers_a):
     """
@@ -113,10 +113,15 @@ def test_tc10_nfr07_cach_ly_du_lieu_nguoi_dung(client, db_session, user_b, auth_
     Input: Người dùng A gọi API sửa/xóa giao dịch thuộc về Người dùng B
     Kết quả mong đợi: Trả về lỗi 403, không trả hoặc thao tác dữ liệu của người khác
     """
+    dm_b = DanhMuc(ma_nd=user_b.ma_nd, ten_dm="Chi tiêu B", loai_dm="chi")
+    db_session.add(dm_b)
+    db_session.commit()
+    db_session.refresh(dm_b)
+
     # Tạo giao dịch thuộc về người dùng B
     tx_b = GiaoDich(
         ma_nd=user_b.ma_nd,
-        ma_dm=1,
+        ma_dm=dm_b.ma_dm,
         so_tien=150000.0,
         loai_gd="chi",
         ngay_gd=datetime.now(),

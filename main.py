@@ -1036,7 +1036,10 @@ def ai_tro_ly_legacy(payload: dict, db: Session = Depends(get_db), current_user:
         "đã xóa" in tra_loi.lower() or
         "đã xoá" in tra_loi.lower() or
         "đã rút" in tra_loi.lower() or
-        "đã tạo" in tra_loi.lower()
+        "đã tạo" in tra_loi.lower() or
+        "đã thiết lập" in tra_loi.lower() or
+        "đã phân bổ" in tra_loi.lower() or
+        "đã cấp" in tra_loi.lower()
     )
     return {"tra_loi": tra_loi, "giao_dich_moi": co_giao_dich}
 

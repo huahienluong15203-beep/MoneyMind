@@ -197,6 +197,11 @@ def test_ai_xoa_hu_tiet_kiem_tu_nhien(client, db_session, user_a, auth_headers_a
     assert "xóa hũ tiết kiệm" in data["tra_loi"].lower()
     assert "400,000" in data["tra_loi"]
 
+    # Xác nhận xóa lượt 2 (Multi-turn Confirmation)
+    res_confirm = client.post("/api/ai/hoi-dap", json={"cau_hoi": "đồng ý"}, headers=auth_headers_a)
+    assert res_confirm.status_code == status.HTTP_200_OK
+    assert "xóa hũ tiết kiệm" in res_confirm.json()["tra_loi"].lower() and "thành công" in res_confirm.json()["tra_loi"].lower()
+
     deleted = db_session.query(MucTieuTietKiem).filter(MucTieuTietKiem.ma_mt == goal_id).first()
     assert deleted is None
 
@@ -257,8 +262,13 @@ def test_ai_xoa_giao_dich_tu_nhien(client, db_session, user_a, auth_headers_a, c
     res = client.post("/api/ai/hoi-dap", json=payload, headers=auth_headers_a)
     assert res.status_code == status.HTTP_200_OK
     data = res.json()
-    assert "xóa giao dịch thành công" in data["tra_loi"].lower()
+    assert "xác nhận xóa" in data["tra_loi"].lower()
     assert "25,000" in data["tra_loi"]
+
+    # Xác nhận xóa lượt 2 (Multi-turn Confirmation)
+    res_confirm = client.post("/api/ai/hoi-dap", json={"cau_hoi": "đồng ý"}, headers=auth_headers_a)
+    assert res_confirm.status_code == status.HTTP_200_OK
+    assert "xóa giao dịch thành công" in res_confirm.json()["tra_loi"].lower()
 
     deleted = db_session.query(GiaoDich).filter(GiaoDich.ma_gd == tx_id).first()
     assert deleted is None

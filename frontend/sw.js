@@ -1,4 +1,4 @@
-const CACHE_NAME = 'moneymind-cache-v8';
+const CACHE_NAME = 'moneymind-cache-v9';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

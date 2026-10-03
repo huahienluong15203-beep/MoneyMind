@@ -268,10 +268,6 @@
                         let isVuot = (limit > 0 && spent > limit) || (limit <= 0 && spent > 0) || (data.canh_bao && data.canh_bao.vuot_ngan_sach);
                         let isSapCham = limit > 0 && pct >= 90;
 
-                        // Kiểm tra hũ có thiếu hạn mức định mức không (hũ mới tháng này, chưa được cấp đủ)
-                        let targetCatFull = allCategories.find(c => c.id == category_id || c.ma_dm == category_id);
-                        let isHuThieu = targetCatFull && targetCatFull.chua_du_han_muc && targetCatFull.so_tien_thieu > 0;
-
                         const topupBtn = document.getElementById('budget-warning-topup-btn');
                         const closeBtn = document.getElementById('budget-warning-close-btn');
 
@@ -302,33 +298,6 @@
                                     closeBudgetWarningModal();
                                     if (typeof openEditCategoryModal === 'function') {
                                         openEditCategoryModal(editCatId, safeName, 'chi', limit > 0 ? limit : spent);
-                                    }
-                                };
-                            }
-                            if (closeBtn) closeBtn.innerText = "Đã hiểu";
-                            document.getElementById('budget-warning-modal').classList.remove('hidden');
-                            return;
-                        }
-
-                        // Cảnh báo hũ thiếu hạn mức (tháng mới chưa được cấp đủ định mức)
-                        if (isHuThieu && !isVuot && !isSapCham) {
-                            let catName = targetCat ? targetCat.name : "hũ này";
-                            let soThieu = targetCatFull.so_tien_thieu;
-                            let dinhmuc = targetCatFull.han_muc_dinh_muc || 0;
-                            await loadNotifications();
-                            document.getElementById('budget-warning-title').innerText = `⚠️ HŨ "${catName.toUpperCase()}" CHƯA ĐỦ HẠN MỨC`;
-                            document.getElementById('budget-warning-text').innerText = 
-                                `✅ Đã ghi nhận giao dịch chi tiêu thành công!\n\n⚠️ Cảnh báo: Hũ "${catName}" hiện đang thiếu ${soThieu.toLocaleString()} đ so với hạn mức định mức tháng trước (${dinhmuc.toLocaleString()} đ).\n\n💡 Bạn có thể tự thêm hạn mức cho hũ từ ví chính bằng cách bấm nút "+ Thêm hạn mức" bên dưới.`;
-                            document.getElementById('budget-warning-icon').innerText = "⚠️";
-                            if (topupBtn) {
-                                topupBtn.classList.remove('hidden');
-                                topupBtn.innerText = "+ Thêm hạn mức";
-                                const editCatId = targetCatFull.id || targetCatFull.ma_dm || category_id;
-                                const safeName = (catName || '').replace(/'/g, "\\'");
-                                topupBtn.onclick = function() {
-                                    closeBudgetWarningModal();
-                                    if (typeof openEditCategoryModal === 'function') {
-                                        openEditCategoryModal(editCatId, safeName, 'chi', dinhmuc);
                                     }
                                 };
                             }
