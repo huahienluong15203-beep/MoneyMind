@@ -194,6 +194,28 @@ class AIService:
         muc_chi_nhieu_nhat = danh_sach_chi_tiet[0] if danh_sach_chi_tiet else None
         muc_chi_it_nhat = danh_sach_chi_tiet[-1] if danh_sach_chi_tiet else None
 
+        # Giao dịch phát sinh trong ngày hôm nay
+        today_date = now.date()
+        txs_today = [
+            t for t in txs_this
+            if t.ngay_gd and t.ngay_gd.date() == today_date
+            and not AIService._is_excluded_chi(t) and not AIService._is_excluded_thu(t)
+        ]
+        chi_today = sum(t.so_tien for t in txs_today if t.loai_gd == "chi")
+        thu_today = sum(t.so_tien for t in txs_today if t.loai_gd == "thu")
+        giao_dich_hom_nay = []
+        for t in sorted(txs_today, key=lambda x: x.ngay_gd or datetime.min, reverse=True):
+            dm = cat_map.get(t.ma_dm)
+            cat_name = dm.ten_dm if dm else ("Thu nhập" if t.loai_gd == "thu" else "Khác")
+            giao_dich_hom_nay.append({
+                "ngay": t.ngay_gd.strftime("%d/%m/%Y"),
+                "gio": t.ngay_gd.strftime("%H:%M") if t.ngay_gd else "",
+                "loai": "Thu" if t.loai_gd == "thu" else "Chi",
+                "danh_muc": cat_name,
+                "so_tien": t.so_tien,
+                "ghi_chu": t.ghi_chu or ""
+            })
+
         # Giao dịch gần đây nhất trong tháng
         recent_txs = sorted(
             [t for t in txs_this if not AIService._is_excluded_chi(t) and not AIService._is_excluded_thu(t)],
@@ -207,6 +229,7 @@ class AIService:
             cat_name = dm.ten_dm if dm else ("Thu nhập" if t.loai_gd == "thu" else "Khác")
             giao_dich_gan_day.append({
                 "ngay": t.ngay_gd.strftime("%d/%m") if t.ngay_gd else "",
+                "ngay_full": t.ngay_gd.strftime("%d/%m/%Y") if t.ngay_gd else "",
                 "loai": "Thu" if t.loai_gd == "thu" else "Chi",
                 "danh_muc": cat_name,
                 "so_tien": t.so_tien,
@@ -270,6 +293,10 @@ class AIService:
             "muc_chi_it_nhat": muc_chi_it_nhat,
             "khoan_tiet_kiem": khoan_tiet_kiem,
             "chi_sinh_hoat": chi_sinh_hoat,
+            "ngay_hien_tai": now.strftime("%d/%m/%Y"),
+            "chi_hom_nay": chi_today,
+            "thu_hom_nay": thu_today,
+            "giao_dich_hom_nay": giao_dich_hom_nay,
             "giao_dich_gan_day": giao_dich_gan_day,
             "lich_su_cac_thang": lich_su_thang,
             "muc_tieu_tiet_kiem": mt_data
@@ -634,8 +661,29 @@ class AIService:
                     f"{'Mức chi này rất hợp lý và cân đối!' if item['phan_tram_so'] < 30 else 'Tỷ lệ chi khá cao, bạn nên theo dõi sát sao hơn.'}"
                 )
 
-        # 4. HỎI VỀ GIAO DỊCH GẦN ĐÂY / MỚI NHẤT / HÔM NAY
-        if any(kw in q for kw in ["gần đây", "mới nhất", "vừa chi", "vừa tiêu", "hôm nay", "giao dịch gần"]):
+        # 3.5. HỎI VỀ CHI TIÊU HÔM NAY (hôm nay, ngày hôm nay, hôm nay chi gì, hôm nay tiêu gì, bữa nay)
+        if any(kw in q for kw in ["hôm nay", "hnay", "bữa nay", "ngày nay"]):
+            hom_nay_fmt = ctx.get("ngay_hien_tai", datetime.now().strftime("%d/%m/%Y"))
+            txs_today = ctx.get("giao_dich_hom_nay", [])
+            chi_today = ctx.get("chi_hom_nay", 0.0)
+            chi_txs = [t for t in txs_today if t["loai"] == "Chi"]
+            if chi_txs:
+                lines = [f"• **{t['so_tien']:,.0f}đ** - *{t['ghi_chu'] or t['danh_muc']}* ({t['danh_muc']})" for t in chi_txs]
+                return (
+                    f"📅 **Hôm nay ({hom_nay_fmt})**, bạn đã ghi nhận **{len(chi_txs)} khoản chi tiêu** với tổng cộng **{chi_today:,.0f}đ**:\n\n"
+                    + "\n".join(lines)
+                    + "\n\n💡 Có phát sinh thêm khoản chi nào mới hôm nay mà bạn muốn ghi lại không nào?"
+                )
+            else:
+                gan_nhat_info = f"vào ngày {txs_recent[0]['ngay_full'] if txs_recent and 'ngay_full' in txs_recent[0] else (txs_recent[0]['ngay'] if txs_recent else '')}" if txs_recent else "chưa có"
+                return (
+                    f"📅 **Hôm nay ({hom_nay_fmt})**, bạn chưa có giao dịch chi tiêu nào được ghi nhận cả nhé!\n\n"
+                    f"Khoản chi gần đây nhất của bạn là {gan_nhat_info}. "
+                    f"Nếu hôm nay bạn có chi tiêu món gì, hãy nhắn cho mình (ví dụ: 'ăn trưa 35k', 'mua nước 15k') để mình lưu ngay nhé!"
+                )
+
+        # 4. HỎI VỀ GIAO DỊCH GẦN ĐÂY / MỚI NHẤT
+        if any(kw in q for kw in ["gần đây", "mới nhất", "vừa chi", "vừa tiêu", "giao dịch gần"]):
             if txs_recent:
                 lines = [f"• {t['ngay']}: {t['loai']} **{t['so_tien']:,.0f}đ** ({t['danh_muc']}) - *{t['ghi_chu'] or 'Không có ghi chú'}*" for t in txs_recent[:5]]
                 return "🕒 **Các giao dịch gần đây nhất của bạn**:\n" + "\n".join(lines)
@@ -3486,6 +3534,19 @@ class AIService:
         if not lich_su_str:
             lich_su_str = "  (Đây là tháng đầu tiên ghi chép trên MoneyMind)\n"
 
+        # Chuỗi giao dịch phát sinh trong hôm nay
+        hom_nay_date_str = ctx.get("ngay_hien_tai", datetime.now().strftime("%d/%m/%Y"))
+        giao_dich_hn = ctx.get("giao_dich_hom_nay", [])
+        chi_hn = ctx.get("chi_hom_nay", 0.0)
+        thu_hn = ctx.get("thu_hom_nay", 0.0)
+
+        hom_nay_str = ""
+        for t in giao_dich_hn:
+            time_part = f" lúc {t['gio']}" if t.get('gio') else ""
+            hom_nay_str += f"  - [{t['loai'].upper()}] {t['so_tien']:,.0f}đ ({t['danh_muc']}) - {t['ghi_chu']}{time_part}\n"
+        if not hom_nay_str:
+            hom_nay_str = "  (Hôm nay chưa phát sinh giao dịch nào)\n"
+
         # Chuỗi mục tiêu tiết kiệm
         mt_str = ""
         for mt in ctx.get("muc_tieu_tiet_kiem", []):
@@ -3520,7 +3581,16 @@ class AIService:
             "   - Mọi thao tác thêm/sửa/xóa giao dịch, phân bổ ngân sách, thiết lập hạn mức hoặc trích tiền đều do hệ thống backend tự động xử lý trực tiếp vào cơ sở dữ liệu.\n"
             "   - Bạn là Trí tuệ Nhân tạo tư vấn, TUYỆT ĐỐI KHÔNG tự nhận là 'mình đã ghi nhận', 'mình đã lưu giao dịch', 'mình đã thiết lập hạn mức', 'mình đã phân bổ ngân sách' nếu bạn chỉ đang đưa ra lời khuyên hoặc trò chuyện!\n"
             "   - Nếu người dùng kể về một khoản chi tiêu nhưng chưa có số tiền (ví dụ: 'trưa nay tôi đi ăn cơm', 'vừa đi đổ xăng'), hãy hỏi lại họ số tiền một cách ngắn gọn, tự nhiên để hệ thống tiến hành ghi nhận.\n\n"
-            f"DỮ LIỆU TÀI CHÍNH THỰC TẾ (Tháng {ctx['thang_hien_tai']}):\n"
+            "6. NHẬN BIẾT CHÍNH XÁC THỜI GIAN THỰC TẾ & CÂU HỎI VỀ 'HÔM NAY':\n"
+            f"   - HÔM NAY CHÍNH XÁC LÀ NGÀY: {hom_nay_date_str}.\n"
+            f"   - Khi người dùng hỏi 'hôm nay tôi đã chi tiêu gì / tiêu gì / có khoản chi nào / hôm nay thế nào', bạn BẮT BUỘC nhận thức rõ hôm nay chính là ngày {hom_nay_date_str}.\n"
+            f"   - TUYỆT ĐỐI KHÔNG được nhầm lẫn ngày {hom_nay_date_str} là ngày trong quá khứ hay hôm trước! Nếu hôm nay có khoản chi (ví dụ chi {chi_hn:,.0f}đ), TUYỆT ĐỐI KHÔNG ĐƯỢC NÓI 'Hôm nay bạn chưa có giao dịch chi tiêu nào'! Hãy trả lời trực diện: 'Hôm nay ({hom_nay_date_str}), bạn đã chi {chi_hn:,.0f}đ...' kèm chi tiết các món đã chi hôm nay!\n\n"
+            f"THỜI GIAN HỆ THỐNG HIỆN TẠI:\n"
+            f"• HÔM NAY LÀ: {hom_nay_date_str} (Tháng {ctx['thang_hien_tai']})\n"
+            f"• Tổng chi tiêu HÔM NAY ({hom_nay_date_str}): {chi_hn:,.0f}đ\n"
+            f"• Tổng thu nhập HÔM NAY ({hom_nay_date_str}): {thu_hn:,.0f}đ\n"
+            f"• Danh sách giao dịch phát sinh trong HÔM NAY ({hom_nay_date_str}):\n{hom_nay_str}"
+            f"DỮ LIỆU TÀI CHÍNH THÁNG NÀY (Tháng {ctx['thang_hien_tai']}):\n"
             f"• Thu nhập: {tong_thu:,.0f}đ\n"
             f"• Tổng chi tiêu: {tong_chi:,.0f}đ\n"
             f"• Tiền còn dư trong tháng: {so_du:,.0f}đ | Số dư ví chính khả dụng: {so_du_vi_chinh:,.0f}đ\n"
