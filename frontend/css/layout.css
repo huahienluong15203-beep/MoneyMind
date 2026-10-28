@@ -1,46 +1,99 @@
 /* ==========================================================================
-   MoneyMind - Layout chuẩn Smartphone (Tỷ lệ thực tế 161.3 x 75.3 mm)
+   MoneyMind - Layout Responsive Hoàn Hảo Cho Smartphone & Laptop
    ========================================================================== */
 
-/* Khung hiển thị mô phỏng điện thoại di động */
+/* 1. MẶC ĐỊNH CHO ĐIỆN THOẠI DI ĐỘNG THẬT (MOBILE FIRST) */
+html {
+    height: 100% !important;
+    height: -webkit-fill-available !important;
+    height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #0d9488 !important; /* Màu xanh teal của header để không bao giờ có vệt đen */
+    overflow: hidden !important;
+}
+
+body {
+    height: 100% !important;
+    height: -webkit-fill-available !important;
+    height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #0d9488 !important;
+    display: block !important; /* Không dùng flex items-center trên điện thoại để tránh bị co/đẩy khoảng đen */
+    overflow: hidden !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    overscroll-behavior-y: none !important;
+}
+
+/* Khung hiển thị ứng dụng trên Mobile: Tràn viền 100% màn hình, không viền đen */
 #mobile-frame {
-    width: 100%;
-    height: 100vh;
-    max-width: 100%;
-    border-radius: 0;
+    width: 100% !important;
+    height: 100% !important;
+    height: -webkit-fill-available !important;
+    height: 100dvh !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    position: absolute !important;
+    inset: 0 !important;
+    overflow: hidden !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background-color: #ffffff !important;
 }
 
-/* Khi chạy trên máy tính / Laptop (màn hình rộng >= 640px)
-   Khung được căn giữa và cố định chuẩn xác theo kích thước & tỷ lệ điện thoại 161.3 x 75.3 mm */
-@media (min-width: 640px) {
-    body {
-        background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%) !important;
-    }
-    
-    #mobile-frame {
-        height: min(860px, 94vh) !important;
-        max-height: 860px !important;
-        aspect-ratio: 75.3 / 161.3 !important; /* Chuẩn tỷ lệ điện thoại 161,3 x 75,3 mm */
-        width: auto !important;
-        max-width: 412px !important;
-        border-radius: 42px !important;
-        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 
-                    0 0 0 10px #1e293b, 
-                    0 0 0 12px #334155 !important;
-    }
+/* Header trên cùng: Chạm sát mép trên màn hình điện thoại */
+#header-container {
+    padding-top: max(1.25rem, env(safe-area-inset-top, 0px)) !important;
+    flex-shrink: 0 !important;
 }
 
-/* 1. Khung cuộn nội dung chính: tối ưu mobile, padding đáy sát mép thanh điều hướng */
+/* 2. THANH ĐIỀU HƯỚNG DƯỚI CÙNG (BOTTOM NAV) TRÊN ĐIỆN THOẠI:
+      Luôn cố định ở đáy, có đệm vạch điều hướng Android/iOS để không bao giờ bị cắt chữ */
+#bottom-nav {
+    flex-shrink: 0 !important;
+    position: relative !important;
+    z-index: 30 !important;
+    background-color: #ffffff !important;
+    border-top: 1px solid #e2e8f0 !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 12px)) !important;
+    min-height: calc(3.6rem + env(safe-area-inset-bottom, 12px)) !important;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.05) !important;
+}
+
+#bottom-nav button {
+    padding-bottom: 2px !important;
+}
+
+#bottom-nav.hidden {
+    display: none !important;
+}
+
+/* 3. CỤM NÚT NỔI (NÚT AI VÀ NÚT +): NỔI BÊN TRÊN BOTTOM NAV, KHÔNG BỊ ĐÈ */
+#floating-bottom-controls {
+    bottom: calc(4.85rem + env(safe-area-inset-bottom, 12px)) !important;
+    right: 0.85rem !important;
+    z-index: 35 !important;
+}
+
+/* 4. VÙNG CUỘN NỘI DUNG CHÍNH Ở GIỮA */
 .content-scroll-container {
     flex: 1 1 0% !important;
     display: flex !important;
     flex-direction: column !important;
     min-height: 0 !important;
     overflow-y: auto !important;
-    padding: 0.25rem 0.875rem 0.5rem 0.875rem !important; /* Đẩy nội dung bên dưới lên sát header hơn */
+    -webkit-overflow-scrolling: touch !important;
+    padding: 0.25rem 0.875rem 0.75rem 0.875rem !important;
 }
 
-/* 2. Container app chính: chiếm trọn chiều cao vùng cuộn */
 #app-container {
     flex: 1 1 0% !important;
     display: flex !important;
@@ -51,7 +104,7 @@
     display: none !important;
 }
 
-/* 3. Toàn bộ các Section chức năng tự động giãn trọn vẹn chiều cao */
+/* 5. CÁC SECTION CHỨC NĂNG TỰ GIÃN */
 #section-quan-ly,
 #section-thong-bao,
 #section-lich-su,
@@ -70,7 +123,6 @@
     display: none !important;
 }
 
-/* 4. Các tab con trong Quản lý: Ngân sách, Danh mục, Tiết kiệm tự giãn tràn toàn bộ chiều cao */
 #man-ngan-sach,
 #man-danh-muc,
 #man-tiet-kiem {
@@ -85,7 +137,6 @@
     display: none !important;
 }
 
-/* 5. Khung thẻ viền xám (.section-stretch-card) tràn xuống chạm sát đáy thanh điều hướng ở TẤT CẢ CÁC PHẦN */
 .section-stretch-card {
     flex: 1 1 0% !important;
     display: flex !important;
@@ -94,9 +145,6 @@
     margin-bottom: 0 !important;
 }
 
-/* 6. Danh sách dữ liệu (Hũ ngân sách, Giao dịch tra cứu, Tiết kiệm, Danh mục, Thông báo, Biểu đồ thống kê):
-      Tự động chiếm trọn vẹn không gian chiều cao còn lại của thẻ,
-      loại bỏ hoàn toàn giới hạn max-h nhỏ hẹp để hiển thị được nhiều mục nhất */
 #jars-progress-list,
 #categories-crud-list,
 #savings-goals-list,
@@ -107,17 +155,161 @@
     min-height: 140px !important;
     max-height: none !important;
     overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
 }
 
-/* 7. Giữ các thành phần cố định: thanh subtab, form nhập liệu, bộ lọc tra cứu, header */
 .subtabs-bar-fixed,
 .filter-card-fixed,
 .form-card-fixed {
     flex-shrink: 0 !important;
 }
 
-/* 8. Nút nổi Trợ lý AI và Thêm nhanh (+) */
-#floating-bottom-controls {
-    bottom: 4.25rem !important;
-    right: 0.75rem !important;
+/* ==========================================================================
+   6. KHI MỞ TRÊN MÁY TÍNH / LAPTOP (MÀN HÌNH RỘNG >= 640px)
+   Căn giữa màn hình chuẩn mô phỏng Smartphone cao cấp với viền bo tròn
+   ========================================================================== */
+@media (min-width: 640px) {
+    html {
+        background-color: #0b1120 !important;
+        overflow: auto !important;
+        height: 100% !important;
+    }
+    
+    body {
+        background: radial-gradient(circle at center, #1e293b 0%, #0b1120 100%) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 1.5rem !important;
+        position: static !important;
+        height: 100% !important;
+        min-height: 100vh !important;
+        overflow: auto !important;
+    }
+    
+    #mobile-frame {
+        position: relative !important;
+        height: min(860px, 94vh) !important;
+        max-height: 860px !important;
+        aspect-ratio: 75.3 / 161.3 !important;
+        width: auto !important;
+        max-width: 412px !important;
+        border-radius: 42px !important;
+        border: 10px solid #1e293b !important;
+        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 
+                    0 0 0 2px #334155 !important;
+    }
+
+    #header-container {
+        padding-top: 2.35rem !important;
+        padding-bottom: 0.75rem !important;
+    }
+
+    #bottom-nav {
+        padding-bottom: 0.625rem !important;
+        min-height: 3.5rem !important;
+    }
+
+    #floating-bottom-controls {
+        bottom: 4.5rem !important;
+    }
+}
+
+/* ==========================================================================
+   7. CHỐNG CHỚP MÀN HÌNH ĐĂNG NHẬP KHI RELOAD (ZERO-FLICKER AUTH)
+   ========================================================================== */
+html.is-authenticated #welcome-screen,
+html.is-authenticated #auth-container {
+    display: none !important;
+}
+
+/* KHI ĐÃ ĐĂNG NHẬP VÀ KHÔNG PHẢI ONBOARDING: CHỈ HIỂN THỊ KHI KHÔNG CÓ CLASS HIDDEN */
+html.is-authenticated:not(.is-onboarding) #header-container:not(.hidden) {
+    display: block !important;
+}
+
+html.is-authenticated:not(.is-onboarding) #app-container:not(.hidden) {
+    display: flex !important;
+}
+
+html.is-authenticated:not(.is-onboarding) #bottom-nav:not(.hidden) {
+    display: flex !important;
+}
+
+html.is-authenticated:not(.is-onboarding) #floating-top-controls:not(.hidden),
+html.is-authenticated:not(.is-onboarding) #floating-bottom-controls:not(.hidden) {
+    display: flex !important;
+}
+
+/* KHI ĐANG TRONG QUÁ TRÌNH ONBOARDING */
+html.is-authenticated.is-onboarding #app-container,
+html.is-authenticated.is-onboarding #header-container,
+html.is-authenticated.is-onboarding #bottom-nav,
+html.is-authenticated.is-onboarding #floating-top-controls,
+html.is-authenticated.is-onboarding #floating-bottom-controls {
+    display: none !important;
+}
+
+html.is-authenticated.is-onboarding #onboarding-screen {
+    display: flex !important;
+}
+
+/* ĐẢM BẢO CLASS HIDDEN LUÔN CÓ ĐỘ ƯU TIÊN CAO NHẤT (DISPLAY NONE) */
+.hidden,
+#header-container.hidden,
+#bottom-nav.hidden,
+#app-container.hidden,
+#floating-top-controls.hidden,
+#floating-bottom-controls.hidden,
+html.is-authenticated #bottom-nav.hidden,
+html.is-authenticated #app-container.hidden,
+html.is-authenticated #header-container.hidden,
+html.is-authenticated #floating-top-controls.hidden,
+html.is-authenticated #floating-bottom-controls.hidden {
+    display: none !important;
+}
+
+/* KHI CHƯA ĐĂNG NHẬP: TUYỆT ĐỐI KHÔNG HIỂN THỊ HEADER, BOTTOM NAV, APP HOẶC NÚT NỔI */
+html:not(.is-authenticated) #header-container,
+html:not(.is-authenticated) #bottom-nav,
+html:not(.is-authenticated) #app-container,
+html:not(.is-authenticated) #floating-top-controls,
+html:not(.is-authenticated) #floating-bottom-controls {
+    display: none !important;
+}
+
+/* ==========================================================================
+   8. KHÓA ẨN TUYỆT ĐỐI CÁC ĐIỀU KHIỂN APP KHI ĐANG Ở ONBOARDING / AUTH / WELCOME
+   ========================================================================== */
+#mobile-frame:has(#onboarding-screen:not(.hidden)) #floating-top-controls,
+#mobile-frame:has(#onboarding-screen:not(.hidden)) #floating-bottom-controls,
+#mobile-frame:has(#onboarding-screen:not(.hidden)) #bottom-nav,
+#mobile-frame:has(#onboarding-screen:not(.hidden)) #header-container,
+body:has(#onboarding-screen:not(.hidden)) #floating-top-controls,
+body:has(#onboarding-screen:not(.hidden)) #floating-bottom-controls,
+body:has(#onboarding-screen:not(.hidden)) #bottom-nav,
+body:has(#onboarding-screen:not(.hidden)) #header-container,
+.is-onboarding #floating-top-controls,
+.is-onboarding #floating-bottom-controls,
+.is-onboarding #bottom-nav,
+.is-onboarding #header-container,
+html.is-onboarding #floating-top-controls,
+html.is-onboarding #floating-bottom-controls,
+html.is-onboarding #bottom-nav,
+html.is-onboarding #header-container,
+#mobile-frame:has(#welcome-screen:not(.hidden)) #floating-top-controls,
+#mobile-frame:has(#welcome-screen:not(.hidden)) #floating-bottom-controls,
+#mobile-frame:has(#welcome-screen:not(.hidden)) #bottom-nav,
+#mobile-frame:has(#welcome-screen:not(.hidden)) #header-container,
+#mobile-frame:has(#auth-container:not(.hidden)) #floating-top-controls,
+#mobile-frame:has(#auth-container:not(.hidden)) #floating-bottom-controls,
+#mobile-frame:has(#auth-container:not(.hidden)) #bottom-nav,
+#mobile-frame:has(#auth-container:not(.hidden)) #header-container {
+    display: none !important;
+}
+
+#onboarding-screen {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
 }

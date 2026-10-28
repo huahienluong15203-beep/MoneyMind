@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class KetChuyenNganSachResponse(BaseModel):
     ma_kc: int
@@ -15,5 +15,5 @@ class KetChuyenNganSachResponse(BaseModel):
     ngay_tao: datetime
     ghi_chu: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+

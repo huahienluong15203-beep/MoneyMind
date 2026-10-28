@@ -316,11 +316,25 @@ var aiChatHistory = [];
                 }
             }
 
+            var currentAiSessionsData = [];
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
             function renderAiLogs(data, activeKeyword) {
                 const container = document.getElementById('ai-logs-container');
                 if (!container) return;
 
                 const sessions = data.cac_phien || [];
+                currentAiSessionsData = sessions;
+
                 if (sessions.length === 0) {
                     let msg = "Bạn chưa có nhật ký tương tác nào với AI.";
                     if (activeKeyword) msg = `Không tìm thấy nhật ký nào chứa từ khóa "${activeKeyword}".`;
@@ -330,7 +344,7 @@ var aiChatHistory = [];
                             <span class="text-3xl">📜</span>
                             <p class="text-xs font-semibold text-slate-600">${msg}</p>
                             <p class="text-[11px] text-slate-400">Hãy chuyển sang tab "Trò chuyện" để bắt đầu phiên mới nhé! 😊</p>
-                            <button onclick="startNewAiSession(false); switchAiTab('chat');" class="mt-2 px-3.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold rounded-xl transition border border-teal-200 flex items-center gap-1.5">
+                            <button onclick="startNewAiSession(false); switchAiTab('chat');" class="mt-2 px-3.5 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold rounded-xl transition border border-teal-200 flex items-center gap-1.5 cursor-pointer">
                                 💬 Bắt đầu trò chuyện ngay
                             </button>
                         </div>
@@ -338,124 +352,152 @@ var aiChatHistory = [];
                     return;
                 }
 
-                let html = '';
+                // Danh sách 10 nhật ký tương tác gần nhất
+                let html = `<div class="space-y-2">`;
+
                 sessions.forEach((s, sIdx) => {
-                    const isExpanded = sIdx < 2; // Mở sẵn 2 phiên gần nhất để người dùng tiện xem ngay
                     const safeSessionId = (s.ma_phien || '').replace(/'/g, "\\'");
+                    const firstLog = (s.nhat_ky && s.nhat_ky[0]) ? s.nhat_ky[0] : null;
+                    const mainIcon = firstLog ? (firstLog.icon || '💬') : '💬';
+                    const mainBadge = firstLog ? (firstLog.ten_hanh_dong || 'Trò chuyện') : 'Trò chuyện';
+                    const mainColor = firstLog ? (firstLog.mau || 'teal') : 'teal';
+
+                    const badgeColorMap = {
+                        emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                        amber: "bg-amber-50 text-amber-700 border-amber-200",
+                        rose: "bg-rose-50 text-rose-700 border-rose-200",
+                        sky: "bg-sky-50 text-sky-700 border-sky-200",
+                        teal: "bg-teal-50 text-teal-700 border-teal-200",
+                        indigo: "bg-indigo-50 text-indigo-700 border-indigo-200",
+                        purple: "bg-purple-50 text-purple-700 border-purple-200",
+                        cyan: "bg-cyan-50 text-cyan-700 border-cyan-200",
+                        slate: "bg-slate-100 text-slate-700 border-slate-200"
+                    };
+                    const badgeClass = badgeColorMap[mainColor] || badgeColorMap.teal;
+                    const safeTitle = escapeHtml(s.tieu_de_phien || 'Cuộc trò chuyện');
 
                     html += `
-                        <div class="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden transition mb-3">
-                            <!-- HEADER PHIÊN TRÒ CHUYỆN -->
-                            <div class="p-3 bg-gradient-to-r from-slate-50/90 to-white flex items-center justify-between border-b border-slate-100 cursor-pointer select-none hover:bg-slate-50 transition" onclick="toggleAiSession(${sIdx})">
-                                <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
-                                    <span class="w-7 h-7 rounded-xl bg-teal-50 border border-teal-200 text-teal-600 flex items-center justify-center text-xs shrink-0 font-bold">💬</span>
-                                    <div class="min-w-0 flex-1">
-                                        <div class="flex items-center gap-1.5 flex-wrap">
-                                            <span class="text-xs font-bold text-slate-800 truncate max-w-[220px]" title="${s.tieu_de_phien}">${s.tieu_de_phien}</span>
-                                            <span class="px-2 py-0.5 bg-teal-50 text-teal-700 font-bold rounded-full text-[10px] shrink-0 border border-teal-100">
-                                                ${s.so_luong} tương tác
-                                            </span>
-                                        </div>
-                                        <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-                                            <span>🕒 ${s.thoi_gian_hien_thi}</span>
-                                        </div>
-                                    </div>
+                        <div onclick="resumeAiSessionByIdx(${sIdx})"
+                             class="group p-2.5 bg-white hover:bg-teal-50/50 active:bg-teal-100/40 border border-slate-200/90 hover:border-teal-300 rounded-2xl shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer select-none flex items-center justify-between gap-2.5">
+                            <!-- Left: Icon -->
+                            <div class="w-8 h-8 rounded-xl bg-teal-50 group-hover:bg-teal-100 text-teal-600 border border-teal-200/80 flex items-center justify-center text-sm shrink-0 font-bold transition">
+                                ${mainIcon}
+                            </div>
+
+                            <!-- Middle: Title & Meta -->
+                            <div class="min-w-0 flex-1">
+                                <div class="text-xs font-bold text-slate-800 group-hover:text-teal-700 truncate leading-snug transition" title="${safeTitle}">
+                                    ${safeTitle}
                                 </div>
-                                <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
-                                    <button onclick="deleteAiSession('${safeSessionId}')" title="Xóa toàn bộ phiên này" class="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg text-xs transition">
-                                        🗑️
-                                    </button>
-                                    <button onclick="toggleAiSession(${sIdx})" title="Thu gọn / Mở rộng" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg text-xs transition font-bold" id="ai-session-chevron-${sIdx}">
-                                        ${isExpanded ? '▲' : '▼'}
-                                    </button>
+                                <div class="text-[10px] text-slate-400 mt-1 flex items-center gap-1.5 whitespace-nowrap overflow-hidden text-ellipsis">
+                                    <span>🕒 ${s.thoi_gian_hien_thi}</span>
+                                    <span class="text-slate-300">•</span>
+                                    <span class="px-1.5 py-0.2 rounded border text-[9px] font-bold ${badgeClass}">
+                                        ${mainBadge}
+                                    </span>
+                                    ${s.so_luong > 1 ? `<span class="text-teal-600 font-semibold text-[9px]">(${s.so_luong} tin)</span>` : ''}
                                 </div>
                             </div>
 
-                            <!-- NỘI DUNG CÁC TIN NHẮN TRONG PHIÊN -->
-                            <div id="ai-session-body-${sIdx}" class="p-3 space-y-2.5 bg-slate-50/30 ${isExpanded ? '' : 'hidden'}">
-                    `;
-
-                    (s.nhat_ky || []).forEach(log => {
-                        const formattedAnswer = formatAIResponse(log.tra_loi);
-                        const safeQuestion = (log.cau_hoi || '').replace(/"/g, '&quot;').replace(/'/g, "\\'");
-                        const badgeColorMap = {
-                            emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
-                            amber: "bg-amber-50 text-amber-700 border-amber-200",
-                            rose: "bg-rose-50 text-rose-700 border-rose-200",
-                            sky: "bg-sky-50 text-sky-700 border-sky-200",
-                            teal: "bg-teal-50 text-teal-700 border-teal-200",
-                            indigo: "bg-indigo-50 text-indigo-700 border-indigo-200",
-                            purple: "bg-purple-50 text-purple-700 border-purple-200",
-                            cyan: "bg-cyan-50 text-cyan-700 border-cyan-200",
-                            slate: "bg-slate-100 text-slate-700 border-slate-200"
-                        };
-                        const badgeClass = badgeColorMap[log.mau] || badgeColorMap.teal;
-
-                        html += `
-                            <div class="bg-white border border-slate-200/90 rounded-2xl p-2.5 shadow-2xs hover:border-teal-300 transition space-y-2">
-                                <!-- HEADER THẺ TƯƠNG TÁC -->
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-1.5">
-                                        <span class="px-2 py-0.5 rounded-lg border text-[10px] font-bold ${badgeClass} flex items-center gap-1">
-                                            <span>${log.icon}</span>
-                                            <span>${log.ten_hanh_dong}</span>
-                                        </span>
-                                        <span class="text-[10px] text-slate-400 font-medium">🕒 ${log.thoi_gian}</span>
-                                    </div>
-                                    <div class="flex items-center gap-1">
-                                        <button onclick="reuseAiQuestion('${safeQuestion}')" title="Hỏi lại câu này trong chat" class="p-1 text-teal-600 hover:bg-teal-50 rounded-lg text-xs transition">
-                                            💬
-                                        </button>
-                                        <button onclick="deleteAiLog(${log.ma_log})" title="Xóa bản ghi này" class="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg text-xs transition">
-                                            ✕
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- CÂU HỎI CỦA NGƯỜI DÙNG -->
-                                <div class="bg-slate-50 border border-slate-100 rounded-xl p-2 flex items-start gap-2">
-                                    <span class="text-xs shrink-0 mt-0.5">👤</span>
-                                    <div class="text-[11px] font-semibold text-slate-800 leading-snug break-words flex-1">
-                                        "${log.cau_hoi}"
-                                    </div>
-                                </div>
-
-                                <!-- PHẢN HỒI CỦA AI -->
-                                <div class="bg-teal-50/30 border border-teal-100/60 rounded-xl p-2.5 flex items-start gap-2">
-                                    <div class="w-4 h-4 rounded-full overflow-hidden shrink-0 mt-0.5 border border-teal-200">
-                                        <img src="./icons/piggy-bank.png" alt="AI" class="w-full h-full object-cover">
-                                    </div>
-                                    <div class="text-[11px] text-slate-700 leading-relaxed break-words flex-1">
-                                        ${formattedAnswer}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
-
-                    html += `
+                            <!-- Right: Actions (Sleek Trash & Indicator) -->
+                            <div class="flex items-center gap-1 shrink-0" onclick="event.stopPropagation()">
+                                <button onclick="deleteAiSession('${safeSessionId}')"
+                                        title="Xóa nhật ký này"
+                                        class="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl text-xs transition cursor-pointer">
+                                    🗑️
+                                </button>
+                                <span class="text-slate-300 group-hover:text-teal-500 group-hover:translate-x-0.5 transition-all text-xs font-bold pr-0.5">
+                                    ›
+                                </span>
                             </div>
                         </div>
                     `;
                 });
 
+                html += `</div>`;
                 container.innerHTML = html;
             }
 
-            function toggleAiSession(idx) {
-                const body = document.getElementById(`ai-session-body-${idx}`);
-                const chevron = document.getElementById(`ai-session-chevron-${idx}`);
-                if (body) {
-                    body.classList.toggle('hidden');
-                    if (chevron) {
-                        chevron.textContent = body.classList.contains('hidden') ? '▼' : '▲';
-                    }
+            function resumeAiSessionByIdx(sIdx) {
+                if (!currentAiSessionsData || !currentAiSessionsData[sIdx]) return;
+                const sessionData = currentAiSessionsData[sIdx];
+
+                currentAiSessionId = sessionData.ma_phien;
+                sessionStorage.setItem('current_ai_session_id', currentAiSessionId);
+
+                // Khôi phục bộ nhớ đệm cho AI để tiếp tục hội thoại có ngữ cảnh
+                aiChatHistory = [];
+
+                const box = document.getElementById('ai-chat-box');
+                if (box) {
+                    let chatHtml = `
+                        <div class="p-2 mb-2 bg-gradient-to-r from-teal-50 to-emerald-50/60 border border-teal-200/80 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="w-6 h-6 rounded-lg bg-teal-500 text-white flex items-center justify-center text-xs shrink-0 font-bold">💬</span>
+                                <div class="min-w-0">
+                                    <div class="text-[11px] font-bold text-teal-900 truncate">${escapeHtml(sessionData.tieu_de_phien || 'Cuộc trò chuyện')}</div>
+                                    <div class="text-[9px] text-teal-600">🕒 Đang tiếp tục phiên: ${sessionData.thoi_gian_hien_thi}</div>
+                                </div>
+                            </div>
+                            <button onclick="startNewAiSession(true)" title="Tạo cuộc trò chuyện mới hoàn toàn" class="px-2 py-1 bg-white hover:bg-teal-100 text-teal-700 border border-teal-200 text-[10px] font-bold rounded-lg transition shrink-0 cursor-pointer">
+                                + Mới
+                            </button>
+                        </div>
+                    `;
+
+                    (sessionData.nhat_ky || []).forEach(log => {
+                        aiChatHistory.push({ role: 'user', content: log.cau_hoi });
+                        aiChatHistory.push({ role: 'assistant', content: log.tra_loi });
+
+                        // Tin nhắn của người dùng
+                        chatHtml += `
+                            <div class="flex gap-2 justify-end">
+                                <div class="bg-teal-500 text-white p-2.5 rounded-2xl shadow-sm max-w-[85%] text-xs leading-relaxed">
+                                    ${escapeHtml(log.cau_hoi)}
+                                </div>
+                            </div>
+                        `;
+
+                        // Tin nhắn phản hồi của AI
+                        const formatted = formatAIResponse(log.tra_loi);
+                        chatHtml += `
+                            <div class="flex gap-2 items-end">
+                                <div class="w-7 h-7 rounded-full overflow-hidden shrink-0 shadow-xs border border-teal-100">
+                                    <img src="./icons/piggy-bank.png" alt="AI" class="w-full h-full object-cover">
+                                </div>
+                                <div class="bg-white p-2.5 rounded-2xl border text-slate-700 shadow-sm max-w-[85%] text-xs leading-relaxed" style="word-break: break-word;">
+                                    ${formatted}
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    box.innerHTML = chatHtml;
+                    box.scrollTop = box.scrollHeight;
                 }
+
+                // Chuyển sang tab Trò chuyện
+                switchAiTab('chat');
+
+                // Focus vào input chat
+                const input = document.getElementById('ai-input');
+                if (input) {
+                    input.placeholder = `Nhập để tiếp tục trò chuyện...`;
+                    input.focus();
+                }
+
+                if (typeof showCustomToast === 'function') {
+                    showCustomToast("Đã mở lại cuộc trò chuyện! Bạn có thể tiếp tục nhắn tin với AI.", "info");
+                }
+            }
+
+            function toggleAiSession(idx) {
+                resumeAiSessionByIdx(idx);
             }
 
             async function deleteAiSession(maPhien) {
                 if (!maPhien) return;
-                if (!confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử trong phiên trò chuyện này không?")) return;
+                if (!confirm("Bạn có chắc chắn muốn xóa bản ghi nhật ký này không?")) return;
                 try {
                     const authToken = typeof token !== 'undefined' ? token : (localStorage.getItem('token') || '');
                     const res = await fetch(`/api/ai/lich-su?ma_phien=${encodeURIComponent(maPhien)}`, {
@@ -463,8 +505,14 @@ var aiChatHistory = [];
                         headers: { 'Authorization': 'Bearer ' + authToken }
                     });
                     if (res.ok) {
+                        if (currentAiSessionId === maPhien) {
+                            startNewAiSession(false);
+                        }
                         loadAiLogs();
                         updateAiLogBadge();
+                        if (typeof showCustomToast === 'function') {
+                            showCustomToast("Đã xóa nhật ký trò chuyện thành công! 🗑️", "info");
+                        }
                     } else {
                         alert("Không thể xóa phiên trò chuyện.");
                     }
@@ -472,6 +520,7 @@ var aiChatHistory = [];
                     alert("Lỗi kết nối: " + e.message);
                 }
             }
+
 
             function reuseAiQuestion(q) {
                 switchAiTab('chat');

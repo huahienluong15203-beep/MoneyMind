@@ -26,16 +26,32 @@
                 }
 
                 const header = document.getElementById('header-container');
-                if (token && sec === 'quan-ly') {
-                    if (header) header.classList.remove('hidden');
-                    loadSummary();
-                    loadCategories();
-                    loadTransactions();
-                } else {
-                    if (header) header.classList.add('hidden');
-                }
+                  const ft = document.getElementById('floating-top-controls');
+                  const fb = document.getElementById('floating-bottom-controls');
 
-                if(sec === 'thong-ke') {
+                  if (token && sec === 'quan-ly') {
+                      if (header) header.classList.remove('hidden');
+                      if (ft) ft.classList.remove('hidden');
+                      if (fb) fb.classList.remove('hidden');
+                      loadSummary();
+                      loadCategories();
+                      loadTransactions();
+                  } else {
+                      // Ẩn Header thẻ xanh trên các trang Thông báo, Tài khoản, Tra cứu, Thống kê
+                      if (header) header.classList.add('hidden');
+                      if (sec === 'thong-bao') {
+                          if (ft) ft.classList.add('hidden');
+                          if (fb) fb.classList.add('hidden');
+                      } else if (sec === 'tai-khoan') {
+                          if (ft) ft.classList.remove('hidden');
+                          if (fb) fb.classList.add('hidden');
+                      } else {
+                          if (ft) ft.classList.remove('hidden');
+                          if (fb) fb.classList.remove('hidden');
+                      }
+                  }
+
+                  if(sec === 'thong-ke') {
                     Promise.all([loadCategories(), loadTransactions(), loadSavingsGoals()]).then(() => {
                         updateReportSummary();
                     });
@@ -187,27 +203,67 @@
                 if (typeof startSessionHeartbeat === 'function') startSessionHeartbeat();
             }
 
-            function checkNewMonthWelcome() {
+            async function checkNewMonthWelcome() {
+                if (!token) return;
                 const now = new Date();
                 const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                 const storageKey = `moneymind_new_month_welcomed_${currentYM}`;
-                const alreadyWelcomed = localStorage.getItem(storageKey);
-                if (!alreadyWelcomed) {
-                    const titleEl = document.getElementById('new-month-title');
-                    if (titleEl) {
-                        titleEl.innerText = `Chào Tháng ${now.getMonth() + 1}/${now.getFullYear()}! 🌟`;
+                
+                // 1. Kiểm tra nhanh ở localStorage trước
+                if (localStorage.getItem(storageKey)) {
+                    return;
+                }
+
+                // 2. Kiểm tra đồng bộ từ server theo tài khoản (cho cả điện thoại & laptop)
+                try {
+                    const res = await fetch('/api/user/welcome-status', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.already_welcomed) {
+                            localStorage.setItem(storageKey, "true");
+                            return;
+                        }
                     }
-                    const modal = document.getElementById('new-month-welcome-modal');
-                    if (modal) {
-                        modal.classList.remove('hidden');
+                } catch (e) {
+                    console.log("Kiểm tra trạng thái chào tháng mới:", e);
+                }
+
+                // 3. Nếu chưa từng xem trên bất kỳ thiết bị nào -> mới hiển thị modal
+                const titleEl = document.getElementById('new-month-title');
+                if (titleEl) {
+                    titleEl.innerText = `Chào Tháng ${now.getMonth() + 1}/${now.getFullYear()}! 🌟`;
+                }
+                const modal = document.getElementById('new-month-welcome-modal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                }
+            }
+
+            async function markMonthAsWelcomed() {
+                const now = new Date();
+                const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                const storageKey = `moneymind_new_month_welcomed_${currentYM}`;
+                localStorage.setItem(storageKey, "true");
+                
+                // Đồng bộ lên server để tất cả thiết bị khác (laptop, điện thoại) không bao giờ hiện lại nữa
+                if (token) {
+                    try {
+                        await fetch('/api/user/mark-welcome-month', {
+                            method: 'POST',
+                            headers: { 'Authorization': 'Bearer ' + token }
+                        });
+                    } catch (e) {
+                        console.error("Lỗi đồng bộ trạng thái chào tháng mới:", e);
                     }
-                    localStorage.setItem(storageKey, "true");
                 }
             }
 
             function closeNewMonthModal() {
                 const modal = document.getElementById('new-month-welcome-modal');
                 if (modal) modal.classList.add('hidden');
+                markMonthAsWelcomed();
             }
 
             function closeNewMonthModalAndGoToBudget() {
@@ -230,5 +286,262 @@
                 // Khởi tạo chặn nhập số âm, ký tự đặc biệt và chữ cho tất cả các ô nhập số tiền / hạn mức
                 setupNumberInputsValidation();
 
-                if (token) verifyTokenAndInit();
+                if (token) {
+                    initApp();
+                    verifyTokenAndInit();
+                }
             }
+
+// =============================================================================
+// HỖ TRỢ PHÍM ENTER: THAO TÁC TIỆN LỢI TỰ ĐỘNG NHƯ CLICK CHUỘT TRÊN MỌI FORM & MODAL
+// =============================================================================
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') return;
+
+    // Nếu đang focus trên chính nút button, để trình duyệt tự kích hoạt click tự nhiên, không can thiệp đúp
+    if (e.target && e.target.tagName === 'BUTTON') return;
+
+    // 1. Textarea: Nếu là ô nhập trợ lý AI, Enter để gửi tin nhắn (Shift+Enter để xuống dòng)
+    if (e.target && e.target.tagName === 'TEXTAREA') {
+        if (e.target.id === 'ai-input') {
+            if (e.shiftKey) return; // Cho phép xuống dòng
+            e.preventDefault();
+            const sendBtn = document.getElementById('ai-send-btn');
+            if (sendBtn) sendBtn.click();
+            else if (typeof sendAiMessage === 'function') sendAiMessage();
+            return;
+        }
+        return; // Các textarea khác (ghi chú dài) giữ nguyên Enter xuống dòng
+    }
+
+    // 2. ƯU TIÊN CAO NHẤT: CÁC MODAL THÔNG BÁO HOẶC XÁC NHẬN ĐANG MỞ
+    // a) Custom Modal thông báo chung (Z-INDEX 9999)
+    const customModal = document.getElementById('custom-modal');
+    if (customModal && !customModal.classList.contains('hidden')) {
+        e.preventDefault();
+        closeCustomModal();
+        return;
+    }
+
+    // b) Modal xác nhận đăng xuất
+    const logoutModal = document.getElementById('logout-confirm-modal');
+    if (logoutModal && !logoutModal.classList.contains('hidden')) {
+        e.preventDefault();
+        executeLogout();
+        return;
+    }
+
+    // c) Modal xác nhận xóa giao dịch
+    const delTxModal = document.getElementById('delete-tx-modal');
+    if (delTxModal && !delTxModal.classList.contains('hidden')) {
+        e.preventDefault();
+        if (typeof confirmDeleteTransactionAction === 'function') confirmDeleteTransactionAction();
+        return;
+    }
+
+    // d) Modal xác nhận xóa danh mục & hoàn tiền
+    const delCatModal = document.getElementById('confirm-delete-cat-modal');
+    if (delCatModal && !delCatModal.classList.contains('hidden')) {
+        e.preventDefault();
+        if (typeof executeDeleteCategory === 'function') executeDeleteCategory();
+        return;
+    }
+
+    // e) Modal xác nhận xóa mục tiêu tiết kiệm
+    const delSgModal = document.getElementById('delete-savings-modal');
+    if (delSgModal && !delSgModal.classList.contains('hidden')) {
+        e.preventDefault();
+        if (typeof confirmDeleteSavingsGoalAction === 'function') confirmDeleteSavingsGoalAction();
+        return;
+    }
+
+    // f) Modal cảnh báo đăng nhập thiết bị khác
+    const concurrentModal = document.getElementById('concurrent-logout-modal');
+    if (concurrentModal && !concurrentModal.classList.contains('hidden')) {
+        e.preventDefault();
+        if (typeof dismissConcurrentModalAndGoLogin === 'function') dismissConcurrentModalAndGoLogin();
+        return;
+    }
+
+    // g) Modal chi tiết thông báo
+    const notifDetailModal = document.getElementById('notification-detail-modal');
+    if (notifDetailModal && !notifDetailModal.classList.contains('hidden')) {
+        e.preventDefault();
+        if (typeof closeNotificationDetailModal === 'function') closeNotificationDetailModal();
+        return;
+    }
+
+    // h) Modal chào tháng mới
+    const newMonthModal = document.getElementById('new-month-welcome-modal');
+    if (newMonthModal && !newMonthModal.classList.contains('hidden')) {
+        e.preventDefault();
+        if (typeof closeNewMonthModal === 'function') closeNewMonthModal();
+        return;
+    }
+
+    // 3. NẾU ĐANG FOCUS VÀO INPUT CỤ THỂ
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+        const inputId = e.target.id;
+
+        // a) Đăng nhập & Đăng ký tài khoản:
+        if (inputId === 'auth-email') {
+            e.preventDefault();
+            const passInput = document.getElementById('auth-pass');
+            if (passInput && !passInput.value) {
+                passInput.focus();
+                return;
+            }
+            const submitBtn = document.getElementById('btn-auth-submit');
+            if (submitBtn) submitBtn.click();
+            else if (typeof submitAuth === 'function') submitAuth();
+            return;
+        }
+
+        if (inputId === 'auth-pass') {
+            e.preventDefault();
+            if (typeof currentAuthMode !== 'undefined' && currentAuthMode === 'register') {
+                const confirmPass = document.getElementById('auth-pass-confirm');
+                if (confirmPass && !confirmPass.value) {
+                    confirmPass.focus();
+                    return;
+                }
+            }
+            const submitBtn = document.getElementById('btn-auth-submit');
+            if (submitBtn) submitBtn.click();
+            else if (typeof submitAuth === 'function') submitAuth();
+            return;
+        }
+
+        if (inputId === 'auth-pass-confirm') {
+            e.preventDefault();
+            const submitBtn = document.getElementById('btn-auth-submit');
+            if (submitBtn) submitBtn.click();
+            else if (typeof submitAuth === 'function') submitAuth();
+            return;
+        }
+
+        // b) Onboarding 5 bước:
+        if (inputId === 'ob-name' || inputId === 'ob-dob') {
+            e.preventDefault();
+            if (typeof nextOnboardingStep === 'function') nextOnboardingStep();
+            return;
+        }
+        if (inputId === 'ob-wish') {
+            e.preventDefault();
+            if (typeof submitOnboarding === 'function') submitOnboarding();
+            return;
+        }
+
+        // c) OTP xác nhận đăng ký:
+        if (inputId === 'reg-otp-code') {
+            e.preventDefault();
+            if (typeof submitVerifyRegistrationOtp === 'function') submitVerifyRegistrationOtp();
+            return;
+        }
+
+        // d) Quên mật khẩu:
+        if (inputId === 'forgot-email') {
+            e.preventDefault();
+            if (typeof submitForgotPasswordRequest === 'function') submitForgotPasswordRequest();
+            return;
+        }
+        if (['forgot-otp-code', 'forgot-new-pass', 'forgot-confirm-pass'].includes(inputId)) {
+            e.preventDefault();
+            if (typeof submitResetPasswordConfirm === 'function') submitResetPasswordConfirm();
+            return;
+        }
+
+        // e) Đổi mật khẩu tài khoản cá nhân:
+        if (['acc-old-pass', 'acc-new-pass', 'acc-confirm-pass'].includes(inputId)) {
+            e.preventDefault();
+            if (typeof updateAccountPassword === 'function') updateAccountPassword();
+            return;
+        }
+
+        // f) Chỉnh sửa hồ sơ cá nhân:
+        if (['edit-pf-name', 'edit-pf-dob', 'edit-pf-occ'].includes(inputId)) {
+            e.preventDefault();
+            if (typeof submitEditProfile === 'function') submitEditProfile();
+            return;
+        }
+
+        // g) Thêm giao dịch thu / chi (Modal Thêm giao dịch):
+        if (['modal-tx-amount', 'modal-tx-date', 'modal-tx-note'].includes(inputId)) {
+            e.preventDefault();
+            if (typeof submitModalTransaction === 'function') submitModalTransaction();
+            return;
+        }
+
+        // h) Chỉnh sửa giao dịch:
+        if (['edit-tx-amount', 'edit-tx-date', 'edit-tx-note'].includes(inputId)) {
+            e.preventDefault();
+            if (typeof submitEditTransaction === 'function') submitEditTransaction();
+            return;
+        }
+
+        // i) Thêm ngân sách / hũ chi tiêu:
+        if (['modal-b-name', 'modal-b-limit'].includes(inputId)) {
+            e.preventDefault();
+            if (typeof submitBudgetModal === 'function') submitBudgetModal();
+            return;
+        }
+
+        // j) Chỉnh sửa danh mục & hạn mức:
+        if (['modal-edit-name', 'modal-edit-limit'].includes(inputId)) {
+            e.preventDefault();
+            if (typeof submitEditCategory === 'function') submitEditCategory();
+            return;
+        }
+
+        // k) Trích tiền vào quỹ tiết kiệm:
+        if (inputId === 'deposit-amount-input') {
+            e.preventDefault();
+            if (typeof submitSavingsDeposit === 'function') submitSavingsDeposit();
+            return;
+        }
+
+        // l) Chỉnh sửa mục tiêu tiết kiệm:
+        if (['edit-savings-title', 'edit-savings-target', 'edit-savings-deadline'].includes(inputId)) {
+            e.preventDefault();
+            if (typeof submitEditSavings === 'function') submitEditSavings();
+            return;
+        }
+
+        // m) Thêm mục tiêu tiết kiệm mới (tab Tiết kiệm):
+        if (['sg-title', 'sg-target', 'sg-deadline'].includes(inputId)) {
+            e.preventDefault();
+            if (typeof createSavingsGoal === 'function') createSavingsGoal();
+            return;
+        }
+
+        // n) Ô tìm kiếm & lọc giao dịch:
+        if (inputId === 'lookup-keyword') {
+            e.preventDefault();
+            if (typeof applyLookupFilter === 'function') applyLookupFilter();
+            return;
+        }
+
+        // o) Tổng quát: Nếu input nằm trong modal bất kỳ, kích hoạt nút hành động chính
+        const parentModal = e.target.closest('div[id$="-modal"], #add-budget-modal, #plus-action-modal');
+        if (parentModal && !parentModal.classList.contains('hidden')) {
+            const primaryBtn = parentModal.querySelector('button.bg-teal-600, button.bg-teal-500, button.bg-emerald-600, button.bg-rose-600, button.bg-rose-500, button[type="submit"]');
+            if (primaryBtn) {
+                e.preventDefault();
+                primaryBtn.click();
+                return;
+            }
+        }
+    }
+
+    // 4. NẾU CÓ MODAL NỘI DUNG ĐANG MỞ VÀ KHÔNG FOCUS VÀO INPUT CỤ THỂ
+    const openModals = Array.from(document.querySelectorAll('div[id$="-modal"]:not(.hidden)'));
+    if (openModals.length > 0) {
+        const topModal = openModals[openModals.length - 1];
+        const primaryBtn = topModal.querySelector('button.bg-teal-600, button.bg-teal-500, button.bg-emerald-600, button.bg-rose-600, button.bg-rose-500');
+        if (primaryBtn) {
+            e.preventDefault();
+            primaryBtn.click();
+            return;
+        }
+    }
+});

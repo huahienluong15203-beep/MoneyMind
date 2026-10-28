@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class NguoiDungUpdate(BaseModel):
     ho_ten: Optional[str] = None
@@ -19,5 +19,5 @@ class NguoiDungResponse(BaseModel):
     goals: Optional[str] = None
     ngay_tao: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+

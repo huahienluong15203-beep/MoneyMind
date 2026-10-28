@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class DanhMucCreate(BaseModel):
     ten_dm: str = Field(..., min_length=1, max_length=50, description="Tên danh mục")
@@ -38,8 +38,7 @@ class DanhMucResponse(BaseModel):
     so_tien_thieu: Optional[float] = 0.0
     chua_du_han_muc: Optional[bool] = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Legacy aliases
 class CategoryCreate(BaseModel):
@@ -53,5 +52,5 @@ class CategoryResponse(CategoryCreate):
     id: int
     user_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+

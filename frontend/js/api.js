@@ -7,12 +7,19 @@ function setStoredToken(t) {
     token = t;
     localStorage.setItem('moneymind_token', t);
     localStorage.setItem('access_token', t);
+    if (document.documentElement) {
+        document.documentElement.classList.add('is-authenticated');
+    }
 }
 
 function clearStoredToken() {
     token = '';
     localStorage.removeItem('moneymind_token');
     localStorage.removeItem('access_token');
+    if (document.documentElement) {
+        document.documentElement.classList.remove('is-authenticated');
+        document.documentElement.classList.remove('is-onboarding');
+    }
 }
 
 // Interceptor toàn cục kiểm tra 401 do đăng nhập trên thiết bị khác

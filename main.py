@@ -9,11 +9,11 @@ import json
 import asyncio
 from datetime import datetime
 from typing import List, Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 
 from app.main import app
 from app.core.database import get_db, SessionLocal
@@ -208,10 +208,17 @@ async def daily_7am_scheduler_worker():
         except Exception:
             await asyncio.sleep(5)
 
+from contextlib import asynccontextmanager
 
-@app.on_event("startup")
-async def start_daily_7am_scheduler():
-    asyncio.create_task(daily_7am_scheduler_worker())
+@asynccontextmanager
+async def main_lifespan(app_instance: FastAPI):
+    worker_task = asyncio.create_task(daily_7am_scheduler_worker())
+    try:
+        yield
+    finally:
+        worker_task.cancel()
+
+app.router.lifespan_context = main_lifespan
 
 
 # --- CÁC ENDPOINT TƯƠNG THÍCH NGƯỢC (LEGACY COMPATIBILITY) ---
@@ -325,9 +332,18 @@ def legacy_dang_ky(user: dict, db: Session = Depends(get_db)):
 
 @app.post("/dang-nhap", response_model=Token)
 def legacy_dang_nhap(user: UserCreate, db: Session = Depends(get_db)):
-    db_u = db.query(NguoiDung).filter(NguoiDung.email == user.username).first()
-    if not db_u or not verify_password(user.password, db_u.mat_khau_hash):
-        raise HTTPException(status_code=401, detail="Sai tài khoản hoặc mật khẩu")
+    clean_username = user.username.strip().lower() if user.username else ""
+    db_u = db.query(NguoiDung).filter(func.lower(NguoiDung.email) == clean_username).first()
+    if not db_u:
+        raise HTTPException(
+            status_code=404,
+            detail="Tài khoản chưa tồn tại! Vui lòng kiểm tra lại email hoặc Đăng ký tài khoản mới."
+        )
+    if not verify_password(user.password, db_u.mat_khau_hash):
+        raise HTTPException(
+            status_code=401,
+            detail="Mật khẩu không chính xác! Vui lòng thử lại hoặc chọn Quên mật khẩu."
+        )
     session_id = str(uuid.uuid4())
     db_u.session_id = session_id
     db.commit()
@@ -350,6 +366,23 @@ def cap_nhat_ho_so(data: dict, db: Session = Depends(get_db), current_user: Nguo
 @app.get("/check-session")
 def api_check_session(db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
     return {"status": "valid", "user": current_user.email, "session_id": current_user.session_id}
+
+
+@app.get("/api/user/welcome-status")
+def lay_trang_thai_chao_mung(current_user: NguoiDung = Depends(get_current_active_user)):
+    current_ym = datetime.now().strftime("%Y-%m")
+    already_welcomed = (current_user.thang_chao_mung == current_ym)
+    return {
+        "already_welcomed": already_welcomed,
+        "current_ym": current_ym
+    }
+
+@app.post("/api/user/mark-welcome-month")
+def danh_dau_da_xem_chao_mung(db: Session = Depends(get_db), current_user: NguoiDung = Depends(get_current_active_user)):
+    current_ym = datetime.now().strftime("%Y-%m")
+    current_user.thang_chao_mung = current_ym
+    db.commit()
+    return {"status": "ok", "welcomed_month": current_ym}
 
 @app.get("/tai-khoan")
 def lay_thong_tin_tai_khoan(current_user: NguoiDung = Depends(get_current_active_user)):

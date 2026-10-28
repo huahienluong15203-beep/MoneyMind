@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.core.database import get_db
 from app.core.security import (
     get_password_hash, verify_password,
@@ -214,11 +215,12 @@ def dang_nhap(payload: DangNhapRequest, db: Session = Depends(get_db)):
     Đăng nhập bằng email và mật khẩu.
     Nếu sai mật khẩu 5 lần liên tiếp trong 15 phút, tài khoản sẽ bị tạm khóa (A2, TC-02).
     """
-    user = db.query(NguoiDung).filter(NguoiDung.email == payload.email).first()
+    clean_email = payload.email.strip().lower() if payload.email else ""
+    user = db.query(NguoiDung).filter(func.lower(NguoiDung.email) == clean_email).first()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email hoặc mật khẩu không chính xác"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tài khoản chưa tồn tại! Vui lòng kiểm tra lại email hoặc Đăng ký tài khoản mới."
         )
 
     # Kiểm tra trạng thái khóa tài khoản

@@ -123,8 +123,16 @@ class TestBusinessRules:
                         json={"han_muc": 500000.0}, headers=auth_headers_a)
         assert ok.status_code == 200
 
-    def test_br02_hu_tiet_kiem_hoan_thanh_xep_duoi(self, client, auth_headers_a):
-        """BR-02: Hu tiet kiem hoan thanh phai co trang_thai khac chua hoan thanh"""
+    def test_br02_hu_tiet_kiem_hoan_thanh_xep_duoi(self, client, auth_headers_a, cat_thu_a):
+        """BR-02: Hu tiet kiem hoan thanh phai co trang_thai khac chua hoan thanh va duoc sap xuong cuoi"""
+        # Nạp thu nhập ban đầu vào ví chính để có số dư trích nộp vào hũ tiết kiệm
+        client.post("/api/giao-dich", json={
+            "so_tien": 2000000.0,
+            "loai_gd": "thu",
+            "ma_dm": cat_thu_a.ma_dm,
+            "ghi_chu": "Lương tháng để test nộp hũ BR-02"
+        }, headers=auth_headers_a)
+
         id_a = client.post("/api/muc-tieu", json={
             "ten_muc_tieu": "BR02-A", "so_tien_muc_tieu": 500000.0
         }, headers=auth_headers_a).json()["id"]
@@ -133,21 +141,15 @@ class TestBusinessRules:
         }, headers=auth_headers_a).json()["id"]
         nop_res = client.post(f"/api/muc-tieu/{id_a}/nop",
                               json={"amount": 500000.0}, headers=auth_headers_a)
-        # Neu endpoint nop ton tai -> kiem tra trang thai
-        if nop_res.status_code == 200:
-            goals = client.get("/api/muc-tieu", headers=auth_headers_a).json()
-            # Tim hu A trong danh sach
-            goal_a = next((g for g in goals if g["id"] == id_a), None)
-            goal_b = next((g for g in goals if g["id"] == id_b), None)
-            if goal_a and goal_b:
-                ids = [g["id"] for g in goals]
-                # Neu sort duoc -> kiem tra; neu chua implement -> skip
-                current_a_pct = goal_a.get("current_amount", 0) / goal_a.get("target_amount", 1)
-                current_b_pct = goal_b.get("current_amount", 0) / goal_b.get("target_amount", 1)
-                if current_a_pct >= 1.0:  # A da hoan thanh
-                    assert ids.index(id_b) < ids.index(id_a), "BR-02: Hu hoan thanh khong xuong cuoi"
-        else:
-            pytest.skip("Endpoint /api/muc-tieu/{id}/nop chua duoc implement")
+        assert nop_res.status_code == 200, f"BR-02: Nộp tiền vào hũ thất bại: {nop_res.text}"
+
+        goals = client.get("/api/muc-tieu", headers=auth_headers_a).json()
+        goal_a = next((g for g in goals if g["id"] == id_a), None)
+        goal_b = next((g for g in goals if g["id"] == id_b), None)
+        assert goal_a is not None and goal_b is not None
+        assert goal_a["trang_thai"] == "hoan_thanh"
+        ids = [g["id"] for g in goals]
+        assert ids.index(id_b) < ids.index(id_a), "BR-02: Hũ hoàn thành không được xếp xuống cuối"
 
     def test_br03_dang_ky_bat_buoc_otp(self, client, db_session):
         """BR-03: OTP sai -> 400. OTP dung -> 200 + access_token"""

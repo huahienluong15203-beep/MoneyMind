@@ -1,6 +1,6 @@
 from typing import Optional, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class GiaoDichCreate(BaseModel):
     amount: Optional[float] = None
@@ -45,8 +45,7 @@ class GiaoDichResponse(BaseModel):
     date: Optional[datetime] = None
     note: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CanhBaoNganSachInfo(BaseModel):
     co_canh_bao: bool = False
@@ -72,5 +71,5 @@ class TransactionResponse(TransactionCreate):
     user_id: int
     date: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+

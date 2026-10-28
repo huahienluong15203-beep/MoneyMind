@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class NganSachCreate(BaseModel):
     ma_dm: int = Field(..., description="Mã danh mục chi tiêu")
@@ -22,8 +22,7 @@ class NganSachResponse(BaseModel):
     so_du_chuyen_sang: Optional[float] = 0.0
     han_muc_cap_moi: Optional[float] = 0.0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CanhBaoNgayResponse(BaseModel):
     ma_ns: int

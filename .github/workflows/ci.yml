@@ -1,0 +1,38 @@
+name: MoneyMind CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  test:
+    name: Run Automated Test Suite (SDLC Factory)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Backend & Security Automated Tests
+      env:
+        DATABASE_URL: "sqlite:///:memory:"
+        SECRET_KEY: "CI_TEST_SECRET_KEY_MONEYMIND_2026"
+        REFRESH_SECRET_KEY: "CI_TEST_REFRESH_SECRET_KEY_MONEYMIND_2026"
+      run: |
+        pytest tests/ -v --ignore=tests/frontend

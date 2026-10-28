@@ -1,3 +1,34 @@
+
+// =============================================================================
+// TIỆN ÍCH BẬT / TẮT HIỂN THỊ MẬT KHẨU (CON MẮT XEM MẬT KHẨU)
+// =============================================================================
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPass = input.type === 'password';
+    input.type = isPass ? 'text' : 'password';
+
+    if (btn) {
+        const openIcon = btn.querySelector('.eye-open-icon');
+        const closedIcon = btn.querySelector('.eye-closed-icon');
+        if (openIcon && closedIcon) {
+            if (isPass) {
+                // Đang hiện text -> biểu tượng gạch chéo (ẩn đi)
+                openIcon.classList.add('hidden');
+                closedIcon.classList.remove('hidden');
+                btn.classList.add('text-teal-600');
+                btn.classList.remove('text-slate-400');
+            } else {
+                // Đang ẩn mật khẩu -> biểu tượng con mắt mở (xem)
+                openIcon.classList.remove('hidden');
+                closedIcon.classList.add('hidden');
+                btn.classList.remove('text-teal-600');
+                btn.classList.add('text-slate-400');
+            }
+        }
+    }
+}
+
 /**
  * MoneyMind - Authentication, Profile, and Security Module
  */
@@ -13,7 +44,7 @@ var currentAuthMode = 'register';
                 if(res.ok) {
                     const d = await res.json();
                     token = d.access_token;
-                    localStorage.setItem("moneymind_token", token);
+                    setStoredToken(token);
                     startSessionHeartbeat();
                     verifyTokenAndInit();
                 } else {
@@ -155,6 +186,7 @@ var currentAuthMode = 'register';
             function closeLogoutModal() { document.getElementById('logout-confirm-modal').classList.add('hidden'); }
             function executeLogout() {
                 clearClientSessionState();
+                if(document.documentElement) { document.documentElement.classList.remove('is-authenticated'); document.documentElement.classList.remove('is-onboarding'); }
                 closeLogoutModal();
                 document.getElementById('header-container').classList.add('hidden');
                 document.getElementById('floating-top-controls').classList.add('hidden');
@@ -170,6 +202,7 @@ var currentAuthMode = 'register';
 
             function logout() {
                 clearClientSessionState();
+                if(document.documentElement) { document.documentElement.classList.remove('is-authenticated'); document.documentElement.classList.remove('is-onboarding'); }
                 const header = document.getElementById('header-container');
                 if(header) header.classList.add('hidden');
                 const ft = document.getElementById('floating-top-controls');
@@ -208,6 +241,18 @@ var currentAuthMode = 'register';
                 const switchEl = document.getElementById('auth-switch-link');
                 const forgotBox = document.getElementById('auth-forgot-box');
                 const confirmBox = document.getElementById('confirm-pass-container');
+
+                // Đặt lại hiển thị mật khẩu về dạng chấm tròn khi đổi form
+                const pInput = document.getElementById('auth-pass');
+                if (pInput) pInput.type = 'password';
+                const cpInput = document.getElementById('auth-pass-confirm');
+                if (cpInput) cpInput.type = 'password';
+                document.querySelectorAll('#auth-container .eye-open-icon').forEach(el => el.classList.remove('hidden'));
+                document.querySelectorAll('#auth-container .eye-closed-icon').forEach(el => el.classList.add('hidden'));
+                document.querySelectorAll('#auth-container button[onclick^="togglePasswordVisibility"]').forEach(btn => {
+                    btn.classList.remove('text-teal-600');
+                    btn.classList.add('text-slate-400');
+                });
 
                 if(mode === 'login') {
                     titleEl.innerText = "Đăng nhập tài khoản";
@@ -261,7 +306,19 @@ var currentAuthMode = 'register';
                         verifyTokenAndInit();
                     } else {
                         let err = await res.json().catch(() => ({}));
-                        showCustomModal("Đăng nhập thất bại", err.detail || "Sai tài khoản hoặc mật khẩu!", "❌");
+                        const errMsg = err.detail || "Sai tài khoản hoặc mật khẩu!";
+                        if (res.status === 404 || errMsg.toLowerCase().includes("chưa tồn tại")) {
+                            showCustomModal(
+                                "Tài khoản chưa tồn tại", 
+                                errMsg, 
+                                "⚠️", 
+                                () => {
+                                    goToAuthMode('register');
+                                }
+                            );
+                        } else {
+                            showCustomModal("Đăng nhập thất bại", errMsg, "❌");
+                        }
                     }
                 } else {
                     const passConfirm = document.getElementById('auth-pass-confirm').value;
@@ -333,11 +390,14 @@ var currentAuthMode = 'register';
                     if(res.ok) {
                         clearClientSessionState();
                         token = data.access_token;
+                        if(document.documentElement) {
+                            document.documentElement.classList.add('is-authenticated');
+                            document.documentElement.classList.add('is-onboarding');
+                        }
                         setStoredToken(token);
                         closeRegisterOtpModal();
                         showCustomModal("Đăng ký thành công", "Tài khoản của bạn đã được kích hoạt thành công!", "🎉", () => {
-                            document.getElementById('auth-container').classList.add('hidden');
-                            document.getElementById('onboarding-screen').classList.remove('hidden');
+                            openOnboardingWizard();
                         });
                     } else {
                         showCustomModal("Xác thực thất bại", data.detail || "Mã OTP không chính xác hoặc đã hết hạn!", "❌");
@@ -583,17 +643,152 @@ var currentAuthMode = 'register';
 
 
 
-            function selectOccupation(val, btnEl) {
-                const input = document.getElementById('ob-occupation');
-                if (input) input.value = val;
-                const allBtns = document.querySelectorAll('.ob-occ-btn');
-                allBtns.forEach(b => {
-                    b.className = "ob-occ-btn p-2.5 rounded-xl border text-xs flex items-center gap-2 transition text-left cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-slate-50 font-medium";
-                });
-                if (btnEl) {
-                    btnEl.className = "ob-occ-btn p-2.5 rounded-xl border text-xs flex items-center gap-2 transition text-left cursor-pointer border-teal-500 bg-teal-50/90 text-teal-800 font-bold shadow-xs";
-                }
+
+// =============================================================================
+// QUẢN LÝ ONBOARDING 5 TRANG (TỪNG CÂU HỎI THEO THỨ TỰ)
+// =============================================================================
+var currentOnboardingStep = 1;
+
+function openOnboardingWizard() {
+    if (document.documentElement) {
+        document.documentElement.classList.add('is-authenticated');
+        document.documentElement.classList.add('is-onboarding');
+    }
+    const welcome = document.getElementById('welcome-screen');
+    if (welcome) welcome.classList.add('hidden');
+    const auth = document.getElementById('auth-container');
+    if (auth) auth.classList.add('hidden');
+    const app = document.getElementById('app-container');
+    if (app) app.classList.add('hidden');
+    const bnav = document.getElementById('bottom-nav');
+    if (bnav) bnav.classList.add('hidden');
+    const header = document.getElementById('header-container');
+    if (header) header.classList.add('hidden');
+    const ft = document.getElementById('floating-top-controls');
+    if (ft) ft.classList.add('hidden');
+    const fb = document.getElementById('floating-bottom-controls');
+    if (fb) fb.classList.add('hidden');
+
+    const ob = document.getElementById('onboarding-screen');
+    if (ob) ob.classList.remove('hidden');
+
+    goToOnboardingStep(1);
+}
+
+function goToOnboardingStep(step) {
+    if (step < 1) step = 1;
+    if (step > 5) step = 5;
+    currentOnboardingStep = step;
+
+    for (let i = 1; i <= 5; i++) {
+        const stepEl = document.getElementById('ob-step-' + i);
+        if (stepEl) {
+            if (i === step) {
+                stepEl.classList.remove('hidden');
+            } else {
+                stepEl.classList.add('hidden');
             }
+        }
+    }
+
+    // Cập nhật nhãn tiến trình & thanh % tiến độ
+    const badge = document.getElementById('ob-step-badge');
+    if (badge) badge.innerText = `Câu hỏi ${step} / 5`;
+
+    const progressBar = document.getElementById('ob-progress-bar');
+    if (progressBar) {
+        progressBar.style.width = (step * 20) + '%';
+    }
+
+    // Hiển thị/ẩn các nút điều hướng
+    const prevBtn = document.getElementById('ob-btn-prev');
+    const nextBtn = document.getElementById('ob-btn-next');
+    const submitBtn = document.getElementById('ob-btn-submit');
+
+    if (prevBtn) {
+        if (step > 1) {
+            prevBtn.classList.remove('hidden');
+        } else {
+            prevBtn.classList.add('hidden');
+        }
+    }
+
+    if (nextBtn) {
+        if (step < 5) {
+            nextBtn.classList.remove('hidden');
+        } else {
+            nextBtn.classList.add('hidden');
+        }
+    }
+
+    if (submitBtn) {
+        if (step === 5) {
+            submitBtn.classList.remove('hidden');
+        } else {
+            submitBtn.classList.add('hidden');
+        }
+    }
+
+    // Focus input nếu có
+    if (step === 1) {
+        setTimeout(() => {
+            const input = document.getElementById('ob-name');
+            if (input) input.focus();
+        }, 150);
+    } else if (step === 5) {
+        setTimeout(() => {
+            const input = document.getElementById('ob-wish');
+            if (input) input.focus();
+        }, 150);
+    }
+}
+
+function nextOnboardingStep() {
+    if (currentOnboardingStep === 1) {
+        const name = (document.getElementById('ob-name').value || '').trim();
+        if (!name) {
+            return showCustomModal("Thiếu thông tin", "Vui lòng nhập họ và tên của bạn để tiếp tục!", "⚠️");
+        }
+    }
+    goToOnboardingStep(currentOnboardingStep + 1);
+}
+
+function prevOnboardingStep() {
+    goToOnboardingStep(currentOnboardingStep - 1);
+}
+
+function selectOccupation(val, btnEl) {
+    const input = document.getElementById('ob-occupation');
+    if (input) input.value = val;
+    const allBtns = document.querySelectorAll('.ob-occ-btn');
+    allBtns.forEach(b => {
+        b.className = "ob-occ-btn p-3 rounded-2xl border text-xs flex items-center gap-2.5 transition text-left cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-slate-50 font-medium";
+    });
+    if (btnEl) {
+        btnEl.className = "ob-occ-btn p-3 rounded-2xl border text-xs flex items-center gap-2.5 transition text-left cursor-pointer border-teal-500 bg-teal-50/90 text-teal-800 font-bold shadow-xs ring-2 ring-teal-200/50";
+    }
+}
+
+function selectGoal(val, btnEl) {
+    const input = document.getElementById('ob-goal');
+    if (input) input.value = val;
+    const allBtns = document.querySelectorAll('.ob-goal-btn');
+    allBtns.forEach(b => {
+        b.className = "ob-goal-btn w-full p-3 rounded-2xl border text-xs flex items-center gap-2.5 transition text-left cursor-pointer border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:bg-slate-50 font-medium";
+    });
+    if (btnEl) {
+        btnEl.className = "ob-goal-btn w-full p-3 rounded-2xl border text-xs flex items-center gap-2.5 transition text-left cursor-pointer border-teal-500 bg-teal-50/90 text-teal-800 font-bold shadow-xs ring-2 ring-teal-200/50";
+    }
+}
+
+function fillWish(text) {
+    const input = document.getElementById('ob-wish');
+    if (input) {
+        input.value = text;
+        input.focus();
+    }
+}
+
 
             async function submitOnboarding() {
                 const name = document.getElementById('ob-name').value;
@@ -618,8 +813,12 @@ var currentAuthMode = 'register';
                 });
 
                 if(res.ok) {
-                    showCustomModal("Hoàn tất", "Hồ sơ của bạn đã được thiết lập thành công!", "🎉");
-                    initApp();
+                    if (document.documentElement) {
+                        document.documentElement.classList.remove('is-onboarding');
+                    }
+                    showCustomModal("Hoàn tất", "Hồ sơ của bạn đã được thiết lập thành công!", "🎉", () => {
+                        initApp();
+                    });
                 } else {
                     showCustomModal("Lỗi", "Không thể cập nhật hồ sơ cá nhân!", "❌");
                 }
@@ -655,11 +854,11 @@ var currentAuthMode = 'register';
                     if(profileRes.ok) {
                         const prof = await profileRes.json();
                         if(!prof.full_name) {
-                            document.getElementById('welcome-screen').classList.add('hidden');
-                            document.getElementById('auth-container').classList.add('hidden');
-                            document.getElementById('onboarding-screen').classList.remove('hidden');
+                            openOnboardingWizard();
                             startSessionHeartbeat();
                             return;
+                        } else {
+                            if (document.documentElement) document.documentElement.classList.remove('is-onboarding');
                         }
                     }
                     initApp();
@@ -722,6 +921,7 @@ var currentAuthMode = 'register';
 
                 stopSessionHeartbeat();
                 clearClientSessionState();
+                if(document.documentElement) { document.documentElement.classList.remove('is-authenticated'); document.documentElement.classList.remove('is-onboarding'); }
 
                 // Ẩn tất cả container ứng dụng
                 const header = document.getElementById('header-container');
