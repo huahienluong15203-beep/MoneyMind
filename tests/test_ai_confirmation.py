@@ -9,6 +9,8 @@ from app.services.ai_service import AIService
 
 @pytest.fixture
 def db_session():
+    from app.core.database import Base, engine
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     yield db
     db.close()
@@ -18,6 +20,18 @@ def test_user(db_session):
     user = db_session.query(NguoiDung).filter(NguoiDung.email == "test@example.com").first()
     if not user:
         user = db_session.query(NguoiDung).first()
+    if not user:
+        from app.core.security import get_password_hash
+        user = NguoiDung(
+            email="test@example.com",
+            ho_ten="Test User",
+            mat_khau_hash=get_password_hash("password123"),
+            trang_thai="hoat_dong",
+            ngay_tao=datetime.utcnow()
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
     return user
 
 def test_xac_nhan_xoa_giao_dich(db_session, test_user):
