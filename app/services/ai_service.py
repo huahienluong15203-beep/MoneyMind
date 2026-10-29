@@ -3445,31 +3445,110 @@ class AIService:
     @staticmethod
     def _kiem_tra_ngoai_pham_vi_tai_chinh(text: str) -> Optional[str]:
         """
-        Phát hiện và từ chối các câu hỏi lạc đề, nằm ngoài phạm vi quản lý tài chính cá nhân.
+        Phát hiện và cảnh báo ngay lập tức các yêu cầu ngoài phạm vi quản lý tài chính cá nhân:
+        - Bạo lực, khiêu khích, thách đấu, gây chiến (vd: 'đánh nhau không', 'đấm nhau', 'solo không')
+        - Tán tỉnh, chuyện tình cảm, trêu đùa yêu đương bot (vd: 'yêu nhau không', 'làm người yêu tao không')
+        - Rủ rê chơi game, giải trí, phiếm thoại ngoài lề (vd: 'chơi liên quân không', 'chơi pubg không')
+        - Học tập, kỹ thuật, lập trình, giải bài tập, thời tiết, giải trí...
+        Phản hồi tức thì (0s latency) mà không cần truy vấn DB hay gọi mô hình AI tốn thời gian.
         """
         t = text.lower().strip()
+        if not t:
+            return None
 
-        # Từ khóa lạc đề hoàn toàn
+        # 1. Các hành vi khiêu khích, gây gổ, bạo lực, thách đấu, đánh đấm (luôn cảnh báo tức thì)
+        VIOLENT_PROVOCATION_PATTERNS = [
+            r'(?:đánh|đấm|chém|bắn|đập)\s*(?:nhau|lộn|lộn\s*nhau|người)',
+            r'(?:đánh|đấm|chém|bắn|solo|thách\s*đấu)\s*(?:nhau)?\s*(?:không|ko|k|hông|hẻ|nào|đi|chăng|nhe|nhé|\?)',
+            r'(?:danh|dam|chem|ban|dap)\s*(?:nhau|lon)',
+            r'(?:danh|dam|chem|ban|solo)\s*(?:nhau)?\s*(?:khong|ko|k|hong|nao|di|\?)',
+            r'(?:gây\s*sự|gây\s*lộn|gây\s*gổ|khiêu\s*chiến|khiêu\s*khích|thách\s*đấu|hành\s*hung|bạo\s*lực|bạo\s*hành)',
+            r'(?:gay\s*su|gay\s*lon|gay\s*go|khieu\s*chien|khieu\s*khich|thach\s*dau|hanh\s*hung|bao\s*luc)',
+            r'(?:solo\s*(?:1v1|ko|không|k|yasuo|mid|lane)?)',
+            r'(?:đòi\s*nợ\s*thuê|đâm\s*thuê|chém\s*mướn|xã\s*hội\s*đen|giang\s*hồ|băng\s*đảng)',
+            r'(?:doi\s*no\s*thue|dam\s*thue|chem\s*muon|xa\s*hoi\s*den|giang\s*ho)',
+            r'(?:mày\s*ngon\s*thì|thách\s*mày|mày\s*sợ\s*tao\s*à|mày\s*biết\s*(?:bố|tao)\s*mày\s*là\s*ai)',
+        ]
+
+        for pat in VIOLENT_PROVOCATION_PATTERNS:
+            if re.search(pat, t, flags=re.IGNORECASE):
+                return (
+                    "⚠️ **Cảnh báo: Yêu cầu ngoài phạm vi hỗ trợ!**\n\n"
+                    "Xin lỗi bạn! 🙏 Tôi là **Trợ Lý Quản Lý Tài Chính Cá Nhân MoneyMind**.\n\n"
+                    "Tôi chỉ chuyên trách hỗ trợ bạn trong các vấn đề quản lý tài chính cá nhân:\n"
+                    "• **Ghi chép giao dịch Thu - Chi** siêu tốc (ví dụ: *'Ăn bánh mì 20k'*, *'Đổ xăng 50k'*).\n"
+                    "• **Kiểm soát hạn mức ngân sách** và phát hiện cảnh báo vượt ngưỡng an toàn.\n"
+                    "• **Theo dõi mục tiêu tiết kiệm** và tiến độ tích lũy.\n"
+                    "• **Tra cứu lịch sử và phân tích dòng tiền** hàng tháng.\n\n"
+                    "Hệ thống **tuyệt đối không hỗ trợ** các nội dung bạo lực, khiêu khích, gây gổ hoặc nằm ngoài nghiệp vụ tài chính cá nhân.\n\n"
+                    "Bạn có câu hỏi nào về số dư ví, các khoản chi gần đây hay muốn ghi nhận chi tiêu không? 💰"
+                )
+
+        # 2. Chuyện tình cảm, tán tỉnh, gạ gẫm bot ngoài lề (chỉ chặn khi không có số tiền đi kèm)
+        has_amount = AIService._parse_vietnamese_amount(t) > 0
+        if not has_amount:
+            ROMANCE_PATTERNS = [
+                r'(?:yêu|thích|cưới|hẹn\s*hò)\s*(?:nhau|tôi|tao|anh|em|mình|bot|ai)?\s*(?:không|ko|k|hông|chưa|hả|\?)',
+                r'(?:yeu|thich|cuoi|hen\s*ho)\s*(?:nhau|toi|tao|anh|em|minh|bot)?\s*(?:khong|ko|k|hong|chua|\?)',
+                r'(?:làm\s*(?:người\s*yêu|bạn\s*gái|bạn\s*trai|vợ|chồng))',
+                r'(?:lam\s*(?:nguoi\s*yeu|ban\s*gai|ban\s*trai|vo|chong))',
+                r'(?:có\s*(?:người\s*yêu|bồ|vợ|chồng)\s*chưa)',
+                r'(?:co\s*(?:nguoi\s*yeu|bo|vo|chong)\s*chua)',
+                r'(?:tỏ\s*tình|to\s*tinh|hôn\s*nhau|ôm\s*nhau)',
+            ]
+            for pat in ROMANCE_PATTERNS:
+                if re.search(pat, t, flags=re.IGNORECASE):
+                    return (
+                        "⚠️ **Cảnh báo: Yêu cầu ngoài phạm vi hỗ trợ!**\n\n"
+                        "Xin lỗi bạn! 🙏 Tôi là **Trợ Lý Quản Lý Tài Chính Cá Nhân MoneyMind**.\n\n"
+                        "Tôi chỉ chuyên trách hỗ trợ bạn trong các vấn đề quản lý tài chính cá nhân:\n"
+                        "• **Ghi chép giao dịch Thu - Chi** siêu tốc (ví dụ: *'Ăn bánh mì 20k'*, *'Đổ xăng 50k'*).\n"
+                        "• **Kiểm soát hạn mức ngân sách** và phát hiện cảnh báo vượt ngưỡng an toàn.\n"
+                        "• **Theo dõi mục tiêu tiết kiệm** và tiến độ tích lũy.\n"
+                        "• **Tra cứu lịch sử và phân tích dòng tiền** hàng tháng.\n\n"
+                        "Hệ thống không hỗ trợ các chủ đề chuyện tình cảm hay tâm sự ngoài lề. "
+                        "Bạn có câu hỏi nào về số dư ví, các khoản chi gần đây hay muốn ghi nhận chi tiêu không? 💰"
+                    )
+
+        # 3. Rủ rê chơi game, giải trí, phiếm thoại ngoài lề (khi không kèm số tiền)
+        if not has_amount:
+            GAMING_PATTERNS = [
+                r'(?:chơi|bắn|đánh)\s*(?:game|liên\s*quân|lol|free\s*fire|pubg|tốc\s*chiến|fifa|genshin|bài|bida|bi-a)\s*(?:không|ko|k|hông|đi|nào|\?)?',
+                r'(?:choi|ban|danh)\s*(?:game|lien\s*quan|lol|free\s*fire|pubg|toc\s*chien|fifa|genshin|bai|bida)\s*(?:khong|ko|k|hong|di|nao|\?)?',
+                r'(?:đi\s*(?:chơi|nhậu|uống\s*bia|uống\s*rượu|quẩy|bar|vũ\s*trường|bida|net))\s*(?:không|ko|k|hông|đi|nào|\?)',
+                r'(?:di\s*(?:choi|nhau|uong\s*bia|uong\s*ruou|quay|bar|bida|net))\s*(?:khong|ko|k|hong|di|nao|\?)',
+            ]
+            for pat in GAMING_PATTERNS:
+                if re.search(pat, t, flags=re.IGNORECASE):
+                    return (
+                        "⚠️ **Cảnh báo: Yêu cầu ngoài phạm vi hỗ trợ!**\n\n"
+                        "Xin lỗi bạn! 🙏 Tôi là **Trợ Lý Quản Lý Tài Chính Cá Nhân MoneyMind**.\n\n"
+                        "Tôi chỉ chuyên trách hỗ trợ bạn trong các vấn đề quản lý tài chính cá nhân:\n"
+                        "• **Ghi chép giao dịch Thu - Chi** siêu tốc (ví dụ: *'Ăn trưa 40k'*, *'Đổ xăng 50k'*).\n"
+                        "• **Kiểm soát hạn mức ngân sách** và phát hiện cảnh báo vượt ngưỡng an toàn.\n"
+                        "• **Theo dõi mục tiêu tiết kiệm** và tiến độ tích lũy.\n"
+                        "• **Tra cứu lịch sử và phân tích dòng tiền** hàng tháng.\n\n"
+                        "Hệ thống không hỗ trợ các chủ đề chơi game, giải trí hoặc rủ rê ngoài lề. "
+                        "Bạn có câu hỏi nào về số dư ví, các khoản chi gần đây hay muốn ghi nhận chi tiêu không? 💰"
+                    )
+
+        # 4. Từ khóa lạc đề hoàn toàn (Học tập, kỹ thuật, bói toán, thể thao, đầu tư...)
         out_of_scope_cues = [
-            # Đầu tư rủi ro cao / coin
-            "mua cổ phiếu", "mã chứng khoán", "đầu tư coin", "crypto", "bitcoin", "thị trường coin",
-            # Chính trị, tôn giáo, chiến tranh
+            "mua cổ phiếu", "mã chứng khoán", "đầu tư coin", "crypto", "bitcoin", "thị trường coin", "sàn binance", "forex", "tiền ảo",
             "chính trị", "bầu cử", "tổng thống", "thủ tướng", "chiến tranh", "tôn giáo", "đảng phái",
-            # Học tập, giải bài tập
-            "giải bài tập", "giải toán", "vật lý", "hóa học", "ngữ văn", "tiếng anh", "dịch hộ", "viết văn",
-            # Kỹ thuật, lập trình
-            "viết code", "lập trình", "python", "javascript", "html", "fix bug", "sửa lỗi code",
-            # Giải trí, phiếm thoại
-            "thời tiết", "dự báo thời tiết", "kể chuyện ma", "kể chuyện cười", "hát cho tôi nghe", "làm thơ",
-            "bói toán", "tử vi", "cung hoàng đạo", "phong thủy", "xem tướng",
-            "bóng đá", "thể thao", "kết quả trận đấu", "ngoại hạng anh", "world cup",
+            "giải bài tập", "giải toán", "vật lý", "hóa học", "ngữ văn", "tiếng anh", "dịch hộ", "viết văn", "dịch đoạn", "dịch sang tiếng",
+            "viết code", "lập trình", "python", "javascript", "html", "fix bug", "sửa lỗi code", "viết phần mềm",
+            "thời tiết", "dự báo thời tiết", "kể chuyện ma", "kể chuyện cười", "hát cho tôi nghe", "làm thơ", "đọc thơ", "hát đi",
+            "bói toán", "tử vi", "cung hoàng đạo", "phong thủy", "xem tướng", "xem bói",
+            "bóng đá", "thể thao", "kết quả trận đấu", "ngoại hạng anh", "world cup", "champions league", "c1",
             "nấu ăn", "công thức nấu", "cách làm bánh", "mẹo vặt"
         ]
 
         for cue in out_of_scope_cues:
             if cue in t:
                 return (
-                    "Xin lỗi bạn! 🙏 Tôi là Trợ Lý Quản Lý Tài Chính Cá Nhân MoneyMind.\n\n"
+                    "⚠️ **Cảnh báo: Yêu cầu ngoài phạm vi hỗ trợ!**\n\n"
+                    "Xin lỗi bạn! 🙏 Tôi là **Trợ Lý Quản Lý Tài Chính Cá Nhân MoneyMind**.\n\n"
                     "Tôi chỉ chuyên trách hỗ trợ bạn trong các vấn đề quản lý tài chính cá nhân:\n"
                     "• **Ghi chép giao dịch Thu - Chi** siêu tốc (ví dụ: *'Ăn trưa 40k'*, *'Đổ xăng 50k'*).\n"
                     "• **Kiểm soát hạn mức ngân sách** và phát hiện cảnh báo vượt ngưỡng an toàn.\n"
@@ -3477,7 +3556,9 @@ class AIService:
                     "• **Tra cứu lịch sử và phân tích dòng tiền** hàng tháng.\n\n"
                     "Tôi không hỗ trợ các chủ đề ngoài phạm vi tài chính cá nhân. Bạn có câu hỏi nào về số dư ví, các khoản chi gần đây hay muốn ghi nhận chi tiêu không? 💰"
                 )
+
         return None
+
 
     @staticmethod
     def _kiem_tra_chuoi_vo_nghia_hoac_loan_ky_tu(text: str) -> Optional[str]:
@@ -3738,7 +3819,7 @@ class AIService:
         # 2. TC-09: Kiểm tra và từ chối các chủ đề ngoài phạm vi quản lý tài chính cá nhân
         ngoai_pham_vi = AIService._kiem_tra_ngoai_pham_vi_tai_chinh(cau_hoi_clean)
         if ngoai_pham_vi:
-            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, ngoai_pham_vi, loai_hanh_dong="tu_van", ma_phien=ma_phien)
+            AIService.luu_nhat_ky_ai(db, ma_nd, cau_hoi_clean, ngoai_pham_vi, loai_hanh_dong="canh_bao", ma_phien=ma_phien)
             return ngoai_pham_vi
 
         # 2.5. Kiểm tra ký tự loạn, gõ bừa bàn phím, chuỗi vô nghĩa không nhận biết được
