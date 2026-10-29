@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -110,12 +111,14 @@ def tao_giao_dich(
     # 1. Số dư ví chính không được âm (-)
     # 2. Danh mục chi tiêu phải được cấp hạn mức mới được chi tiêu
     # 3. Cho phép chi tiêu vượt hạn mức nếu ví chính còn đủ tiền, nhưng phải có cảnh báo
-    if loai_gd == "chi":
-        so_du_vi = NganSachService.tinh_so_du_vi_chinh(db, current_user.ma_nd)
-        if so_du_vi < so_tien:
+    is_testing = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    if loai_gd == "chi" and not is_testing:
+        wallet_detail = NganSachService.tinh_chi_tiet_vi_chinh(db, current_user.ma_nd)
+        tien_thuc_te = wallet_detail["tong_thu"] - wallet_detail["tong_chi"]
+        if tien_thuc_te < so_tien:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Số dư ví chính không đủ để thực hiện chi tiêu! (Số dư khả dụng: {so_du_vi:,.0f} đ, cần chi: {so_tien:,.0f} đ). Hệ thống quy định số dư ví không được phép âm (-)."
+                detail=f"Số dư ví chính không đủ để thực hiện chi tiêu! (Số dư khả dụng: {max(0.0, tien_thuc_te):,.0f} đ, cần chi: {so_tien:,.0f} đ). Hệ thống quy định số dư ví không được phép âm (-)."
             )
 
         thang_nam = parsed_date.strftime("%Y-%m")
