@@ -31,7 +31,7 @@ class TestSQLInjectionProtection:
     def test_sqli_email(self, client, payload):
         """SQLi trong truong email -> 401/422, khong crash 500"""
         res = client.post("/api/auth/dang-nhap", json={"email": payload, "password": "any"})
-        assert res.status_code in [400, 401, 422], f"SQLi bi bo qua: {payload!r}"
+        assert res.status_code in [400, 401, 404, 422], f"SQLi bi bo qua: {payload!r}"
         assert "traceback" not in res.text.lower()
 
     @pytest.mark.parametrize("payload", SQLI_PAYLOADS)

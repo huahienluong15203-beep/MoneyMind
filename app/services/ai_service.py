@@ -1270,6 +1270,8 @@ class AIService:
         db.commit()
         db.refresh(new_goal)
 
+        dl_label = deadline_str if deadline_str else "Không giới hạn"
+
         return (
             f"Đã tạo hũ tiết kiệm mới thành công! 🎯\n\n"
             f"📋 **Thông tin mục tiêu:**\n"
@@ -3192,6 +3194,8 @@ class AIService:
         try:
             ai_advice = AIService._call_gemini_with_timeout(afford_prompt, timeout=10.0)
             if ai_advice and len(ai_advice.strip()) > 80:
+                if "không tự ý ghi nhận" not in ai_advice.lower() and "không tự ý lưu" not in ai_advice.lower():
+                    ai_advice += "\n\n🔒 _(MoneyMind không tự ý ghi nhận giao dịch này vào sổ chi tiêu)_"
                 return ai_advice
         except Exception:
             pass
