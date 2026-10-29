@@ -174,7 +174,7 @@
                 const name = document.getElementById('modal-edit-name').value.trim();
                 const type = document.getElementById('modal-edit-type').value;
                 const spent = parseFloat(document.getElementById('modal-edit-spent').value) || 0;
-                const limit = type === 'chi' ? (parseFloat(document.getElementById('modal-edit-limit').value) || 0) : 0;
+                const limit = type === 'chi' ? (parseFloat((document.getElementById('modal-edit-limit').value || '').replace(/\D/g, '')) || 0) : 0;
 
                 if(!name) return showCustomModal("Thiếu tên", "Vui lòng nhập tên danh mục!", "⚠️");
                 if(type === 'chi' && limit < 1000) return showCustomModal("Hạn mức không hợp lệ", "Hạn mức ngân sách tối thiểu là 1.000 đ!", "⚠️");

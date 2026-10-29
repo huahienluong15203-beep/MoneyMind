@@ -430,20 +430,7 @@ var aiChatHistory = [];
 
                 const box = document.getElementById('ai-chat-box');
                 if (box) {
-                    let chatHtml = `
-                        <div class="p-2 mb-2 bg-gradient-to-r from-teal-50 to-emerald-50/60 border border-teal-200/80 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
-                            <div class="flex items-center gap-2 min-w-0">
-                                <span class="w-6 h-6 rounded-lg bg-teal-500 text-white flex items-center justify-center text-xs shrink-0 font-bold">💬</span>
-                                <div class="min-w-0">
-                                    <div class="text-[11px] font-bold text-teal-900 truncate">${escapeHtml(sessionData.tieu_de_phien || 'Cuộc trò chuyện')}</div>
-                                    <div class="text-[9px] text-teal-600">🕒 Đang tiếp tục phiên: ${sessionData.thoi_gian_hien_thi}</div>
-                                </div>
-                            </div>
-                            <button onclick="startNewAiSession(true)" title="Tạo cuộc trò chuyện mới hoàn toàn" class="px-2 py-1 bg-white hover:bg-teal-100 text-teal-700 border border-teal-200 text-[10px] font-bold rounded-lg transition shrink-0 cursor-pointer">
-                                + Mới
-                            </button>
-                        </div>
-                    `;
+                    let chatHtml = '';
 
                     (sessionData.nhat_ky || []).forEach(log => {
                         aiChatHistory.push({ role: 'user', content: log.cau_hoi });

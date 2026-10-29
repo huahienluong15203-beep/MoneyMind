@@ -79,6 +79,8 @@ def tao_muc_tieu(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Thiếu tên mục tiêu tiết kiệm")
     if not target or float(target) < 1000:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số tiền mục tiêu phải lớn hơn 0 và tối thiểu là 1.000 đ")
+    if float(target) > 999_999_999_999.0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số tiền mục tiêu không được vượt quá 12 chữ số (tối đa 999.999.999.999 đ)!")
 
     valid_deadline = validate_savings_deadline(deadline)
 
@@ -135,6 +137,8 @@ def sua_muc_tieu(
         target_val = float(new_target)
         if target_val < 1000:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số tiền mục tiêu phải lớn hơn 0 và tối thiểu là 1.000 đ")
+        if target_val > 999_999_999_999.0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Số tiền mục tiêu không được vượt quá 12 chữ số (tối đa 999.999.999.999 đ)!")
         curr_amt = float(goal.so_tien_hien_tai or 0.0)
         if target_val < curr_amt:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Số tiền mục tiêu không được nhỏ hơn số tiền đang có trong hũ ({curr_amt:,.0f} đ)!")

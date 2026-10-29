@@ -2315,6 +2315,35 @@ class AIService:
             target_dm = AIService._xac_dinh_danh_muc(db, ma_nd, prev_note, loai_gd_prev)
 
             tx_time = datetime.now()
+            if loai_gd_prev == "chi":
+                so_du_vi = NganSachService.tinh_so_du_vi_chinh(db, ma_nd)
+                if so_du_vi < amount:
+                    return (
+                        f"⚠️ **Không thể ghi nhận giao dịch chi tiêu!**\n\n"
+                        f"• **Số dư ví chính hiện tại:** **{so_du_vi:,.0f}đ**\n"
+                        f"• **Số tiền bạn muốn chi:** **{amount:,.0f}đ**\n\n"
+                        f"🚫 **Lý do:** Hệ thống quy định **số dư ví chính không được phép âm (-)**. "
+                        f"Bạn vui lòng nạp thêm khoản thu nhập vào ví trước khi chi tiêu nhé!"
+                    )
+
+                thang_nam_tx = tx_time.strftime("%Y-%m")
+                from app.models.ngan_sach import NganSach
+                ns_chk = db.query(NganSach).filter(
+                    NganSach.ma_nd == ma_nd,
+                    NganSach.ma_dm == target_dm.ma_dm,
+                    NganSach.thang_nam == thang_nam_tx
+                ).first()
+                han_muc_chk = float(ns_chk.han_muc or 0.0) if ns_chk else 0.0
+                if han_muc_chk <= 0 and target_dm.han_muc and float(target_dm.han_muc) > 0:
+                    han_muc_chk = float(target_dm.han_muc)
+
+                if han_muc_chk <= 0:
+                    return (
+                        f"⚠️ **Không thể ghi nhận chi tiêu cho danh mục '{target_dm.ten_dm}'!**\n\n"
+                        f"🚫 **Lý do:** Danh mục **{target_dm.ten_dm}** chưa được cấp hạn mức ngân sách trong tháng {thang_nam_tx}.\n"
+                        f"👉 **Hướng dẫn:** Bạn vui lòng vào tab **'Ngân Sách Hũ'**, chọn hũ **{target_dm.ten_dm}** và bấm **'Thêm hạn mức'** trước khi thực hiện chi tiêu nhé!"
+                    )
+
             tx = GiaoDich(
                 ma_nd=ma_nd,
                 ma_dm=target_dm.ma_dm,
@@ -3111,6 +3140,36 @@ class AIService:
 
         tx_time = AIService._parse_vietnamese_datetime(t)
 
+
+        # Quy tắc nghiệp vụ chi tiêu trong AI:
+        if loai_gd == "chi":
+            so_du_vi = NganSachService.tinh_so_du_vi_chinh(db, ma_nd)
+            if so_du_vi < amount:
+                return (
+                    f"⚠️ **Không thể ghi nhận giao dịch chi tiêu!**\n\n"
+                    f"• **Số dư ví chính hiện tại:** **{so_du_vi:,.0f}đ**\n"
+                    f"• **Số tiền bạn muốn chi:** **{amount:,.0f}đ**\n\n"
+                    f"🚫 **Lý do:** Hệ thống quy định **số dư ví chính không được phép âm (-)**. "
+                    f"Bạn vui lòng nạp thêm khoản thu nhập vào ví trước khi chi tiêu nhé!"
+                )
+
+            thang_nam_tx = tx_time.strftime("%Y-%m")
+            from app.models.ngan_sach import NganSach
+            ns_chk = db.query(NganSach).filter(
+                NganSach.ma_nd == ma_nd,
+                NganSach.ma_dm == target_dm.ma_dm,
+                NganSach.thang_nam == thang_nam_tx
+            ).first()
+            han_muc_chk = float(ns_chk.han_muc or 0.0) if ns_chk else 0.0
+            if han_muc_chk <= 0 and target_dm.han_muc and float(target_dm.han_muc) > 0:
+                han_muc_chk = float(target_dm.han_muc)
+
+            if han_muc_chk <= 0:
+                return (
+                    f"⚠️ **Không thể ghi nhận chi tiêu cho danh mục '{target_dm.ten_dm}'!**\n\n"
+                    f"🚫 **Lý do:** Danh mục **{target_dm.ten_dm}** chưa được cấp hạn mức ngân sách trong tháng {thang_nam_tx}.\n"
+                    f"👉 **Hướng dẫn:** Bạn vui lòng vào tab **'Ngân Sách Hũ'**, chọn hũ **{target_dm.ten_dm}** và bấm **'Thêm hạn mức'** trước khi thực hiện chi tiêu nhé!"
+                )
 
         tx = GiaoDich(
             ma_nd=ma_nd,

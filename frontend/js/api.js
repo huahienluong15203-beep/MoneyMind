@@ -130,3 +130,25 @@ var customModalCallback = null;
                 return isNaN(time) ? 0 : time;
             }
 
+
+// Helper định dạng tiền tệ thời gian thực (thêm dấu chấm phân cách, tối đa 12 chữ số)
+function formatMoneyInput(el, maxDigits = 12) {
+    if (!el) return;
+    let raw = el.value.toString().replace(/\D/g, '').replace(/^0+/, '');
+    if (raw.length > maxDigits) {
+        raw = raw.slice(0, maxDigits);
+    }
+    const formatted = raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+    if (el.value !== formatted) {
+        el.value = formatted;
+    }
+}
+window.formatMoneyInput = formatMoneyInput;
+
+function getRawMoneyValue(elOrId) {
+    const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+    if (!el || !el.value) return 0;
+    const digits = el.value.toString().replace(/\D/g, '');
+    return digits ? parseFloat(digits) : 0;
+}
+window.getRawMoneyValue = getRawMoneyValue;

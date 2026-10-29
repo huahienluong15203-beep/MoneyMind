@@ -410,22 +410,7 @@ class NganSachService:
             DanhMuc.ten_dm != "Tiết kiệm"
         ).all()
 
-        # Tìm một danh mục thu để gắn vào giao dịch hoàn tiền
-        thu_category = db.query(DanhMuc).filter(
-            DanhMuc.ma_nd == ma_nd,
-            DanhMuc.loai_dm == "thu"
-        ).first()
-        if not thu_category:
-            thu_category = DanhMuc(
-                ma_nd=ma_nd,
-                ten_dm="Hoàn tiền ngân sách",
-                loai_dm="thu",
-                icon="wallet",
-                mau_sac="#10b981",
-                han_muc=0.0
-            )
-            db.add(thu_category)
-            db.flush()
+        # Số dư còn dư tháng trước tự động quay về ví chính
 
         rolled_over_items = []
 
@@ -507,7 +492,12 @@ class NganSachService:
         db.flush()
 
         # =========================================================================
-        # PHASE 2: Cấp ngân sách tháng mới chảy vào các hũ từ trên xuống (Waterfall)
+        # PHASE 2: Phân bổ ngân sách tháng mới theo hạn mức tháng trước
+        # Quy tắc:
+        # - Đổ lại toàn bộ số dư còn lại của tháng trước về ví chính.
+        # - Nếu ví chính KHÔNG ĐỦ chia cho tất cả danh mục theo hạn mức tháng trước
+        #   thì KHÔNG CHIA CHO MỤC NÀO HẾT (để 0 đ), người dùng sẽ tự phân bổ lại.
+        # - Nếu ví chính ĐỦ chia thì tự động cấp đúng hạn mức tháng trước cho các danh mục.
         # =========================================================================
         chi_categories_ordered = db.query(DanhMuc).filter(
             DanhMuc.ma_nd == ma_nd,
@@ -526,7 +516,39 @@ class NganSachService:
                 unallocated_cats.append(c)
 
         if unallocated_cats:
-            # Tính tiền khả dụng trong ví chính trước khi phân bổ vào các hũ tháng mới
+            # 1. Xác định định mức mong muốn (hạn mức tháng trước chi tiêu) cho từng hũ
+            cats_with_targets = []
+            total_target_limits = 0.0
+
+            for c in unallocated_cats:
+                kc_item = db.query(KetChuyenNganSach).filter(
+                    KetChuyenNganSach.ma_nd == ma_nd,
+                    KetChuyenNganSach.ma_dm == c.ma_dm,
+                    KetChuyenNganSach.thang_dich == target_ym
+                ).first()
+
+                target_limit = 0.0
+                if kc_item and kc_item.han_muc_thang_truoc and kc_item.han_muc_thang_truoc > 0:
+                    target_limit = float(kc_item.han_muc_thang_truoc)
+                else:
+                    ns_prev = db.query(NganSach).filter(
+                        NganSach.ma_nd == ma_nd,
+                        NganSach.ma_dm == c.ma_dm,
+                        NganSach.thang_nam == prev_ym
+                    ).first()
+                    if ns_prev and ns_prev.han_muc and ns_prev.han_muc > 0:
+                        target_limit = float(ns_prev.han_muc)
+                    elif c.han_muc and c.han_muc > 0:
+                        target_limit = float(c.han_muc)
+
+                cats_with_targets.append({
+                    "cat": c,
+                    "target_limit": target_limit
+                })
+                total_target_limits += target_limit
+
+            # 2. Tính tiền khả dụng trong ví chính trước khi phân bổ vào các hũ tháng mới
+            # (Số dư chưa dùng của tháng trước đã tự động nằm lại trong ví chính do hũ tháng mới chưa bị lock)
             txs = db.query(GiaoDich).filter(GiaoDich.ma_nd == ma_nd).all()
             def _is_refund_or_del(t):
                 if not t.ghi_chu:
@@ -551,33 +573,11 @@ class NganSachService:
 
             available_wallet = max(0.0, (t_thu - t_chi) - existing_allocated)
 
-            fully_funded = []
-            partially_funded = []
-            unfunded = []
-
-            for c in unallocated_cats:
-                # Định mức mong muốn từ tháng trước
-                kc_item = db.query(KetChuyenNganSach).filter(
-                    KetChuyenNganSach.ma_nd == ma_nd,
-                    KetChuyenNganSach.ma_dm == c.ma_dm,
-                    KetChuyenNganSach.thang_dich == target_ym
-                ).first()
-
-                target_limit = 0.0
-                if kc_item and kc_item.han_muc_thang_truoc and kc_item.han_muc_thang_truoc > 0:
-                    target_limit = float(kc_item.han_muc_thang_truoc)
-                else:
-                    ns_prev = db.query(NganSach).filter(
-                        NganSach.ma_nd == ma_nd,
-                        NganSach.ma_dm == c.ma_dm,
-                        NganSach.thang_nam == prev_ym
-                    ).first()
-                    if ns_prev and ns_prev.han_muc and ns_prev.han_muc > 0:
-                        target_limit = float(ns_prev.han_muc)
-                    elif c.han_muc and c.han_muc > 0:
-                        target_limit = float(c.han_muc)
-
-                if target_limit <= 0:
+            # 3. Áp dụng quy tắc kiểm tra ví chính:
+            # Nếu ví chính KHÔNG ĐỦ chia cho các danh mục đó -> KHÔNG chia cho mục nào hết (để 0 đ), người dùng tự phân bổ lại.
+            if total_target_limits > 0 and available_wallet < total_target_limits:
+                for item in cats_with_targets:
+                    c = item["cat"]
                     ns_new = NganSach(
                         ma_nd=ma_nd,
                         ma_dm=c.ma_dm,
@@ -588,95 +588,66 @@ class NganSachService:
                         so_tien_da_chi=0.0
                     )
                     db.add(ns_new)
-                    # KHÔNG ghi đè c.han_muc — chỉ cập nhật bảng NganSach
-                    continue
 
-                if available_wallet >= target_limit:
-                    allocated = target_limit
-                    available_wallet -= target_limit
-                    fully_funded.append({
-                        "name": c.ten_dm,
-                        "allocated": allocated,
-                        "target": target_limit
-                    })
-                elif available_wallet > 0:
-                    allocated = available_wallet
-                    shortage = target_limit - allocated
-                    available_wallet = 0.0
-                    partially_funded.append({
-                        "name": c.ten_dm,
-                        "allocated": allocated,
-                        "target": target_limit,
-                        "shortage": shortage
-                    })
-                else:
-                    allocated = 0.0
-                    shortage = target_limit
-                    unfunded.append({
-                        "name": c.ten_dm,
-                        "allocated": 0.0,
-                        "target": target_limit,
-                        "shortage": shortage
-                    })
-
-                ns_new = NganSach(
-                    ma_nd=ma_nd,
-                    ma_dm=c.ma_dm,
-                    thang_nam=target_ym,
-                    han_muc=allocated,
-                    han_muc_cap_moi=allocated,
-                    so_du_chuyen_sang=0.0,
-                    so_tien_da_chi=0.0
-                )
-                db.add(ns_new)
-                # KHÔNG ghi đè c.han_muc — giữ nguyên hạn mức gốc DanhMuc
-
-            # Thông báo tự động về tình trạng cấp tiền vào các hũ
-            if partially_funded or unfunded:
-                tieu_de_tb = f"⚠️ CẢNH BÁO: VÍ CHÍNH KHÔNG ĐỦ TIỀN CẤP ĐỦ HẠN MỨC THÁNG {target_dt.month:02d}/{target_dt.year}"
-                lines = [f"Hệ thống đã tự động cấp hạn mức Tháng {target_dt.month:02d}/{target_dt.year} từ ví chính vào các hũ theo thứ tự ưu tiên:\n"]
-                if fully_funded:
-                    lines.append("✅ Hũ đã cấp đủ hạn mức định mức:")
-                    for f in fully_funded:
-                        lines.append(f"• Hũ \"{f['name']}\": {f['allocated']:,.0f} đ (100%)")
-                    lines.append("")
-                if partially_funded:
-                    lines.append("⚠️ Hũ chưa đủ hạn mức (Ví chính hết tiền giữa chừng):")
-                    for p in partially_funded:
-                        lines.append(f"• Hũ \"{p['name']}\": chỉ cấp được {p['allocated']:,.0f} / {p['target']:,.0f} đ (còn thiếu {p['shortage']:,.0f} đ)")
-                    lines.append("")
-                if unfunded:
-                    lines.append("❌ Hũ chưa được cấp tiền (Ví chính còn 0 đ):")
-                    for u in unfunded:
-                        lines.append(f"• Hũ \"{u['name']}\": 0 / {u['target']:,.0f} đ (còn thiếu {u['shortage']:,.0f} đ)")
-                    lines.append("")
-
-                total_shortage = sum(p['shortage'] for p in partially_funded) + sum(u['shortage'] for u in unfunded)
-                lines.append(f"💡 Tổng số tiền còn thiếu để đạt định mức: {total_shortage:,.0f} đ.")
-                lines.append("Bạn có thể nạp thêm thu nhập vào ví chính để cấp thêm cho các hũ, hoặc tự do điều chỉnh lại hạn mức bất kỳ lúc nào!")
-
+                tieu_de_tb = f"⚠️ VÍ CHÍNH KHÔNG ĐỦ TIỀN CẤP HẠN MỨC THÁNG {target_dt.month:02d}/{target_dt.year}"
+                lines = [
+                    "Hệ thống đã tự động kết chuyển các khoản tiền dư từ tháng trước về lại ví chính.",
+                    f"• Tổng hạn mức cần cấp cho các danh mục theo tháng trước: {total_target_limits:,.0f} đ.",
+                    f"• Số dư khả dụng hiện có trong ví chính: {available_wallet:,.0f} đ (thiếu {total_target_limits - available_wallet:,.0f} đ).",
+                    "",
+                    "⚠️ Do ví chính không đủ chia cho các danh mục, hệ thống KHÔNG PHÂN BỔ cho mục nào hết.",
+                    "Tất cả danh mục chi tiêu tháng này đang có hạn mức 0 đ.",
+                    "💡 Vui lòng nạp thêm tiền vào ví chính hoặc tự phân bổ lại hạn mức cho từng danh mục!"
+                ]
                 noi_dung_tb = "\n".join(lines)
-                existing_shortage_tb = db.query(ThongBao).filter(
+                existing_tb = db.query(ThongBao).filter(
                     ThongBao.ma_nd == ma_nd,
                     ThongBao.tieu_de == tieu_de_tb
                 ).first()
-                if not existing_shortage_tb:
+                if not existing_tb:
                     db.add(ThongBao(ma_nd=ma_nd, tieu_de=tieu_de_tb, noi_dung=noi_dung_tb, da_xem=False, ngay_tao=datetime.now()))
 
-            elif fully_funded:
-                tieu_de_tb = f"✨ TỰ ĐỘNG CẤP HẠN MỨC THÁNG {target_dt.month:02d}/{target_dt.year}"
-                lines = [f"Hệ thống đã tự động cấp hạn mức Tháng {target_dt.month:02d}/{target_dt.year} từ ví chính cho {len(fully_funded)} hũ chi tiêu theo thứ tự ưu tiên:\n"]
-                for f in fully_funded:
-                    lines.append(f"• Hũ \"{f['name']}\": {f['allocated']:,.0f} đ")
-                lines.append(f"\n✅ Tất cả các hũ đã được cấp đủ 100% hạn mức theo định mức tháng trước!")
-                lines.append(f"Số dư khả dụng còn lại trong ví chính: {available_wallet:,.0f} đ.")
-                noi_dung_tb = "\n".join(lines)
-                existing_full_tb = db.query(ThongBao).filter(
-                    ThongBao.ma_nd == ma_nd,
-                    ThongBao.tieu_de == tieu_de_tb
-                ).first()
-                if not existing_full_tb:
-                    db.add(ThongBao(ma_nd=ma_nd, tieu_de=tieu_de_tb, noi_dung=noi_dung_tb, da_xem=False, ngay_tao=datetime.now()))
+            else:
+                # Đủ tiền chia (hoặc không có hũ nào có hạn mức) -> Cấp đầy đủ theo đúng hạn mức tháng trước
+                funded_cats = []
+                for item in cats_with_targets:
+                    c = item["cat"]
+                    t_limit = item["target_limit"]
+                    ns_new = NganSach(
+                        ma_nd=ma_nd,
+                        ma_dm=c.ma_dm,
+                        thang_nam=target_ym,
+                        han_muc=t_limit,
+                        han_muc_cap_moi=t_limit,
+                        so_du_chuyen_sang=0.0,
+                        so_tien_da_chi=0.0
+                    )
+                    db.add(ns_new)
+                    if t_limit > 0:
+                        funded_cats.append({"name": c.ten_dm, "limit": t_limit})
+
+                if funded_cats:
+                    tieu_de_tb = f"✨ TỰ ĐỘNG CẤP HẠN MỨC THÁNG {target_dt.month:02d}/{target_dt.year}"
+                    remaining_wallet = available_wallet - total_target_limits
+                    lines = [
+                        f"Hệ thống đã tự động đổ số dư còn lại của tháng trước về ví chính và phân bổ hạn mức Tháng {target_dt.month:02d}/{target_dt.year} cho {len(funded_cats)} danh mục theo đúng hạn mức tháng trước:",
+                        ""
+                    ]
+                    for fc in funded_cats:
+                        cat_nm = fc['name']
+                        cat_lm = fc['limit']
+                        lines.append(f"• Hũ \"{cat_nm}\": {cat_lm:,.0f} đ")
+                    lines.append("")
+                    lines.append(f"✅ Tổng hạn mức đã cấp: {total_target_limits:,.0f} đ.")
+                    lines.append(f"Số dư khả dụng còn lại trong ví chính: {remaining_wallet:,.0f} đ.")
+                    noi_dung_tb = "\n".join(lines)
+                    existing_full_tb = db.query(ThongBao).filter(
+                        ThongBao.ma_nd == ma_nd,
+                        ThongBao.tieu_de == tieu_de_tb
+                    ).first()
+                    if not existing_full_tb:
+                        db.add(ThongBao(ma_nd=ma_nd, tieu_de=tieu_de_tb, noi_dung=noi_dung_tb, da_xem=False, ngay_tao=datetime.now()))
+
 
         db.commit()
         return rolled_over_items

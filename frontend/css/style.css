@@ -12,12 +12,34 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-/* Tùy biến Flatpickr Datepicker */
+/* Tùy biến Flatpickr Datepicker - Không bao giờ tràn khung giao diện */
 .flatpickr-calendar {
     font-family: 'Plus Jakarta Sans', sans-serif !important;
     border-radius: 16px !important;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
     border: 1px solid #e2e8f0 !important;
+    max-width: calc(100vw - 32px) !important;
+    width: 295px !important;
+    margin-left: auto !important;
+    right: 0 !important;
+}
+
+.flatpickr-wrapper {
+    display: block !important;
+    width: 100% !important;
+    position: relative !important;
+}
+
+.flatpickr-days, .dayContainer {
+    width: 295px !important;
+    min-width: 295px !important;
+    max-width: 295px !important;
+}
+
+.flatpickr-day {
+    max-width: 38px !important;
+    height: 38px !important;
+    line-height: 38px !important;
 }
 
 /* Tùy biến thanh cuộn mảnh & mượt */

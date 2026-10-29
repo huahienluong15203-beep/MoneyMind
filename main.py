@@ -775,6 +775,34 @@ def tao_giao_dich_legacy(payload: dict, db: Session = Depends(get_db), current_u
     if parsed_date and parsed_date.tzinfo is not None:
         parsed_date = parsed_date.replace(tzinfo=None)
 
+    # Quy tắc nghiệp vụ chi tiêu:
+    # 1. Số dư ví chính không được âm (-)
+    # 2. Danh mục chi tiêu phải được cấp hạn mức mới được chi tiêu
+    # 3. Cho phép chi tiêu vượt hạn mức nếu ví chính còn đủ tiền, nhưng phải có cảnh báo
+    if ttype == 'chi':
+        so_du_vi = NganSachService.tinh_so_du_vi_chinh(db, current_user.ma_nd)
+        if so_du_vi < amount:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Số dư ví chính không đủ để chi tiêu! (Số dư khả dụng: {so_du_vi:,.0f} đ, cần chi: {amount:,.0f} đ). Hệ thống quy định số dư ví không được phép âm (-)."
+            )
+
+        thang_nam = parsed_date.strftime("%Y-%m")
+        ns_record = db.query(NganSach).filter(
+            NganSach.ma_nd == current_user.ma_nd,
+            NganSach.ma_dm == cat_id,
+            NganSach.thang_nam == thang_nam
+        ).first()
+        han_muc_hien_tai = float(ns_record.han_muc or 0.0) if ns_record else 0.0
+        if han_muc_hien_tai <= 0 and cat.han_muc and float(cat.han_muc) > 0:
+            han_muc_hien_tai = float(cat.han_muc)
+
+        if han_muc_hien_tai <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Danh mục '{cat.ten_dm}' chưa được cấp hạn mức trong tháng {thang_nam}. Vui lòng cấp hạn mức cho danh mục này trước khi chi tiêu!"
+            )
+
     tx = GiaoDich(
         so_tien=amount,
         loai_gd=ttype,
@@ -944,6 +972,8 @@ def tao_tiet_kiem_legacy(goal: dict, db: Session = Depends(get_db), current_user
         raise HTTPException(status_code=400, detail="Vui lòng nhập tên mục tiêu tiết kiệm")
     if target <= 0:
         raise HTTPException(status_code=400, detail="Số tiền mục tiêu phải lớn hơn 0")
+    if target > 999_999_999_999.0:
+        raise HTTPException(status_code=400, detail="Số tiền mục tiêu không được vượt quá 12 chữ số (tối đa 999.999.999.999 đ)!")
 
     valid_deadline = validate_savings_deadline(deadline)
 

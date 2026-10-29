@@ -6,18 +6,15 @@
                 const bAll = document.getElementById('lookup-btn-all');
                 const bThu = document.getElementById('lookup-btn-thu');
                 const bChi = document.getElementById('lookup-btn-chi');
-                const bRefund = document.getElementById('lookup-btn-refund');
 
                 const baseClass = "flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition";
                 if (bAll) bAll.className = baseClass;
                 if (bThu) bThu.className = baseClass;
                 if (bChi) bChi.className = baseClass;
-                if (bRefund) bRefund.className = baseClass + " whitespace-nowrap";
 
                 if (type === 'all' && bAll) bAll.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-teal-600 shadow-sm transition";
                 else if (type === 'thu' && bThu) bThu.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-emerald-600 shadow-sm transition";
                 else if (type === 'chi' && bChi) bChi.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-rose-600 shadow-sm transition";
-                else if (type === 'refund' && bRefund) bRefund.className = "flex-1 py-1.5 text-[11px] font-bold rounded-lg bg-white text-emerald-700 shadow-sm transition whitespace-nowrap";
 
                 applyLookupFilter();
             }
@@ -91,7 +88,6 @@
                 if (kwEl) kwEl.value = '';
                 updateMonthPresetButtons();
                 toggleLookupAdvancedFilters(false);
-                if (typeof loadRefundHistory === 'function') loadRefundHistory();
                 applyLookupFilter();
             }
 
@@ -461,7 +457,7 @@
                                 <div class="flex items-center gap-1.5 min-w-0 flex-1">
                                     <span class="font-bold text-slate-800 text-[13px] truncate">${cName}</span>
                                     ${isDeletedGoal ? '<span class="shrink-0 text-[9px] bg-rose-100 text-rose-600 px-1.5 py-0.2 rounded font-bold whitespace-nowrap">Đã xoá</span>' : ''}
-                                    ${isRefund ? '<span class="shrink-0 text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold whitespace-nowrap">💰 Hoàn về ví</span>' : ''}
+                                    
                                 </div>
                                 <div class="flex items-center gap-1.5 shrink-0">
                                     <div class="font-extrabold text-sm whitespace-nowrap text-right ${isDeletedGoal ? 'text-slate-400 line-through' : (isChi ? 'text-rose-600' : 'text-emerald-600')}">
@@ -663,7 +659,7 @@
             async function submitEditTransaction() {
                 const txId = document.getElementById('edit-tx-id').value;
                 const type = document.getElementById('edit-tx-type').value;
-                const amount = parseFloat(document.getElementById('edit-tx-amount').value);
+                const amount = parseFloat((document.getElementById('edit-tx-amount').value || '').replace(/\D/g, ''));
                 const category_id = parseInt(document.getElementById('edit-tx-category').value);
                 const note = document.getElementById('edit-tx-note').value.trim();
                 const txDate = document.getElementById('edit-tx-date').value;
@@ -811,67 +807,9 @@
                TRA CỨU THÔNG TIN HOÀN TIỀN VỀ VÍ CHÍNH TỰ ĐỘNG
                ========================================================================== */
             var allRefunds = [];
-
-            async function loadRefundHistory() {
-                if (!token) return;
-                try {
-                    const res = await fetch('/api/ngan-sach/ket-chuyen', {
-                        headers: {'Authorization': 'Bearer ' + token}
-                    });
-                    if (res.ok) {
-                        allRefunds = await res.json();
-                        renderRefundHistory(allRefunds);
-                    }
-                } catch (e) {
-                    console.error("Lỗi tải lịch sử hoàn tiền:", e);
-                }
-            }
-
-            function renderRefundHistory(items) {
-                const list = document.getElementById('refund-history-list');
-                const badge = document.getElementById('refund-history-badge');
-                if (!list) return;
-
-                if (!items || items.length === 0) {
-                    list.innerHTML = `<p class="text-[10px] text-slate-400 py-1 text-center">Chưa có khoản tiền nào từ hũ cần hoàn trả về ví chính.</p>`;
-                    if (badge) badge.innerText = '0';
-                    return;
-                }
-
-                if (badge) badge.innerText = items.length;
-
-                list.innerHTML = items.map(item => {
-                    const hName = item.ten_dm || "Hũ chi tiêu";
-                    const amt = Number(item.so_tien_chuyen || 0);
-                    const spent = Number(item.da_chi_thang_truoc || 0);
-                    const limit = Number(item.han_muc_thang_truoc || 0);
-                    const fromMonth = item.thang_nguon ? item.thang_nguon.split('-')[1] + '/' + item.thang_nguon.split('-')[0] : '';
-                    const dateFormatted = formatCompactTxDate(item.ngay_tao);
-
-                    return `
-                        <div class="flex items-center justify-between bg-white p-2.5 rounded-xl border border-teal-100 shadow-2xs gap-2">
-                            <div class="min-w-0">
-                                <div class="font-bold text-slate-800 truncate text-[11px]">🏺 ${hName} <span class="text-teal-600 font-semibold">(Tháng ${fromMonth})</span></div>
-                                <div class="text-[10px] text-slate-400">Đã dùng: <strong>${spent.toLocaleString()} / ${limit.toLocaleString()} đ</strong> • ${dateFormatted}</div>
-                            </div>
-                            <div class="text-right shrink-0">
-                                <span class="font-extrabold text-emerald-600 text-xs">+${amt.toLocaleString()} đ</span>
-                                <div class="text-[9px] text-teal-600 font-semibold">Đã hoàn về ví</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            function toggleRefundHistoryDetails() {
-                const content = document.getElementById('refund-history-content');
-                const arrow = document.getElementById('refund-history-arrow');
-                if (!content) return;
-                const isHidden = content.classList.contains('hidden');
-                if (isHidden) {
-                    content.classList.remove('hidden');
-                    if (arrow) arrow.innerText = '▴ Thu gọn';
-                } else {
+async function loadRefundHistory() {}
+function renderRefundHistory() {}
+function toggleRefundHistoryDetails() {} else {
                     content.classList.add('hidden');
                     if (arrow) arrow.innerText = '▾ Xem chi tiết';
                 }

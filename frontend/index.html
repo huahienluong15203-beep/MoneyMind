@@ -179,7 +179,7 @@
                     <div>
                         <label class="font-semibold text-slate-500 block mb-1">Số tiền mục tiêu đích mới (đ):</label>
                         <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="edit-savings-target"
-                            oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')"
+                            oninput="formatMoneyInput(this, 12)" maxlength="15"
                             placeholder="Số tiền mục tiêu mới (đ)"
                             class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
                         <p id="edit-savings-hint" class="text-[11px] text-teal-600 font-medium mt-1">Số tiền mục tiêu
@@ -424,7 +424,7 @@
                     <p class="text-[11px] text-slate-500 mt-0.5">Nhập số tiền muốn trích từ ví chính</p>
                 </div>
                 <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="deposit-amount-input"
-                    oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')"
+                    oninput="formatMoneyInput(this, 12)" maxlength="15"
                     placeholder="Nhập số tiền (đ)"
                     class="w-full p-3 text-xs border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-slate-800 money-input">
                 <input type="hidden" id="deposit-goal-id" value="">
@@ -850,7 +850,7 @@
                 <div>
                     <label class="text-[11px] font-bold text-slate-600 block mb-1">Số tiền (đ):</label>
                     <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-tx-amount"
-                        oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')"
+                        oninput="formatMoneyInput(this, 12)" maxlength="15"
                         placeholder="Nhập số tiền..."
                         class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 money-input">
                 </div>
@@ -924,7 +924,7 @@
                 <div>
                     <label class="text-[11px] font-bold text-slate-600 block mb-1">Số tiền (đ):</label>
                     <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="edit-tx-amount"
-                        oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')"
+                        oninput="formatMoneyInput(this, 12)" maxlength="15"
                         placeholder="Nhập số tiền..."
                         class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 money-input">
                 </div>
@@ -1014,7 +1014,7 @@
                     <label id="modal-b-limit-label" class="text-[11px] font-bold text-slate-600 block mb-1">Hạn mức ngân
                         sách tháng (đ):</label>
                     <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-b-limit"
-                        oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')"
+                        oninput="formatMoneyInput(this, 12)" maxlength="15"
                         placeholder="Ví dụ: 3000000"
                         class="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-teal-800 money-input">
                 </div>
@@ -1500,7 +1500,7 @@
                                 <div>
                                     <label class="font-semibold text-slate-500 block mb-1">Số tiền đích (đ):</label>
                                     <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="sg-target"
-                                        oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '')"
+                                        oninput="formatMoneyInput(this, 12)" maxlength="15"
                                         placeholder="Số tiền đích (đ)"
                                         class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
                                 </div>
@@ -1609,9 +1609,7 @@
                                             class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition">Thu</button>
                                         <button type="button" id="lookup-btn-chi" onclick="setLookupType('chi')"
                                             class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition">Chi</button>
-                                        <button type="button" id="lookup-btn-refund" onclick="setLookupType('refund')"
-                                            class="flex-1 py-1.5 text-[11px] font-bold rounded-lg text-slate-600 transition whitespace-nowrap">💰
-                                            Hoàn về ví</button>
+
                                     </div>
                                     <input type="hidden" id="lookup-type" value="all">
                                 </div>
@@ -1717,7 +1715,7 @@
                                 ◀
                             </button>
 
-                            <div class="flex-1 text-center min-w-0">
+                            <div class="flex-1 text-center min-w-0 cursor-pointer" onclick="resetReportPeriodToCurrent()" title="Bấm để về thời gian hiện tại">
                                 <div id="report-period-label" class="text-xs font-bold text-slate-800 truncate">Tháng
                                     09/2026</div>
                                 <div id="report-period-sublabel"
@@ -1731,11 +1729,7 @@
                                 ▶
                             </button>
 
-                            <button type="button" onclick="resetReportPeriodToCurrent()"
-                                class="px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold text-[10px] border border-teal-200/70 transition shrink-0 active:scale-95"
-                                title="Về thời gian hiện tại">
-                                Hiện tại
-                            </button>
+
                         </div>
                     </div>
 
@@ -1769,13 +1763,13 @@
                             </div>
                         </div>
 
-                        <!-- Dòng Tiết kiệm ròng & Tỷ lệ tích luỹ -->
+                        <!-- Dòng Quỹ tiết kiệm (Tổng tiền các hũ cộng lại) -->
                         <div
                             class="bg-white/5 px-3 py-2 rounded-xl border border-white/5 flex items-center justify-between text-xs">
-                            <span class="text-[11px] text-slate-300 font-medium">Tiết kiệm ròng:</span>
+                            <span class="text-[11px] text-slate-300 font-medium">Quỹ tiết kiệm:</span>
                             <div class="text-right">
                                 <span id="rp-net-savings" class="font-bold text-teal-300 text-xs">0 đ</span>
-                                <span id="rp-savings-rate" class="text-[10px] text-slate-400 ml-1">(0%)</span>
+                                <span id="rp-savings-rate" class="text-[10px] text-slate-400 ml-1 hidden"></span>
                             </div>
                         </div>
                     </div>

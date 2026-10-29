@@ -56,7 +56,7 @@
             async function submitBudgetModal() {
                 const name = document.getElementById('modal-b-name').value.trim();
                 const type = document.getElementById('modal-b-type').value;
-                const rawAmount = document.getElementById('modal-b-limit').value.trim();
+                const rawAmount = (document.getElementById('modal-b-limit').value || '').replace(/\D/g, '').trim();
                 const amount = parseFloat(rawAmount) || 0;
                 if(!name) return showCustomModal("Thiếu tên", "Vui lòng nhập tên hũ / danh mục!", "⚠️");
                 if(rawAmount && amount < 1000) return showCustomModal("Số tiền không hợp lệ", "Số tiền / hạn mức tối thiểu là 1.000 đ!", "⚠️");

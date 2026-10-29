@@ -218,9 +218,9 @@ function updateReportSummary() {
     let validChiTxs = validTxs.filter(t => getTxType(t) === 'chi');
     let tChi = validChiTxs.reduce((s, t) => s + (t.amount || t.so_tien || 0), 0);
 
-    // Tiết kiệm ròng và Tỷ lệ tiết kiệm
-    let netSavings = tThu - tChi;
-    let savingsRate = tThu > 0 ? Math.round((netSavings / tThu) * 100) : 0;
+    // Quỹ tiết kiệm (Tổng số tiền ở tất cả các hũ tiết kiệm cộng lại)
+    const goalsList = Array.isArray(window.allSavingsGoals) ? window.allSavingsGoals : (Array.isArray(allSavingsGoals) ? allSavingsGoals : []);
+    let totalSavingsFund = goalsList.reduce((s, g) => s + (parseFloat(g.current_amount || g.so_tien_hien_co || g.so_tien_hien_tai || 0) || 0), 0);
 
     const thuEl = document.getElementById('rp-thu');
     const chiEl = document.getElementById('rp-chi');
@@ -230,11 +230,20 @@ function updateReportSummary() {
     if (thuEl) thuEl.innerText = tThu.toLocaleString() + " đ";
     if (chiEl) chiEl.innerText = tChi.toLocaleString() + " đ";
     if (netSavingsEl) {
-        netSavingsEl.innerText = (netSavings >= 0 ? "+" : "") + netSavings.toLocaleString() + " đ";
-        netSavingsEl.className = netSavings >= 0 ? "font-bold text-teal-300 text-xs" : "font-bold text-rose-300 text-xs";
+        netSavingsEl.innerText = totalSavingsFund.toLocaleString() + " đ";
+        netSavingsEl.className = "font-bold text-teal-300 text-xs";
     }
     if (savingsRateEl) {
-        savingsRateEl.innerText = `(${savingsRate}%)`;
+        savingsRateEl.innerText = "";
+    }
+
+    if (goalsList.length === 0 && token && typeof loadSavingsGoals === 'function') {
+        loadSavingsGoals().then(() => {
+            const updatedGoals = Array.isArray(window.allSavingsGoals) ? window.allSavingsGoals : (Array.isArray(allSavingsGoals) ? allSavingsGoals : []);
+            const updatedFund = updatedGoals.reduce((s, g) => s + (parseFloat(g.current_amount || g.so_tien_hien_co || g.so_tien_hien_tai || 0) || 0), 0);
+            const el = document.getElementById('rp-net-savings');
+            if (el) el.innerText = updatedFund.toLocaleString() + " đ";
+        });
     }
 
     // 4. Vẽ biểu đồ xu hướng chuẩn xác theo dữ liệu hệ thống

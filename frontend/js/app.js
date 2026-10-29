@@ -37,16 +37,12 @@
                       loadCategories();
                       loadTransactions();
                   } else {
-                      // Ẩn Header thẻ xanh trên các trang Thông báo, Tài khoản, Tra cứu, Thống kê
+                      // Ẩn Header thẻ xanh và Chuông thông báo trên tất cả các trang khác ngoài Quản lý
                       if (header) header.classList.add('hidden');
-                      if (sec === 'thong-bao') {
-                          if (ft) ft.classList.add('hidden');
-                          if (fb) fb.classList.add('hidden');
-                      } else if (sec === 'tai-khoan') {
-                          if (ft) ft.classList.remove('hidden');
+                      if (ft) ft.classList.add('hidden');
+                      if (sec === 'thong-bao' || sec === 'tai-khoan') {
                           if (fb) fb.classList.add('hidden');
                       } else {
-                          if (ft) ft.classList.remove('hidden');
                           if (fb) fb.classList.remove('hidden');
                       }
                   }
@@ -59,8 +55,7 @@
                 if(sec === 'lich-su') {
                     if (typeof initLookupDateInput === 'function') initLookupDateInput();
                     loadTransactions();
-                    if (typeof loadRefundHistory === 'function') loadRefundHistory();
-                    applyLookupFilter();
+                                        applyLookupFilter();
                 }
                 if(typeof loadNotifications === 'function') loadNotifications();
                 if(sec === 'tai-khoan') loadUserProfile();
@@ -145,26 +140,19 @@
                         }
                     });
 
-                    // Làm sạch ngay lập tức: chỉ giữ chữ số và xóa sạch số 0 ở đầu
+                    // Làm sạch và định dạng ngay lập tức: tối đa 12 chữ số, thêm dấu chấm phân cách hàng nghìn
                     input.addEventListener('input', function() {
-                        const sanitized = this.value.replace(/[^0-9]/g, '').replace(/^0+/, '');
-                        if (this.value !== sanitized) {
-                            this.value = sanitized;
-                        }
+                        formatMoneyInput(this, 12);
                     });
 
-                    // Xử lý dán dữ liệu: chỉ giữ lại chữ số và loại bỏ số 0 ở đầu
+                    // Xử lý dán dữ liệu: chỉ giữ lại chữ số, tối đa 12 số và định dạng dấu chấm
                     input.addEventListener('paste', function(e) {
                         e.preventDefault();
                         const pasteData = (e.clipboardData || window.clipboardData).getData('text') || '';
-                        const sanitized = pasteData.replace(/[^0-9]/g, '');
+                        const sanitized = pasteData.replace(/\D/g, '').replace(/^0+/, '');
                         if (sanitized) {
-                            const start = typeof this.selectionStart === 'number' ? this.selectionStart : 0;
-                            const end = typeof this.selectionEnd === 'number' ? this.selectionEnd : 0;
-                            const currentVal = this.value || '';
-                            const newVal = (currentVal.substring(0, start) + sanitized + currentVal.substring(end)).replace(/^0+/, '');
-                            this.value = newVal;
-                            this.selectionStart = this.selectionEnd = Math.min(newVal.length, start + sanitized.length);
+                            this.value = sanitized;
+                            formatMoneyInput(this, 12);
                             this.dispatchEvent(new Event('input'));
                         }
                     });

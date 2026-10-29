@@ -124,9 +124,11 @@
                         dateFormat: "Y-m-d",
                         altInput: true,
                         altFormat: "d/m/Y",
-                        altInputClass: "w-full p-3 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 cursor-pointer font-medium text-slate-700 pr-12",
+                        altInputClass: "w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 cursor-pointer font-medium text-slate-700 pr-12",
                         minDate: "today",
                         allowInput: false,
+                        position: "auto right",
+                        static: true,
                         onReady: function(selectedDates, dateStr, instance) {
                             if (instance.altInput) {
                                 instance.altInput.placeholder = "Chọn hạn chót";
@@ -145,6 +147,8 @@
                         altInputClass: "w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 cursor-pointer font-medium text-slate-700 pr-12",
                         minDate: "today",
                         allowInput: false,
+                        position: "auto right",
+                        static: true,
                         onReady: function(selectedDates, dateStr, instance) {
                             if (instance.altInput) {
                                 instance.altInput.placeholder = "Chọn hạn chót";
@@ -172,7 +176,7 @@
             function openEditSavingsModal(id, title, target, deadline, currentAmount = 0) {
                 document.getElementById('edit-savings-id').value = id;
                 document.getElementById('edit-savings-title').value = title;
-                document.getElementById('edit-savings-target').value = target;
+                document.getElementById('edit-savings-target').value = target ? Math.round(target).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
                 document.getElementById('edit-savings-current').value = currentAmount;
                 const hintEl = document.getElementById('edit-savings-hint');
                 if (hintEl) {
@@ -222,7 +226,7 @@
             async function submitEditSavings() {
                 const id = document.getElementById('edit-savings-id').value;
                 const title = document.getElementById('edit-savings-title').value.trim();
-                const target_amount = parseFloat(document.getElementById('edit-savings-target').value);
+                const target_amount = parseFloat((document.getElementById('edit-savings-target').value || '').replace(/\D/g, ''));
                 const deadline = document.getElementById('edit-savings-deadline').value;
                 const current_amount = parseFloat(document.getElementById('edit-savings-current').value) || 0;
 
@@ -306,7 +310,13 @@
                 const res = await fetch('/tiet-kiem', {headers: {'Authorization': 'Bearer ' + token}});
                 if(res.ok) {
                     allSavingsGoals = await res.json();
+                    window.allSavingsGoals = allSavingsGoals;
                     renderSavingsGoalsList();
+                    const fundEl = document.getElementById('rp-net-savings');
+                    if (fundEl) {
+                        const totalFund = (allSavingsGoals || []).reduce((s, g) => s + (parseFloat(g.current_amount || g.so_tien_hien_co || g.so_tien_hien_tai || 0) || 0), 0);
+                        fundEl.innerText = totalFund.toLocaleString() + " đ";
+                    }
                 }
             }
             window.loadSavingsGoals = loadSavingsGoals;
@@ -420,7 +430,7 @@
 
             async function createSavingsGoal() {
                 const title = document.getElementById('sg-title').value.trim();
-                const target = parseFloat(document.getElementById('sg-target').value);
+                const target = parseFloat((document.getElementById('sg-target').value || '').replace(/\D/g, ''));
                 const deadline = document.getElementById('sg-deadline').value;
                 if(!title || !target || isNaN(target) || target < 1000) return showCustomModal("Thiếu thông tin", "Số tiền mục tiêu tiết kiệm tối thiểu là 1.000 đ!", "⚠️");
 

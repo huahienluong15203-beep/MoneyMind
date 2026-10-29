@@ -103,6 +103,25 @@
 
 
             function openQuickAddTxForCategory(catId, catName) {
+                // Kiểm tra xem danh mục này đã được cấp hạn mức chưa
+                const targetCat = allCategories.find(c => (c.id == catId || c.ma_dm == catId));
+                const limit = targetCat ? (parseFloat(targetCat.budget_limit || targetCat.han_muc || 0) || 0) : 0;
+                if (limit <= 0) {
+                    showCustomModal(
+                        "Chưa cấp hạn mức",
+                        `Hũ "${catName}" chưa được cấp hạn mức chi tiêu trong tháng này.\n\nHệ thống quy định phải cấp hạn mức cho danh mục thì mới có thể chi tiêu. Bạn vui lòng bấm nút bên dưới để thiết lập hạn mức trước nhé!`,
+                        "⚠️"
+                    );
+                    const btn = document.getElementById('custom-modal-btn');
+                    if (btn && typeof openEditCategoryModal === 'function') {
+                        btn.innerText = "+ Cấp hạn mức ngay";
+                        btn.onclick = function() {
+                            closeCustomModal();
+                            openEditCategoryModal(catId, catName, 'chi', 0);
+                        };
+                    }
+                    return;
+                }
                 selectedCategoryId = catId;
                 
                 // Thiết lập loại giao dịch là chi
@@ -209,7 +228,7 @@
 
             async function submitModalTransaction() {
                 const type = document.getElementById('modal-tx-type').value;
-                const amount = parseFloat(document.getElementById('modal-tx-amount').value);
+                const amount = parseFloat((document.getElementById('modal-tx-amount').value || '').replace(/\D/g, ''));
                 const category_id = parseInt(document.getElementById('modal-tx-category').value);
                 const note = document.getElementById('modal-tx-note').value.trim();
                 const txDate = document.getElementById('modal-tx-date').value;
