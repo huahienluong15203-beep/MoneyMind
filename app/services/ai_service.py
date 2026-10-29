@@ -2328,10 +2328,21 @@ class AIService:
             db.commit()
             db.refresh(tx)
 
-            # Cảnh báo ngân sách nếu chi
+            # Cảnh báo & Ngân sách danh mục còn lại nếu chi
             canh_bao_str = ""
+            ngan_sach_dm_str = ""
             if loai_gd_prev == "chi":
                 cb = NganSachService.kiem_tra_ngan_sach(db, ma_nd, target_dm.ma_dm, tx_time)
+                han_muc_dm = cb.han_muc if (cb and cb.han_muc > 0) else (float(target_dm.han_muc) if target_dm and target_dm.han_muc and target_dm.han_muc > 0 else 0.0)
+                if han_muc_dm > 0:
+                    con_lai_dm = han_muc_dm - cb.so_tien_da_chi
+                    if con_lai_dm >= 0:
+                        ngan_sach_dm_str = f"\n• **Ngân sách {target_dm.ten_dm} còn lại:** **{con_lai_dm:,.0f}đ**"
+                    else:
+                        ngan_sach_dm_str = f"\n• **Ngân sách {target_dm.ten_dm} còn lại:** **0đ** *(Đã vượt {abs(con_lai_dm):,.0f}đ ⚠️)*"
+                else:
+                    ngan_sach_dm_str = f"\n• **Ngân sách {target_dm.ten_dm} còn lại:** *Chưa đặt hạn mức*"
+
                 if cb.vuot_ngan_sach:
                     pct_chi = round(cb.ty_le * 100)
                     canh_bao_str = (
@@ -2343,15 +2354,18 @@ class AIService:
             loai_label = "Chi tiêu" if loai_gd_prev == "chi" else "Thu nhập"
             icon_loai = "💸" if loai_gd_prev == "chi" else "💰"
             time_str = tx_time.strftime("%H:%M - %d/%m/%Y")
+            so_du_vi = NganSachService.tinh_so_du_vi_chinh(db, ma_nd)
 
             return (
                 f"Đã ghi nhận giao dịch thành công cho bạn rồi nhé! ✅\n\n"
                 f"📋 **Chi tiết giao dịch:**\n"
                 f"• **Nội dung:** {tx.ghi_chu}\n"
                 f"• **Số tiền:** {icon_loai} **{dau}{amount:,.0f}đ**\n"
-                f"• **Danh mục:** {target_dm.ten_dm}\n"
+                f"• **Danh mục:** {target_dm.ten_dm}"
+                f"{ngan_sach_dm_str}\n"
                 f"• **Hình thức:** {loai_label}\n"
-                f"• **Thời gian:** {time_str}"
+                f"• **Thời gian:** {time_str}\n\n"
+                f"💳 **Số dư ví chính khả dụng:** **{so_du_vi:,.0f}đ**"
                 f"{canh_bao_str}"
             )
 
@@ -3112,8 +3126,19 @@ class AIService:
         db.refresh(tx)
 
         canh_bao_str = ""
+        ngan_sach_dm_str = ""
         if loai_gd == "chi":
             cb = NganSachService.kiem_tra_ngan_sach(db, ma_nd, target_dm.ma_dm, tx_time)
+            han_muc_dm = cb.han_muc if (cb and cb.han_muc > 0) else (float(target_dm.han_muc) if target_dm and target_dm.han_muc and target_dm.han_muc > 0 else 0.0)
+            if han_muc_dm > 0:
+                con_lai_dm = han_muc_dm - cb.so_tien_da_chi
+                if con_lai_dm >= 0:
+                    ngan_sach_dm_str = f"\n• **Ngân sách {target_dm.ten_dm} còn lại:** **{con_lai_dm:,.0f}đ**"
+                else:
+                    ngan_sach_dm_str = f"\n• **Ngân sách {target_dm.ten_dm} còn lại:** **0đ** *(Đã vượt {abs(con_lai_dm):,.0f}đ ⚠️)*"
+            else:
+                ngan_sach_dm_str = f"\n• **Ngân sách {target_dm.ten_dm} còn lại:** *Chưa đặt hạn mức*"
+
             if cb.vuot_ngan_sach:
                 pct_chi = round(cb.ty_le * 100)
                 canh_bao_str = (
@@ -3140,7 +3165,8 @@ class AIService:
             f"📋 **Chi tiết giao dịch:**\n"
             f"• **Nội dung:** {clean_note}\n"
             f"• **Số tiền:** **{icon_sign}{amount:,.0f}đ**\n"
-            f"• **Danh mục:** {target_dm.ten_dm}\n"
+            f"• **Danh mục:** {target_dm.ten_dm}"
+            f"{ngan_sach_dm_str}\n"
             f"• **Hình thức:** {type_label}\n"
             f"• **Thời gian:** {tx_time.strftime('%H:%M - %d/%m/%Y')}\n\n"
             f"💳 **Số dư ví chính khả dụng:** **{so_du_vi:,.0f}đ**"
