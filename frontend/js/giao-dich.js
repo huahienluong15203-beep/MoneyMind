@@ -61,7 +61,9 @@
                 
                 filtered.forEach(c => {
                     const isSelected = (c.id == activeId);
-                    const icon = type === 'chi' ? '🏺' : '💰';
+                    const iconHtml = type === 'chi' 
+                        ? '<i class="fa-solid fa-wallet text-rose-500 text-xs"></i>' 
+                        : '<i class="fa-solid fa-circle-dollar-to-slot text-emerald-500 text-xs"></i>';
                     const chipBtn = document.createElement('button');
                     chipBtn.type = 'button';
                     chipBtn.setAttribute('data-cat-id', c.id);
@@ -75,7 +77,7 @@
                     
                     chipBtn.innerHTML = `
                         <span class="flex items-center gap-1.5 truncate">
-                            <span class="text-sm shrink-0">${icon}</span>
+                            <span class="shrink-0 flex items-center justify-center">${iconHtml}</span>
                             <span class="truncate text-[11px]">${c.name}</span>
                         </span>
                         <span class="chip-check text-teal-600 text-xs font-bold ${isSelected ? '' : 'hidden'}">✓</span>

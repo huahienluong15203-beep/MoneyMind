@@ -313,7 +313,7 @@
 
                 if (shouldOpen) {
                     box.classList.remove('hidden');
-                    if (btnText) btnText.innerText = "✕ Đóng";
+                    if (btnText) btnText.innerText = "Đóng";
                     const nameInput = document.getElementById('cat-name-input');
                     if (nameInput) {
                         nameInput.value = '';
@@ -324,7 +324,7 @@
                     setCategoryTabType('chi');
                 } else {
                     box.classList.add('hidden');
-                    if (btnText) btnText.innerText = "+ Thêm danh mục";
+                    if (btnText) btnText.innerText = "Thêm mới";
                 }
             }
             window.toggleAddCategoryForm = toggleAddCategoryForm;

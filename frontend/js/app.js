@@ -221,7 +221,7 @@
                 // 3. Nếu chưa từng xem trên bất kỳ thiết bị nào -> mới hiển thị modal
                 const titleEl = document.getElementById('new-month-title');
                 if (titleEl) {
-                    titleEl.innerText = `Chào Tháng ${now.getMonth() + 1}/${now.getFullYear()}! 🌟`;
+                    titleEl.innerText = `Chào Tháng ${now.getMonth() + 1}/${now.getFullYear()}!`;
                 }
                 const modal = document.getElementById('new-month-welcome-modal');
                 if (modal) {

@@ -411,7 +411,7 @@
 
                 if (shouldOpen) {
                     box.classList.remove('hidden');
-                    if (btnText) btnText.innerText = "✕ Đóng";
+                    if (btnText) btnText.innerText = "Đóng";
                     initSavingsPickers();
                     const titleInput = document.getElementById('sg-title');
                     if (titleInput) {
@@ -423,7 +423,7 @@
                     clearCreateSavingsDeadline();
                 } else {
                     box.classList.add('hidden');
-                    if (btnText) btnText.innerText = "+ Thêm mục tiêu";
+                    if (btnText) btnText.innerText = "Thêm mới";
                 }
             }
             window.toggleAddSavingsForm = toggleAddSavingsForm;

@@ -132,7 +132,7 @@
                 const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                 const titleHeader = document.getElementById('jars-month-title');
                 if (titleHeader) {
-                    titleHeader.innerHTML = `🏺 Hũ Ngân Sách (Tháng ${now.getMonth() + 1}/${now.getFullYear()})`;
+                    titleHeader.innerHTML = `<i class="fa-solid fa-box-archive text-teal-600 mr-1.5"></i> Hũ Ngân Sách (Tháng ${now.getMonth() + 1}/${now.getFullYear()})`;
                 }
 
                 let spentMap = {};
@@ -163,13 +163,13 @@
 
                     if (isOverBudget) {
                         barColor = "bg-rose-500 animate-pulse";
-                        alertBadge = `<span class="bg-rose-100 text-rose-600 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">🚨 Quá hạn ${effectiveLimit > 0 ? `(${percent}%)` : ''}</span>`;
+                        alertBadge = `<span class="bg-rose-100 text-rose-600 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Quá hạn ${effectiveLimit > 0 ? `(${percent}%)` : ''}</span>`;
                     } else if (effectiveLimit > 0 && percent >= 90) {
                         barColor = "bg-amber-500";
-                        alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⚠️ Sắp chạm (${percent}%)</span>`;
+                        alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"><i class="fa-solid fa-circle-exclamation mr-1"></i> Sắp chạm (${percent}%)</span>`;
                     } else if (effectiveLimit > 0 && percent >= 80) {
                         barColor = "bg-amber-400";
-                        alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">⚠️ Cảnh báo (${percent}%)</span>`;
+                        alertBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"><i class="fa-solid fa-circle-exclamation mr-1"></i> Cảnh báo (${percent}%)</span>`;
                     } else if (effectiveLimit <= 0) {
                         barColor = spent > 0 ? "bg-teal-400" : "bg-slate-200";
                         alertBadge = `<span class="bg-slate-100 text-slate-500 text-[9px] font-medium px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">Chưa đặt hạn mức</span>`;
@@ -185,7 +185,7 @@
                         overBudgetNoticeHtml = `
                             <div class="flex items-center justify-between bg-rose-50/90 border border-rose-200/90 px-2.5 py-1.5 rounded-xl text-xs gap-2" onclick="event.stopPropagation()">
                                 <div class="flex items-center gap-1.5 text-rose-700 text-[11px] font-semibold truncate">
-                                    <span>⚠️</span>
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
                                     <span class="truncate">Vượt hạn mức <strong>${overAmount.toLocaleString()} đ</strong></span>
                                 </div>
                                 <button type="button" onclick="event.stopPropagation(); if(typeof openEditCategoryModal === 'function') openEditCategoryModal(${catId}, '${safeName}', 'chi', ${suggestLimit});" class="text-[10px] font-bold bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded-lg shadow-2xs whitespace-nowrap transition cursor-pointer shrink-0">
@@ -201,7 +201,10 @@
                         <div onclick="openQuickAddTxForCategory(${catId}, '${safeName}')" class="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2 cursor-pointer hover:border-teal-500 hover:shadow-md transition">
                             <!-- Hàng 1: Tên hũ & Huy hiệu -->
                             <div class="flex justify-between items-center gap-2">
-                                <span class="font-bold text-slate-800 text-[13px] truncate">🏺 ${c.name}</span>
+                                <span class="font-bold text-slate-800 text-[13px] truncate flex items-center gap-1.5">
+                                    <i class="fa-solid fa-wallet text-teal-600 text-xs"></i>
+                                    <span>${c.name}</span>
+                                </span>
                                 ${alertBadge}
                             </div>
 

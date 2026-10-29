@@ -410,7 +410,7 @@
                     let goalName = '';
                     let displayNote = rawNote;
                     if (isSavings) {
-                        cName = '🎯 Tiết kiệm';
+                        cName = '<i class="fa-solid fa-bullseye text-teal-600 mr-1"></i> Tiết kiệm';
                         let clean = rawNote.replace(/\s*\((đã xóa|đã xoá)\)/gi, '').trim();
                         if (clean.includes(':')) {
                             goalName = clean.split(':')[1].trim();
@@ -421,7 +421,7 @@
                     } else if (isRefund) {
                         let jarMatch = rawNote.match(/từ hũ\s*["“]([^"”]+)["”]/i);
                         let jarName = jarMatch ? jarMatch[1] : '';
-                        cName = jarName ? `🏺 ${jarName}` : (cName || 'Hoàn tiền hũ');
+                        cName = jarName ? `<i class="fa-solid fa-wallet text-teal-600 mr-1"></i> ${jarName}` : (cName || 'Hoàn tiền hũ');
                         displayNote = rawNote;
                     } else if (!cName) {
                         cName = isChi ? 'Khoản chi' : 'Khoản thu';
@@ -809,11 +809,19 @@
             var allRefunds = [];
 async function loadRefundHistory() {}
 function renderRefundHistory() {}
-function toggleRefundHistoryDetails() {} else {
-                    content.classList.add('hidden');
-                    if (arrow) arrow.innerText = '▾ Xem chi tiết';
-                }
-            }
+function toggleRefundHistoryDetails() {
+    const content = document.getElementById('refund-history-content');
+    const arrow = document.getElementById('refund-history-arrow');
+    if (!content) return;
+    const isHidden = content.classList.contains('hidden');
+    if (isHidden) {
+        content.classList.remove('hidden');
+        if (arrow) arrow.innerText = '▴ Thu gọn';
+    } else {
+        content.classList.add('hidden');
+        if (arrow) arrow.innerText = '▾ Xem chi tiết';
+    }
+}
 
             // Tự động khởi tạo ô ngày lọc khi mở trang tra cứu (mặc định hiển thị TẤT CẢ)
             if (typeof document !== 'undefined') {

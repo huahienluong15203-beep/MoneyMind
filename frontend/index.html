@@ -23,6 +23,8 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
+    <!-- FONT AWESOME 6: BỘ ICON CHUẨN HIỆN ĐẠI THAY THẾ EMOJI -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- FLATPICKR: CHUẨN HÓA ĐỊNH DẠNG NGÀY VIỆT NAM (DD/MM/YYYY) VÀ CHẶN CHỌN NGÀY QUÁ KHỨ -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_teal.css">
@@ -63,7 +65,7 @@
             <button onclick="handleTopNotifClick()" id="top-notif-btn"
                 class="w-8 h-8 bg-white/95 hover:bg-white text-slate-600 hover:text-teal-600 rounded-full flex items-center justify-center text-sm shadow-md border border-slate-200/90 transition-all active:scale-95 relative"
                 title="Lịch sử thông báo & Cảnh báo">
-                <span class="text-sm">🔔</span>
+                <i class="fa-solid fa-bell text-amber-500 text-sm"></i>
                 <span id="top-notif-badge"
                     class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full px-1 flex items-center justify-center border border-white shadow-xs"></span>
             </button>
@@ -122,18 +124,18 @@
                 class="bg-white border border-teal-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
                 <div class="text-center space-y-2">
                     <div
-                        class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
-                        💰</div>
+                        class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold shadow-inner">
+                        <i class="fa-solid fa-coins"></i></div>
                     <h3 class="text-base font-bold text-slate-800">Bổ Sung Hạn Mức Cho Hũ?</h3>
                 </div>
                 <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-700 leading-relaxed max-h-52 overflow-y-auto whitespace-pre-line"
                     id="topup-confirm-msg"></div>
                 <div class="flex gap-2 pt-1">
                     <button onclick="doTopupJars()"
-                        class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm">✅
+                        class="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm">
                         Có, bổ sung ngay</button>
                     <button onclick="closeTopupConfirmModal()"
-                        class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">❌
+                        class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition">
                         Không, thôi</button>
                 </div>
             </div>
@@ -145,8 +147,8 @@
             <div
                 class="bg-white border border-teal-100 w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in duration-200">
                 <div id="savings-congrats-icon"
-                    class="w-16 h-16 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-3xl shadow-inner">
-                    🎯</div>
+                    class="w-16 h-16 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-2xl shadow-inner">
+                    <i class="fa-solid fa-bullseye"></i></div>
                 <div class="space-y-1">
                     <h3 id="savings-congrats-title" class="text-base font-extrabold text-teal-700">Thông báo tiết kiệm
                     </h3>
@@ -165,7 +167,9 @@
             <div
                 class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
                 <div class="text-center">
-                    <span class="text-2xl">✏️</span>
+                    <div class="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-xl mb-1 shadow-inner">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </div>
                     <h3 class="text-sm font-bold text-slate-800 mt-1">Chỉnh Sửa Hũ Tiết Kiệm</h3>
                 </div>
                 <input type="hidden" id="edit-savings-id" value="">
@@ -179,8 +183,7 @@
                     <div>
                         <label class="font-semibold text-slate-500 block mb-1">Số tiền mục tiêu đích mới (đ):</label>
                         <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="edit-savings-target"
-                            oninput="formatMoneyInput(this, 12)" maxlength="15"
-                            placeholder="Số tiền mục tiêu mới (đ)"
+                            oninput="formatMoneyInput(this, 12)" maxlength="15" placeholder="Số tiền mục tiêu mới (đ)"
                             class="w-full p-2.5 border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-semibold money-input">
                         <p id="edit-savings-hint" class="text-[11px] text-teal-600 font-medium mt-1">Số tiền mục tiêu
                             không được nhỏ hơn số tiền hiện có trong hũ.</p>
@@ -239,15 +242,15 @@
                 class="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
                 <div class="text-center space-y-1">
                     <div id="confirm-del-cat-icon"
-                        class="w-14 h-14 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
-                        💰</div>
+                        class="w-14 h-14 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold shadow-inner">
+                        <i class="fa-solid fa-trash-can text-rose-500"></i></div>
                     <h3 id="confirm-del-cat-title" class="text-base font-bold text-slate-800 pt-1">Xác Nhận Xóa Danh Mục
                     </h3>
                 </div>
                 <div id="confirm-del-cat-refund-box"
                     class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl text-xs text-emerald-900 text-left space-y-1.5">
                     <div class="font-bold flex items-center gap-1.5 text-emerald-800 text-[11px]">
-                        <span>💰</span><span>Hoàn trả hạn mức về ví chính:</span>
+                        <i class="fa-solid fa-rotate-left text-emerald-600"></i><span>Hoàn trả hạn mức về ví chính:</span>
                     </div>
                     <p class="text-[11px] leading-relaxed text-emerald-950 font-medium">
                         Số tiền hạn mức khả dụng còn lại <strong id="confirm-del-cat-refund-amount"
@@ -275,14 +278,14 @@
                 class="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
                 <div class="text-center space-y-1">
                     <div
-                        class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
-                        💰</div>
+                        class="w-14 h-14 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold shadow-inner">
+                        <i class="fa-solid fa-trash-can text-rose-500"></i></div>
                     <h3 class="text-base font-bold text-slate-800 pt-1">Xác Nhận Xóa Hũ Tiết Kiệm</h3>
                 </div>
                 <div
                     class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl text-xs text-emerald-900 text-left space-y-1.5">
                     <div class="font-bold flex items-center gap-1.5 text-emerald-800 text-[11px]">
-                        <span>💰</span><span>Hoàn tiền tích lũy về ví chính:</span>
+                        <i class="fa-solid fa-rotate-left text-emerald-600"></i><span>Hoàn tiền tích lũy về ví chính:</span>
                     </div>
                     <p class="text-[11px] leading-relaxed text-emerald-950 font-medium">
                         Toàn bộ số tiền đã tích lũy trong hũ: <strong id="del-sg-amount"
@@ -309,7 +312,9 @@
             <div
                 class="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
                 <div class="text-center">
-                    <span class="text-2xl">✏️</span>
+                    <div class="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-xl mb-1 shadow-inner">
+                        <i class="fa-solid fa-user-pen"></i>
+                    </div>
                     <h3 class="text-sm font-bold text-slate-800 mt-1">Chỉnh Sửa Thông Tin Cá Nhân</h3>
                 </div>
                 <div class="space-y-3 text-xs">
@@ -419,13 +424,14 @@
             <div
                 class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
                 <div class="text-center">
-                    <span class="text-2xl">💰</span>
+                    <div class="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-xl mb-1 shadow-inner">
+                        <i class="fa-solid fa-piggy-bank"></i>
+                    </div>
                     <h3 class="text-sm font-bold text-slate-800 mt-1">Trích tiền vào ví tiết kiệm</h3>
                     <p class="text-[11px] text-slate-500 mt-0.5">Nhập số tiền muốn trích từ ví chính</p>
                 </div>
                 <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="deposit-amount-input"
-                    oninput="formatMoneyInput(this, 12)" maxlength="15"
-                    placeholder="Nhập số tiền (đ)"
+                    oninput="formatMoneyInput(this, 12)" maxlength="15" placeholder="Nhập số tiền (đ)"
                     class="w-full p-3 text-xs border rounded-xl bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-slate-800 money-input">
                 <input type="hidden" id="deposit-goal-id" value="">
                 <div class="flex gap-2 pt-1">
@@ -445,7 +451,9 @@
             <div
                 class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
                 <div class="text-center">
-                    <span class="text-2xl">✏️</span>
+                    <div class="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-xl mb-1 shadow-inner">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </div>
                     <h3 class="text-sm font-bold text-slate-800 mt-1">Chỉnh Sửa Danh Mục</h3>
                 </div>
                 <input type="hidden" id="modal-edit-cat-id" value="">
@@ -632,7 +640,9 @@
             <div
                 class="bg-white border border-slate-200 w-full max-w-xs rounded-3xl p-6 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200">
                 <div class="text-center">
-                    <span class="text-2xl">🔒</span>
+                    <div class="w-12 h-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center mx-auto text-xl mb-1 shadow-inner">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
                     <h3 class="text-sm font-bold text-slate-800 mt-1">Đổi Mật Khẩu Tài Khoản</h3>
                 </div>
                 <input type="password" id="acc-old-pass" placeholder="Mật khẩu hiện tại"
@@ -777,8 +787,7 @@
                     </div>
 
                     <!-- DANH SÁCH 10 NHẬT KÝ GẦN NHẤT (THU GỌN) -->
-                    <div id="ai-logs-container"
-                        class="flex-1 overflow-y-auto space-y-2 pr-1 text-xs no-scrollbar pt-2">
+                    <div id="ai-logs-container" class="flex-1 overflow-y-auto space-y-2 pr-1 text-xs no-scrollbar pt-2">
                         <!-- Render dynamically -->
                     </div>
                 </div>
@@ -792,13 +801,15 @@
                 <h3 class="text-base font-bold text-slate-800">Chọn Thêm Nhanh</h3>
                 <div class="grid grid-cols-2 gap-3 pt-2">
                     <button onclick="openAddTransactionModal()"
-                        class="p-4 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-2xl flex flex-col items-center gap-2 transition">
-                        <span class="text-2xl">💸</span>
+                        class="p-4 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-2xl flex flex-col items-center gap-2 transition group">
+                        <i
+                            class="fa-solid fa-receipt text-teal-600 text-2xl group-hover:scale-110 transition-transform"></i>
                         <span class="text-xs font-bold text-teal-700">Thêm Giao Dịch</span>
                     </button>
                     <button onclick="openAddBudgetModal()"
-                        class="p-4 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-2xl flex flex-col items-center gap-2 transition">
-                        <span class="text-2xl">🏺</span>
+                        class="p-4 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-2xl flex flex-col items-center gap-2 transition group">
+                        <i
+                            class="fa-solid fa-box-archive text-cyan-600 text-2xl group-hover:scale-110 transition-transform"></i>
                         <span class="text-xs font-bold text-cyan-700">Thêm Ngân Sách</span>
                     </button>
                 </div>
@@ -814,7 +825,7 @@
                 class="bg-white border w-full max-w-sm rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto">
                 <div class="flex justify-between items-center pb-2 border-b border-slate-100">
                     <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                        <span>➕</span><span>Ghi Nhận Giao Dịch Mới</span>
+                        <i class="fa-solid fa-circle-plus text-teal-600"></i><span>Ghi Nhận Giao Dịch Mới</span>
                     </h3>
                     <button onclick="closeAddTransactionModal()"
                         class="w-7 h-7 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 font-bold text-xs flex items-center justify-center transition">✕</button>
@@ -823,12 +834,12 @@
                 <!-- NFR-01: Chuyển đổi nhanh Thu / Chi -->
                 <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button type="button" id="btn-tx-type-chi" onclick="setModalTxType('chi')"
-                        class="py-2 rounded-lg bg-rose-500 text-white shadow-sm transition flex items-center justify-center gap-1">
-                        <span>💸</span><span>Khoản Chi</span>
+                        class="py-2 rounded-lg bg-rose-500 text-white shadow-sm transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-arrow-trend-down"></i><span>Khoản Chi</span>
                     </button>
                     <button type="button" id="btn-tx-type-thu" onclick="setModalTxType('thu')"
-                        class="py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1">
-                        <span>💰</span><span>Khoản Thu</span>
+                        class="py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-arrow-trend-up"></i><span>Khoản Thu</span>
                     </button>
                 </div>
                 <input type="hidden" id="modal-tx-type" value="chi">
@@ -837,7 +848,6 @@
                 <div>
                     <div class="flex justify-between items-center mb-1.5">
                         <label class="text-[11px] font-bold text-slate-600 block">Chọn danh mục giao dịch:</label>
-                        <span class="text-[10px] text-teal-600 font-semibold">Chạm để chọn</span>
                     </div>
                     <input type="hidden" id="modal-tx-category" value="">
                     <!-- Danh sách các nút chọn danh mục trực quan -->
@@ -850,8 +860,7 @@
                 <div>
                     <label class="text-[11px] font-bold text-slate-600 block mb-1">Số tiền (đ):</label>
                     <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-tx-amount"
-                        oninput="formatMoneyInput(this, 12)" maxlength="15"
-                        placeholder="Nhập số tiền..."
+                        oninput="formatMoneyInput(this, 12)" maxlength="15" placeholder="Nhập số tiền..."
                         class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 money-input">
                 </div>
 
@@ -887,7 +896,7 @@
                 class="bg-white border w-full max-w-sm rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3 animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto">
                 <div class="flex justify-between items-center pb-2 border-b border-slate-100">
                     <h3 class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                        <span>✏️</span><span>Sửa Giao Dịch</span>
+                        <i class="fa-solid fa-pen-to-square text-teal-600"></i><span>Sửa Giao Dịch</span>
                     </h3>
                     <button onclick="closeEditTransactionModal()"
                         class="w-7 h-7 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 font-bold text-xs flex items-center justify-center transition">✕</button>
@@ -898,12 +907,12 @@
                 <!-- Chuyển đổi Thu / Chi -->
                 <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     <button type="button" id="btn-edit-tx-chi" onclick="setEditModalTxType('chi')"
-                        class="py-2 rounded-lg bg-rose-500 text-white shadow-sm transition flex items-center justify-center gap-1">
-                        <span>💸</span><span>Khoản Chi</span>
+                        class="py-2 rounded-lg bg-rose-500 text-white shadow-sm transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-arrow-trend-down"></i><span>Khoản Chi</span>
                     </button>
                     <button type="button" id="btn-edit-tx-thu" onclick="setEditModalTxType('thu')"
-                        class="py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1">
-                        <span>💰</span><span>Khoản Thu</span>
+                        class="py-2 rounded-lg text-slate-600 hover:text-slate-900 transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-arrow-trend-up"></i><span>Khoản Thu</span>
                     </button>
                 </div>
                 <input type="hidden" id="edit-tx-type" value="chi">
@@ -912,7 +921,6 @@
                 <div>
                     <div class="flex justify-between items-center mb-1.5">
                         <label class="text-[11px] font-bold text-slate-600 block">Chọn danh mục:</label>
-                        <span class="text-[10px] text-teal-600 font-semibold">Chạm để chọn</span>
                     </div>
                     <input type="hidden" id="edit-tx-category" value="">
                     <div id="edit-tx-category-chips" class="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-0.5">
@@ -924,8 +932,7 @@
                 <div>
                     <label class="text-[11px] font-bold text-slate-600 block mb-1">Số tiền (đ):</label>
                     <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="edit-tx-amount"
-                        oninput="formatMoneyInput(this, 12)" maxlength="15"
-                        placeholder="Nhập số tiền..."
+                        oninput="formatMoneyInput(this, 12)" maxlength="15" placeholder="Nhập số tiền..."
                         class="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-500 money-input">
                 </div>
 
@@ -1014,8 +1021,7 @@
                     <label id="modal-b-limit-label" class="text-[11px] font-bold text-slate-600 block mb-1">Hạn mức ngân
                         sách tháng (đ):</label>
                     <input type="text" inputmode="numeric" pattern="[0-9]*" min="1000" id="modal-b-limit"
-                        oninput="formatMoneyInput(this, 12)" maxlength="15"
-                        placeholder="Ví dụ: 3000000"
+                        oninput="formatMoneyInput(this, 12)" maxlength="15" placeholder="Ví dụ: 3000000"
                         class="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:outline-none focus:border-teal-500 font-bold text-teal-800 money-input">
                 </div>
 
@@ -1043,23 +1049,22 @@
 
                 <div class="relative">
                     <div
-                        class="w-16 h-16 bg-gradient-to-tr from-teal-500 to-emerald-400 text-white rounded-3xl flex items-center justify-center mx-auto text-3xl shadow-lg shadow-teal-500/25 ring-4 ring-teal-50">
-                        🎉
+                        class="w-16 h-16 bg-gradient-to-tr from-teal-500 to-emerald-400 text-white rounded-3xl flex items-center justify-center mx-auto text-2xl shadow-lg shadow-teal-500/25 ring-4 ring-teal-50">
+                        <i class="fa-solid fa-calendar-check text-2xl"></i>
                     </div>
 
                     <h3 id="new-month-title" class="text-base font-extrabold text-slate-800 mt-3">
-                        Chào Tháng Mới! 🌟
+                        Chào Tháng Mới!
                     </h3>
 
                     <p id="new-month-greeting" class="text-xs text-slate-600 mt-1.5 leading-relaxed font-medium">
                         MoneyMind chúc bạn một tháng mới ngập tràn may mắn, năng lượng tích cực và quản lý tài chính
-                        thật thảnh thơi, thịnh vượng! 💰✨
+                        thật thảnh thơi, thịnh vượng!
                     </p>
 
                     <div
                         class="mt-3.5 p-3.5 bg-amber-50/90 rounded-2xl border border-amber-200/80 text-left space-y-1.5">
                         <div class="flex items-center gap-1.5 text-amber-800 text-[11px] font-bold">
-                            <span>💡</span>
                             <span>Kế hoạch chi tiêu tháng mới:</span>
                         </div>
                         <p class="text-[11px] text-amber-900/90 leading-relaxed font-medium">
@@ -1073,8 +1078,7 @@
 
                 <div class="flex flex-col gap-2 pt-1 relative">
                     <button type="button" onclick="closeNewMonthModalAndGoToBudget()"
-                        class="w-full py-3 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white text-xs font-bold rounded-2xl shadow-lg shadow-teal-500/20 active:scale-95 transition flex items-center justify-center gap-1.5">
-                        <span>🎯</span>
+                        class="w-full py-3 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white text-xs font-bold rounded-2xl shadow-lg shadow-teal-500/20 active:scale-95 transition flex items-center justify-center">
                         <span>Cấp Hạn Mức Ngay</span>
                     </button>
                     <button type="button" onclick="closeNewMonthModal()"
@@ -1089,7 +1093,10 @@
         <div id="header-container"
             class="hidden bg-gradient-to-r from-teal-500 to-cyan-600 px-4 pt-5 sm:pt-6 pb-2.5 text-white shrink-0 relative">
             <div class="flex justify-between items-center mb-2">
-                <h1 class="text-base font-bold tracking-tight">MoneyMind 💰</h1>
+                <h1 class="text-base font-bold tracking-tight flex items-center gap-1.5">
+                    <span>MoneyMind</span>
+                    <i class="fa-solid fa-sack-dollar text-amber-300 text-sm"></i>
+                </h1>
             </div>
 
             <div class="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
@@ -1113,7 +1120,8 @@
                 <div class="space-y-6 pt-8">
                     <div
                         class="w-20 h-20 bg-gradient-to-tr from-teal-500 to-cyan-400 rounded-3xl flex items-center justify-center mx-auto shadow-lg text-white text-3xl">
-                        💰</div>
+                        <i class="fa-solid fa-sack-dollar text-amber-300"></i>
+                    </div>
                     <div>
                         <h2 class="text-2xl font-extrabold text-slate-800">MoneyMind</h2>
                         <p class="text-xs text-teal-600 font-semibold mt-1">Quản lý tài chính cá nhân toàn diện</p>
@@ -1150,11 +1158,15 @@
                             class="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-teal-600 focus:outline-none rounded-full transition active:scale-90"
                             title="Hiện / Ẩn mật khẩu">
                             <svg class="eye-open-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
-                            <svg class="eye-closed-icon w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                            <svg class="eye-closed-icon w-5 h-5 hidden" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
                             </svg>
                         </button>
                     </div>
@@ -1166,12 +1178,17 @@
                             <button type="button" onclick="togglePasswordVisibility('auth-pass-confirm', this)"
                                 class="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-teal-600 focus:outline-none rounded-full transition active:scale-90"
                                 title="Hiện / Ẩn mật khẩu">
-                                <svg class="eye-open-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                <svg class="eye-open-icon w-5 h-5" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
-                                <svg class="eye-closed-icon w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                <svg class="eye-closed-icon w-5 h-5 hidden" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
                                 </svg>
                             </button>
                         </div>
@@ -1395,7 +1412,8 @@
                             <div class="flex justify-between items-center gap-2 pb-1 border-b border-slate-200/60">
                                 <h2
                                     class="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5 truncate">
-                                    <span id="jars-month-title">🏺 Hũ Ngân Sách</span>
+                                    <span id="jars-month-title" class="flex items-center gap-1.5"><i
+                                            class="fa-solid fa-box-archive text-teal-600"></i> Hũ Ngân Sách</span>
                                 </h2>
                             </div>
                             <div id="jars-progress-list" class="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1"></div>
@@ -1405,14 +1423,14 @@
                     <!-- SubTab 1.2: Quản lý danh mục thu/chi -->
                     <div id="man-danh-muc" class="hidden flex-1 flex flex-col min-h-0 space-y-3">
                         <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
-                            <div class="flex justify-between items-center gap-2 pb-1 border-b border-slate-200/60">
-                                <h2
-                                    class="text-[10.5px] sm:text-[11px] font-bold text-slate-600 uppercase tracking-tight truncate">
-                                    📁 Quản Lý Danh Mục (Thu & Chi)</h2>
+                            <div class="flex justify-between items-center gap-2 pb-1.5 border-b border-slate-200/60">
+                                <h2 class="text-xs font-bold text-slate-700 uppercase tracking-tight whitespace-nowrap">
+                                    Danh Mục Thu & Chi</h2>
                                 <button type="button" id="btn-toggle-add-cat"
-                                    onclick="if(window.toggleAddCategoryForm){ toggleAddCategoryForm(); } else { const b = document.getElementById('box-add-category-form'); if(b){ b.classList.toggle('hidden'); const t = document.getElementById('btn-toggle-add-cat-text'); if(t) t.innerText = b.classList.contains('hidden') ? '+ Thêm danh mục' : '✕ Đóng'; } }"
+                                    onclick="if(window.toggleAddCategoryForm){ toggleAddCategoryForm(); } else { const b = document.getElementById('box-add-category-form'); if(b){ b.classList.toggle('hidden'); const t = document.getElementById('btn-toggle-add-cat-text'); if(t) t.innerText = b.classList.contains('hidden') ? '+ Thêm mới' : '✕ Đóng'; } }"
                                     class="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer shrink-0">
-                                    <span id="btn-toggle-add-cat-text">+ Thêm danh mục</span>
+                                    <i class="fa-solid fa-plus text-[10px]"></i>
+                                    <span id="btn-toggle-add-cat-text">Thêm mới</span>
                                 </button>
                             </div>
 
@@ -1470,14 +1488,14 @@
                     <!-- SubTab 1.3: Mục tiêu tiết kiệm -->
                     <div id="man-tiet-kiem" class="hidden flex-1 flex flex-col min-h-0 space-y-3">
                         <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card">
-                            <div class="flex justify-between items-center gap-2 pb-1 border-b border-slate-200/60">
-                                <h2
-                                    class="text-[10.5px] sm:text-[11px] font-bold text-slate-600 uppercase tracking-tight truncate">
-                                    🎯 Mục Tiêu & Hũ Tiết Kiệm</h2>
+                            <div class="flex justify-between items-center gap-2 pb-1.5 border-b border-slate-200/60">
+                                <h2 class="text-xs font-bold text-slate-700 uppercase tracking-tight whitespace-nowrap">
+                                    Mục Tiêu & Tiết Kiệm</h2>
                                 <button type="button" id="btn-toggle-add-savings"
-                                    onclick="if(window.toggleAddSavingsForm){ toggleAddSavingsForm(); } else { const b = document.getElementById('box-add-savings-form'); if(b){ b.classList.toggle('hidden'); const t = document.getElementById('btn-toggle-add-savings-text'); if(t) t.innerText = b.classList.contains('hidden') ? '+ Thêm mục tiêu' : '✕ Đóng'; } }"
+                                    onclick="if(window.toggleAddSavingsForm){ toggleAddSavingsForm(); } else { const b = document.getElementById('box-add-savings-form'); if(b){ b.classList.toggle('hidden'); const t = document.getElementById('btn-toggle-add-savings-text'); if(t) t.innerText = b.classList.contains('hidden') ? '+ Thêm mới' : '✕ Đóng'; } }"
                                     class="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer shrink-0">
-                                    <span id="btn-toggle-add-savings-text">+ Thêm mục tiêu</span>
+                                    <i class="fa-solid fa-plus text-[10px]"></i>
+                                    <span id="btn-toggle-add-savings-text">Thêm mới</span>
                                 </button>
                             </div>
 
@@ -1715,7 +1733,8 @@
                                 ◀
                             </button>
 
-                            <div class="flex-1 text-center min-w-0 cursor-pointer" onclick="resetReportPeriodToCurrent()" title="Bấm để về thời gian hiện tại">
+                            <div class="flex-1 text-center min-w-0 cursor-pointer"
+                                onclick="resetReportPeriodToCurrent()" title="Bấm để về thời gian hiện tại">
                                 <div id="report-period-label" class="text-xs font-bold text-slate-800 truncate">Tháng
                                     09/2026</div>
                                 <div id="report-period-sublabel"
@@ -1819,11 +1838,11 @@
                         class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 section-stretch-card text-xs flex-1 flex flex-col">
                         <div class="flex justify-between items-center pb-1">
                             <h2 class="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
-                                <span>👤</span><span>Thông Tin Tài Khoản</span>
+                                <i class="fa-solid fa-user-circle text-teal-600 text-sm"></i><span>Thông Tin Tài Khoản</span>
                             </h2>
                             <button onclick="openEditProfileModal()"
                                 class="w-8 h-8 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-full flex items-center justify-center text-sm transition shadow-2xs border border-teal-200/60 active:scale-95 shrink-0"
-                                title="Chỉnh sửa thông tin cá nhân"><span>✏️</span></button>
+                                title="Chỉnh sửa thông tin cá nhân"><i class="fa-solid fa-pen text-teal-600 text-xs"></i></button>
                         </div>
                         <div class="bg-white p-3.5 rounded-xl border space-y-2.5 shadow-xs">
                             <div><span class="text-slate-400 font-medium">Họ và tên:</span> <strong id="pf-name"
@@ -1838,12 +1857,12 @@
                         <!-- Các nút thao tác giữ liền kề với thẻ thông tin bên trên để không bị rời rạc -->
                         <div class="space-y-2 pt-1">
                             <button onclick="togglePasswordModal()"
-                                class="w-full py-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold rounded-xl transition text-xs shadow-xs flex items-center justify-center gap-1.5">
-                                <span>🔒</span><span>Đổi mật khẩu tài khoản</span>
+                                class="w-full py-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold rounded-xl transition text-xs shadow-xs flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-key text-teal-600 text-sm"></i><span>Đổi mật khẩu tài khoản</span>
                             </button>
                             <button onclick="openLogoutModal()"
-                                class="w-full py-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-bold rounded-xl transition text-xs shadow-xs flex items-center justify-center gap-1.5">
-                                <span>🚪</span><span>Đăng xuất</span>
+                                class="w-full py-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-bold rounded-xl transition text-xs shadow-xs flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-right-from-bracket text-rose-500 text-sm"></i><span>Đăng xuất</span>
                             </button>
                         </div>
                     </div>
@@ -1855,22 +1874,22 @@
 
         <!-- THANH ĐIỀU HƯỚNG DƯỚI CÙNG (4 NÚT CHUẨN MOBILE) -->
         <div id="bottom-nav"
-            class="hidden bg-white border-t border-slate-200 py-2.5 px-1.5 flex justify-between items-center shrink-0">
+            class="hidden bg-white border-t border-slate-200 py-2 px-1.5 flex justify-between items-center shrink-0">
             <button onclick="switchSection('quan-ly')" id="nav-btn-quan-ly"
-                class="flex-1 flex flex-col items-center gap-0.5 text-teal-600 font-bold text-[10px] transition">
-                <span class="text-base">📊</span> Quản lý
+                class="flex-1 flex flex-col items-center gap-1 text-teal-600 font-bold text-[10px] transition">
+                <i class="fa-solid fa-shapes text-base"></i> Quản lý
             </button>
             <button onclick="switchSection('lich-su')" id="nav-btn-lich-su"
-                class="flex-1 flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-600 font-semibold text-[10px] transition">
-                <span class="text-base">📜</span> Tra cứu
+                class="flex-1 flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 font-semibold text-[10px] transition">
+                <i class="fa-solid fa-receipt text-base"></i> Tra cứu
             </button>
             <button onclick="switchSection('thong-ke')" id="nav-btn-thong-ke"
-                class="flex-1 flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-600 font-semibold text-[10px] transition">
-                <span class="text-base">📈</span> Thống kê
+                class="flex-1 flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 font-semibold text-[10px] transition">
+                <i class="fa-solid fa-chart-pie text-base"></i> Thống kê
             </button>
             <button onclick="switchSection('tai-khoan')" id="nav-btn-tai-khoan"
-                class="flex-1 flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-600 font-semibold text-[10px] transition">
-                <span class="text-base">👤</span> Tài khoản
+                class="flex-1 flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 font-semibold text-[10px] transition">
+                <i class="fa-solid fa-user text-base"></i> Tài khoản
             </button>
         </div>
     </div>
