@@ -489,7 +489,10 @@
 
                             <!-- Hàng 2: Thời gian giao dịch bên trái, Nút chi tiết bên phải -->
                             <div class="flex items-center justify-between gap-2 text-[10px] text-slate-400 pt-1.5 border-t border-slate-100/90">
-                                <span class="whitespace-nowrap flex items-center gap-1 font-medium text-slate-500">🕒 ${dateStr}</span>
+                                <span class="whitespace-nowrap flex items-center gap-1 font-medium text-slate-500">
+                                    <i class="fa-regular fa-clock text-slate-400 text-[11px]"></i>
+                                    <span>${dateStr}</span>
+                                </span>
                                 <button onclick="toggleDetail(${index})" id="detail-btn-${index}" class="${btnClass}">
                                     <span>Chi tiết</span>
                                     <span id="detail-arrow-${index}" class="text-[9px]">${arrowChar}</span>

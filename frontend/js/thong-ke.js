@@ -710,7 +710,7 @@ function renderReportCategoryBreakdown(validChiTxs, tChi, range) {
                     <div class="flex items-center justify-between gap-2">
                         <div class="flex items-center gap-2 min-w-0">
                             <span class="w-8 h-8 rounded-xl ${theme.badge} font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
-                                📁
+                                <i class="fa-solid fa-folder text-xs"></i>
                             </span>
                             <div class="min-w-0">
                                 <h4 class="text-xs font-bold text-slate-800 truncate">${cName}</h4>
